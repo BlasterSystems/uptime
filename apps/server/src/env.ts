@@ -3,6 +3,7 @@ export interface ServerConfig {
   dataDir: string
   webDist: string | null
   seed: boolean
+  encryptionKey: string | undefined
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -12,5 +13,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     dataDir: env.DATA_DIR ?? './data',
     webDist: env.WEB_DIST ?? null,
     seed: env.SEED !== '0',
+    encryptionKey: env.ENCRYPTION_KEY,
   }
 }

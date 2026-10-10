@@ -1,6 +1,9 @@
 /** Lifecycle state recorded for a monitor heartbeat (SPEC §4). */
 export type HeartbeatStatus = 'up' | 'down' | 'pending' | 'maintenance'
 
+/** Monitor types whose configuration `@uptime/core` validates (SPEC §3). */
+export type MonitorType = 'http' | 'push'
+
 /** Validated configuration of an `http` monitor (SPEC §3). */
 export interface HttpMonitorConfig {
   method: 'GET' | 'POST' | 'HEAD' | 'PUT' | 'DELETE'
@@ -28,11 +31,14 @@ export interface CheckResult {
 /** The subset of a monitor record the scheduler needs (SPEC §6). */
 export interface ScheduledMonitor {
   id: number
-  type: 'http'
+  type: MonitorType
   name: string
   active: boolean
   intervalS: number
   retries: number
   retryIntervalS: number
+  /** Notification resend interval while down (seconds, 0 = never); unused by the scheduler. */
+  resendNotificationS?: number
+  /** Only meaningful for `http` monitors; `push` monitors are never scheduled (SPEC §6). */
   config: HttpMonitorConfig
 }

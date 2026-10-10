@@ -4,10 +4,35 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Uptime Monitoring</title>
+    <script>
+      // Applies the stored theme before the first paint to avoid a colour flash.
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('uptime-theme')
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.dataset.theme = stored
+          }
+        } catch (error) {
+          // localStorage can be unavailable (private mode); the OS theme still applies.
+        }
+      })()
+    </script>
     <style>
       html {
+        color-scheme: light;
+        background-color: #f4f6f9;
+      }
+
+      html[data-theme='dark'] {
         color-scheme: dark;
         background-color: #0b0f14;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme='light']) {
+          color-scheme: dark;
+          background-color: #0b0f14;
+        }
       }
     </style>
   </head>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import { MIN_INTERVAL_S, parseMonitorConfig } from './config.js'
+import type { MonitorType } from './types.js'
 
 describe('parseMonitorConfig', () => {
   it('applies the documented defaults', () => {
@@ -68,7 +69,59 @@ describe('parseMonitorConfig', () => {
     )
   })
 
+  it('dispatches by monitor type', () => {
+    expect(parseMonitorConfig('http', { url: 'https://example.com' }).method).toBe('GET')
+    expect(parseMonitorConfig('push', {})).toEqual({ graceSeconds: 60 })
+
+    // Dynamic dispatch (the API layer passes a validated `type` column value).
+    const type: MonitorType = 'push'
+    expect(parseMonitorConfig(type, { graceSeconds: 30 })).toEqual({ graceSeconds: 30 })
+  })
+
   it('exposes the minimum interval', () => {
     expect(MIN_INTERVAL_S).toBe(20)
+  })
+})
+
+describe('parseMonitorConfig push', () => {
+  it('defaults graceSeconds to 60', () => {
+    expect(parseMonitorConfig('push', {})).toEqual({ graceSeconds: 60 })
+  })
+
+  it('keeps a fully specified config intact and accepts 1 s of grace', () => {
+    const raw = { graceSeconds: 300, cron: '*/5 * * * *', expectsBody: true }
+    expect(parseMonitorConfig('push', raw)).toEqual(raw)
+    expect(parseMonitorConfig('push', { graceSeconds: 1 })).toEqual({ graceSeconds: 1 })
+  })
+
+  it('accepts 5- and 6-field cron schedules', () => {
+    for (const cron of ['* * * * *', '0 9 * * 1-5', '*/30 0-23/2,5 1 * * *']) {
+      expect(parseMonitorConfig('push', { cron }).cron).toBe(cron)
+    }
+  })
+
+  it('strips unknown keys', () => {
+    expect(parseMonitorConfig('push', { graceSeconds: 120, token: 'secret' })).toEqual({
+      graceSeconds: 120,
+    })
+  })
+
+  it('rejects invalid configs with a ZodError', () => {
+    const invalids: Array<[label: string, raw: unknown]> = [
+      ['zero grace', { graceSeconds: 0 }],
+      ['negative grace', { graceSeconds: -1 }],
+      ['fractional grace', { graceSeconds: 1.5 }],
+      ['non-numeric grace', { graceSeconds: '60' }],
+      ['cron with 4 fields', { cron: '* * * *' }],
+      ['cron with 7 fields', { cron: '* * * * * * *' }],
+      ['cron with a word alias', { cron: '* * * * MON' }],
+      ['cron with an unsupported character', { cron: '* * * * ?' }],
+      ['blank cron', { cron: '   ' }],
+      ['non-string cron', { cron: 5 }],
+      ['non-boolean expectsBody', { expectsBody: 'yes' }],
+    ]
+    for (const [label, raw] of invalids) {
+      expect(() => parseMonitorConfig('push', raw), label).toThrowError(ZodError)
+    }
   })
 })

@@ -274,4 +274,36 @@ describe('Scheduler', () => {
     const [, result] = onResult.mock.calls[0] ?? []
     expect(result).toEqual({ status: 'down', latencyMs: 0, responseSnippet: 'socket exploded' })
   })
+
+  it('never schedules push monitors', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const { scheduler, check, onResult } = createHarness(stubCheck())
+
+    // `config` is inert here: push monitors are heartbeat-receiver-driven and never executed.
+    scheduler.upsert(monitor({ type: 'push' }))
+    scheduler.start()
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+
+    expect(check).not.toHaveBeenCalled()
+    expect(onResult).not.toHaveBeenCalled()
+
+    scheduler.remove(1) // safe: nothing was ever scheduled
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(check).not.toHaveBeenCalled()
+  })
+
+  it('drops a running schedule when a monitor becomes push', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const { scheduler, check } = createHarness(stubCheck())
+
+    scheduler.upsert(monitor({ intervalS: 60 }))
+    scheduler.start()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushMicrotasks()
+    expect(check).toHaveBeenCalledTimes(1)
+
+    scheduler.upsert(monitor({ type: 'push' }))
+    await vi.advanceTimersByTimeAsync(10 * 60_000)
+    expect(check).toHaveBeenCalledTimes(1)
+  })
 })

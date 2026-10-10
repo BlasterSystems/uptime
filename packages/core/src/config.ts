@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import type { HttpMonitorConfig } from './types.js'
+import { pushMonitorConfigSchema, type PushMonitorConfig } from './config-push.js'
+import type { HttpMonitorConfig, MonitorType } from './types.js'
 
 /** Minimum allowed monitor interval in seconds (SPEC §3); enforced by the API layer. */
 export const MIN_INTERVAL_S = 20
@@ -47,7 +48,22 @@ export const httpMonitorConfigSchema = z.object({
  * Validate a raw monitor config of the given type, applying defaults.
  * Throws a `ZodError` when `raw` does not match the type's schema.
  */
-export function parseMonitorConfig(type: 'http', raw: unknown): HttpMonitorConfig {
-  if (type !== 'http') throw new Error(`unsupported monitor type: ${String(type)}`)
-  return httpMonitorConfigSchema.parse(raw)
+export function parseMonitorConfig(type: 'http', raw: unknown): HttpMonitorConfig
+export function parseMonitorConfig(type: 'push', raw: unknown): PushMonitorConfig
+export function parseMonitorConfig(
+  type: MonitorType,
+  raw: unknown,
+): HttpMonitorConfig | PushMonitorConfig
+export function parseMonitorConfig(
+  type: MonitorType,
+  raw: unknown,
+): HttpMonitorConfig | PushMonitorConfig {
+  switch (type) {
+    case 'http':
+      return httpMonitorConfigSchema.parse(raw)
+    case 'push':
+      return pushMonitorConfigSchema.parse(raw)
+    default:
+      throw new Error(`unsupported monitor type: ${String(type)}`)
+  }
 }

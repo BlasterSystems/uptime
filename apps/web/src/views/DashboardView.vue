@@ -1,0 +1,398 @@
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { deleteMonitor, errorMessage, fetchMonitors, fetchTags } from '../api.js'
+import type { Monitor, Tag } from '../api.js'
+import MonitorCard from '../components/MonitorCard.vue'
+import MonitorForm from '../components/MonitorForm.vue'
+import Badge from '../components/ui/Badge.vue'
+import Button from '../components/ui/Button.vue'
+import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
+import EmptyState from '../components/ui/EmptyState.vue'
+import Icon from '../components/ui/Icon.vue'
+import Spinner from '../components/ui/Spinner.vue'
+import { useToast } from '../components/ui/toast.js'
+import { formatLatency } from '../format.js'
+
+const POLL_INTERVAL_MS = 5000
+
+const monitors = ref<Monitor[]>([])
+const tags = ref<Tag[]>([])
+const loadError = ref<string | null>(null)
+const loadedOnce = ref(false)
+const formOpen = ref(false)
+const activeTagId = ref<number | null>(null)
+const pendingDelete = ref<Monitor | null>(null)
+const deleting = ref(false)
+
+const toast = useToast()
+let pollTimer: number | null = null
+let refreshInFlight = false
+
+const summary = computed(() => {
+  let up = 0
+  let down = 0
+  let pending = 0
+  let maintenance = 0
+  let latencySum = 0
+  let latencyCount = 0
+  for (const monitor of monitors.value) {
+    const status = monitor.latestHeartbeat?.status ?? 'pending'
+    if (status === 'up') up += 1
+    else if (status === 'down') down += 1
+    else if (status === 'maintenance') maintenance += 1
+    else pending += 1
+
+    const latency = monitor.latestHeartbeat?.latencyMs
+    if (typeof latency === 'number') {
+      latencySum += latency
+      latencyCount += 1
+    }
+  }
+  return {
+    up,
+    down,
+    pending,
+    maintenance,
+    total: monitors.value.length,
+    avgLatency: latencyCount === 0 ? null : Math.round(latencySum / latencyCount),
+  }
+})
+
+const visibleMonitors = computed(() =>
+  activeTagId.value === null
+    ? monitors.value
+    : monitors.value.filter((monitor) => monitor.tags.some((tag) => tag.id === activeTagId.value)),
+)
+
+async function refresh(): Promise<void> {
+  if (refreshInFlight) return
+  refreshInFlight = true
+  try {
+    monitors.value = await fetchMonitors()
+    loadError.value = null
+  } catch (error) {
+    loadError.value = errorMessage(error, 'Could not load monitors.')
+  } finally {
+    refreshInFlight = false
+    loadedOnce.value = true
+  }
+}
+
+/** Tags only drive the filter row; a failure there must not hide the dashboard. */
+async function refreshTags(): Promise<void> {
+  try {
+    tags.value = await fetchTags()
+  } catch {
+    tags.value = []
+  }
+}
+
+function toggleTagFilter(id: number): void {
+  activeTagId.value = activeTagId.value === id ? null : id
+}
+
+function requestDelete(id: number): void {
+  pendingDelete.value = monitors.value.find((monitor) => monitor.id === id) ?? null
+}
+
+async function confirmDelete(): Promise<void> {
+  if (pendingDelete.value === null) return
+  const monitor = pendingDelete.value
+  deleting.value = true
+  try {
+    await deleteMonitor(monitor.id)
+    toast.success('Monitor deleted', monitor.name)
+    pendingDelete.value = null
+    await refresh()
+  } catch (error) {
+    toast.error('Could not delete the monitor', errorMessage(error, 'Try again.'))
+  } finally {
+    deleting.value = false
+  }
+}
+
+function handleCreated(monitor: Monitor): void {
+  toast.success('Monitor created', monitor.name)
+  void refresh()
+  void refreshTags()
+}
+
+onMounted(() => {
+  void refresh()
+  void refreshTags()
+  pollTimer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS)
+})
+
+onUnmounted(() => {
+  if (pollTimer !== null) {
+    window.clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
+</script>
+
+<template>
+  <div class="view">
+    <section class="summary" aria-label="Status summary">
+      <div class="stats">
+        <span class="stat">
+          <span class="stat-dot dot-success" aria-hidden="true" />
+          <strong>{{ summary.up }}</strong> up
+        </span>
+        <span class="stat">
+          <span class="stat-dot dot-error" aria-hidden="true" />
+          <strong>{{ summary.down }}</strong> down
+        </span>
+        <span v-if="summary.pending > 0" class="stat">
+          <span class="stat-dot dot-neutral" aria-hidden="true" />
+          <strong>{{ summary.pending }}</strong> pending
+        </span>
+        <span v-if="summary.maintenance > 0" class="stat">
+          <span class="stat-dot dot-warning" aria-hidden="true" />
+          <strong>{{ summary.maintenance }}</strong> maintenance
+        </span>
+        <span class="stat stat-divider" aria-hidden="true" />
+        <span class="stat">
+          avg latency
+          <strong>{{ formatLatency(summary.avgLatency) }}</strong>
+        </span>
+        <span class="stat muted-stat">
+          {{ summary.total }} monitor{{ summary.total === 1 ? '' : 's' }}
+        </span>
+      </div>
+      <Button variant="primary" @click="formOpen = true">
+        <Icon name="plus" :size="14" />
+        Add monitor
+      </Button>
+    </section>
+
+    <div v-if="tags.length > 0" class="filters" role="group" aria-label="Filter by tag">
+      <button
+        type="button"
+        class="filter-chip"
+        :class="{ 'is-active': activeTagId === null }"
+        :aria-pressed="activeTagId === null"
+        @click="activeTagId = null"
+      >
+        All
+      </button>
+      <button
+        v-for="tag in tags"
+        :key="tag.id"
+        type="button"
+        class="filter-chip"
+        :class="{ 'is-active': activeTagId === tag.id }"
+        :aria-pressed="activeTagId === tag.id"
+        @click="toggleTagFilter(tag.id)"
+      >
+        <span class="chip-dot" :style="{ backgroundColor: tag.color }" aria-hidden="true" />
+        {{ tag.name }}
+      </button>
+    </div>
+
+    <p v-if="loadError !== null" class="banner" role="alert">{{ loadError }}</p>
+
+    <div v-if="!loadedOnce" class="loading">
+      <Spinner />
+      <span>Loading monitors…</span>
+    </div>
+
+    <EmptyState
+      v-else-if="monitors.length === 0"
+      title="No monitors yet"
+      description="Add an HTTP monitor to poll a URL, or a push monitor to wait for incoming heartbeats."
+    >
+      <template #icon><Icon name="dashboard" :size="18" /></template>
+      <template #actions>
+        <Button variant="primary" @click="formOpen = true">Add monitor</Button>
+      </template>
+    </EmptyState>
+
+    <EmptyState
+      v-else-if="visibleMonitors.length === 0"
+      title="No monitors match this tag"
+      description="Clear the filter to see every monitor again."
+    >
+      <template #actions>
+        <Button variant="secondary" @click="activeTagId = null">Clear filter</Button>
+      </template>
+    </EmptyState>
+
+    <section v-else class="monitor-grid" aria-label="Monitors">
+      <MonitorCard
+        v-for="monitor in visibleMonitors"
+        :key="monitor.id"
+        :monitor="monitor"
+        @delete="requestDelete"
+      />
+    </section>
+
+    <footer v-if="loadedOnce" class="refresh-note">
+      <Badge variant="neutral" dot>Live</Badge>
+      <span>Refreshing every 5 seconds</span>
+    </footer>
+
+    <MonitorForm :open="formOpen" @created="handleCreated" @close="formOpen = false" />
+
+    <ConfirmDialog
+      :open="pendingDelete !== null"
+      title="Delete monitor"
+      :message="
+        pendingDelete === null
+          ? undefined
+          : `“${pendingDelete.name}” and its heartbeat history will be permanently removed.`
+      "
+      confirm-label="Delete monitor"
+      danger
+      :loading="deleting"
+      @confirm="confirmDelete"
+      @cancel="pendingDelete = null"
+    />
+  </div>
+</template>
+
+<style scoped>
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.stats {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-right: auto;
+}
+
+.stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.stat strong {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot-success {
+  background-color: var(--success);
+}
+
+.dot-error {
+  background-color: var(--error);
+}
+
+.dot-warning {
+  background-color: var(--warning);
+}
+
+.dot-neutral {
+  background-color: var(--muted);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 16px;
+  padding: 0;
+  background-color: var(--border);
+}
+
+.muted-stat {
+  font-variant-numeric: tabular-nums;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.filter-chip:hover {
+  color: var(--fg);
+}
+
+.filter-chip.is-active {
+  background-color: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent);
+}
+
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.banner {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--error-soft);
+  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
+  border-radius: var(--radius);
+  color: var(--error);
+  font-size: 13px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+.refresh-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 12px;
+}
+</style>

@@ -111,6 +111,11 @@ export class Scheduler {
 
   /** Add or replace a monitor; while running this restarts its schedule and probes it now. */
   upsert(monitor: ScheduledMonitor): void {
+    // Push monitors are heartbeat-receiver-driven (SPEC §6): never armed here; drop a stale entry.
+    if (monitor.type === 'push') {
+      this.remove(monitor.id)
+      return
+    }
     let entry = this.entries.get(monitor.id)
     if (entry === undefined) {
       entry = {
