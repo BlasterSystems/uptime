@@ -1,0 +1,27 @@
+# DEV deployment for the Proxmox docker VM (LXC 106), carrigo-style:
+# the image is built on the VM from the git-bundle checkout — no GHCR auth
+# needed on the VM. `deploy/.env` on the VM is the source of truth; CI never
+# rewrites it (git clean excludes it).
+services:
+  uptime:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: uptime-dev:latest
+    container_name: uptime-dev
+    ports:
+      - '3101:3101'
+    environment:
+      PORT: 3101
+      SEED: '0'
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in deploy/.env}
+      UPTIME_AGENT_TOKEN: ${UPTIME_AGENT_TOKEN:-}
+    volumes:
+      - uptime-data:/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    restart: unless-stopped
+
+volumes:
+  uptime-data:

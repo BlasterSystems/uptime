@@ -1,0 +1,82 @@
+name: CD DEV
+
+on:
+  push:
+    tags: ['dev-*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Commit/tag/branch to deploy (tests run against it first)'
+        required: false
+        default: main
+
+concurrency:
+  group: cd-dev
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  deploy:
+    needs: test
+    runs-on: uptime-dev-vm
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+
+      - name: Create git bundle
+        run: git bundle create /tmp/uptime-dev.bundle HEAD
+
+      - name: Deploy over SSH to the docker VM
+        env:
+          SSH_KEY: ${{ secrets.DEV_VM_SSH_KEY }}
+          VM_HOST: ${{ vars.DEV_VM_HOST }}
+          VM_USER: ${{ vars.DEV_VM_USER }}
+          VM_DEPLOY_DIR: ${{ vars.DEV_DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          install -m 600 /dev/null /tmp/deploy_key
+          printf '%s\n' "$SSH_KEY" > /tmp/deploy_key
+          SSH="ssh -i /tmp/deploy_key -o StrictHostKeyChecking=accept-new $VM_USER@$VM_HOST"
+
+          scp -q -i /tmp/deploy_key /tmp/uptime-dev.bundle "$VM_USER@$VM_HOST:/tmp/uptime-dev.bundle"
+
+          # Idempotent bootstrap: the VM repo may be unborn on first deploy.
+          $SSH "mkdir -p '$VM_DEPLOY_DIR' && test -d '$VM_DEPLOY_DIR/.git' || git init -q '$VM_DEPLOY_DIR'"
+
+          # Fetch the exact commit and detach; NEVER checkout a ref name (stale).
+          $SSH "cd '$VM_DEPLOY_DIR' && git fetch --force /tmp/uptime-dev.bundle HEAD && git checkout --detach --force FETCH_HEAD && git clean -ffdxq -e deploy/.env"
+
+          # Build on the VM (no GitHub credentials live here), then swap.
+          $SSH "cd '$VM_DEPLOY_DIR' && docker compose -f deploy/docker-compose.yml build --pull uptime"
+          $SSH "cd '$VM_DEPLOY_DIR' && PREV=\$(docker images --format '{{.ID}}' uptime-dev:latest | head -1); echo \"\$PREV\" > /tmp/uptime-dev.prev"
+
+          $SSH "cd '$VM_DEPLOY_DIR' && docker compose -f deploy/docker-compose.yml up -d --no-deps uptime"
+
+          # Health gate: 60 x 2s against /healthz inside the container.
+          if ! $SSH "cd '$VM_DEPLOY_DIR' && for i in \$(seq 1 60); do docker compose -f deploy/docker-compose.yml exec -T uptime node -e \"fetch('http://127.0.0.1:3101/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\" && exit 0; sleep 2; done; exit 1"; then
+            echo "Health gate failed — rolling back to previous image"
+            $SSH "cd '$VM_DEPLOY_DIR' && PREV=\$(cat /tmp/uptime-dev.prev); if [ -n \"\$PREV\" ]; then docker tag \"\$PREV\" uptime-dev:latest && docker compose -f deploy/docker-compose.yml up -d --no-deps uptime; fi"
+            exit 1
+          fi
+          echo "Deploy healthy on :3101"
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/deploy_key /tmp/uptime-dev.bundle
