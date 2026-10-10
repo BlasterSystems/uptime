@@ -184,8 +184,11 @@ it). Instead:
 
 ## 10. Docker packaging (docker/)
 
-- Multi-stage Dockerfile: `build` stage (node:24-bookworm — native deps for
-  better-sqlite3) → `runtime` (node:24-alpine, non-root, static web assets baked in).
+- Multi-stage Dockerfile: `build` stage and `runtime` stage both on `node:24-alpine` —
+  build and runtime must share the libc: a glibc-built `better-sqlite3` binary does not
+  load under musl (`fcntl64: symbol not found`, verified on arm64). better-sqlite3 ≥ 12
+  ships musl prebuilds in its tarball; the build stage also carries `python3/make/g++`
+  so it can compile from source. Non-root, static web assets baked in.
 - Same image, entrypoint subcommands: `server` (default) / `agent`.
 - `VOLUME /data`; `ENV DATA_DIR=/data PORT=3001`; `HEALTHCHECK` hits `/healthz`.
 - `docker-compose.yml`: service + volume + `env_file`; `docker-compose.agent.yml` example.

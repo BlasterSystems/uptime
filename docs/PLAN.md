@@ -3,10 +3,13 @@
 Milestones are vertically sliced: each ships something usable. Effort is indicative
 (single developer with LLM assistance).
 
-## M0 — Repository & governance ✅ (this commit)
+## M0 — Repository & governance 🔄 (in review)
 - agentic-bootstrap scaffold (`--platform all`), git init.
 - SPEC.md, research notes, this plan, initial ADRs.
-- **Exit**: docs reviewed and agreed; ADRs accepted.
+- ADRs brought into `docs/adr/template.md` format and indexed; `.agentic/bin/validate` +
+  docs-check green (2026-10-10).
+- **Exit**: docs reviewed and agreed (expert plan review delivered; sign-off pending);
+  ADRs accepted.
 
 ## M1 — Walking skeleton (≈1 week)
 - pnpm workspace: `apps/server`, `apps/web`, `packages/core`, `packages/db`.
@@ -56,7 +59,7 @@ Milestones are vertically sliced: each ships something usable. Effort is indicat
 ## Risks & mitigations
 | Risk | Mitigation |
 |---|---|
-| better-sqlite3 native build on arm64 | prebuilt binaries exist; CI builds on both arches early (M1) |
+| Native modules on musl/arm64 | pin `better-sqlite3` ≥ 12 (tarball carries `prebuilds/linuxmusl-*.node`); approve build scripts (`pnpm onlyBuiltDependencies`); build+runtime on the same libc; M1 CI job builds AND runs the image on linux/amd64 + linux/arm64 |
 | WS through user proxies | SSE fallback endpoint (M3) |
 | Feature creep toward Kuma parity | M-milestones gate; non-goals in SPEC §1 |
 | Check storms on wide intervals | global/per-host concurrency caps (SPEC §6) |
