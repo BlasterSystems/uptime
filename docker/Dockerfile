@@ -15,7 +15,7 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
-RUN pnpm --filter @uptime/core --filter @uptime/db --filter @uptime/server build \
+RUN pnpm --filter @uptime/core --filter @uptime/db --filter @uptime/notify --filter @uptime/agent --filter @uptime/server build \
     && pnpm --filter @uptime/web build \
     && pnpm --filter @uptime/server --prod deploy --legacy /out
 
