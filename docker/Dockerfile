@@ -33,6 +33,9 @@ WORKDIR /app
 COPY --from=build /out ./
 COPY --from=build /repo/apps/web/dist ./apps/web/dist
 RUN addgroup -g 1001 uptime && adduser -u 1001 -G uptime -D uptime
+# /data must exist and be owned by the runtime user so the named volume
+# inherits the ownership (SQLite must create its files there).
+RUN mkdir -p /data && chown uptime:uptime /data
 USER uptime
 VOLUME /data
 EXPOSE 3001
