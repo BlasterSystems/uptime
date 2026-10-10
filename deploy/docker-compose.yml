@@ -2,6 +2,8 @@
 # the image is built on the VM from the git-bundle checkout — no GHCR auth
 # needed on the VM. `deploy/.env` on the VM is the source of truth; CI never
 # rewrites it (git clean excludes it).
+name: uptime-dev
+
 services:
   uptime:
     build:
