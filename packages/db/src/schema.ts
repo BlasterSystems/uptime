@@ -62,6 +62,18 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(),
 })
 
+/** `docker_hosts` — Docker endpoint credentials for `docker` monitors (SPEC §4). */
+export const dockerHosts = sqliteTable('docker_hosts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  uri: text('uri').notNull(),
+  tlsCaEnc: text('tls_ca_enc'),
+  tlsCertEnc: text('tls_cert_enc'),
+  tlsKeyEnc: text('tls_key_enc'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 export const USER_ROLES = ['admin', 'editor', 'viewer'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 
@@ -164,4 +176,99 @@ export const monitorTags = sqliteTable(
       .references(() => tags.id, { onDelete: 'cascade' }),
   },
   (table) => [primaryKey({ columns: [table.monitorId, table.tagId] })],
+)
+
+/** Maintenance-window scope — SPEC §4 (`all` monitors, explicit `ids` or `tags`). */
+export const MAINTENANCE_SCOPES = ['all', 'ids', 'tags'] as const
+export type MaintenanceScope = (typeof MAINTENANCE_SCOPES)[number]
+
+/** Maintenance-window recurrence strategies — SPEC §4/§5. */
+export const MAINTENANCE_STRATEGIES = [
+  'single',
+  'recurring-interval',
+  'recurring-weekday',
+  'cron',
+] as const
+export type MaintenanceStrategy = (typeof MAINTENANCE_STRATEGIES)[number]
+
+/**
+ * `status_pages` — public pages addressed by `slug` (SPEC §4/§11). `monitorIds`
+ * is a JSON array; `theme` is a JSON object `{ accent?, dark? }`, `null` for
+ * the default theme.
+ */
+export const statusPages = sqliteTable('status_pages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  logo: text('logo'),
+  published: integer('published', { mode: 'boolean' }).notNull().default(false),
+  monitorIds: text('monitor_ids').notNull().default('[]'),
+  theme: text('theme'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/**
+ * `maintenance_windows` — suppression windows (SPEC §4/§5). `monitorIds`,
+ * `tagIds` and `weekdays` are JSON arrays; `startAt`/`endAt` are unix ms for
+ * `single`; `startTime`/`endTime` are `HH:mm` local times for the recurring
+ * strategies, whose `intervalS`/`weekdays`/`cronExpr` options are per-strategy.
+ */
+export const maintenanceWindows = sqliteTable('maintenance_windows', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  scope: text('scope', { enum: MAINTENANCE_SCOPES }).notNull(),
+  monitorIds: text('monitor_ids').notNull().default('[]'),
+  tagIds: text('tag_ids').notNull().default('[]'),
+  strategy: text('strategy', { enum: MAINTENANCE_STRATEGIES }).notNull(),
+  startAt: integer('start_at', { mode: 'timestamp_ms' }),
+  endAt: integer('end_at', { mode: 'timestamp_ms' }),
+  intervalS: integer('interval_s'),
+  weekdays: text('weekdays'),
+  startTime: text('start_time'),
+  endTime: text('end_time'),
+  cronExpr: text('cron_expr'),
+  cronTz: text('cron_tz'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
+/**
+ * `heartbeats_hourly` — per-hour counters keyed by UTC hour start (unix ms),
+ * written by `Database.rollupHeartbeats` with additive upserts so reruns and
+ * partial buckets stay correct. `count` covers every beat (pending included)
+ * and `totalMs` sums non-null latencies for averages.
+ */
+export const heartbeatsHourly = sqliteTable(
+  'heartbeats_hourly',
+  {
+    monitorId: integer('monitor_id')
+      .notNull()
+      .references(() => monitors.id, { onDelete: 'cascade' }),
+    hourBucket: integer('hour_bucket').notNull(),
+    up: integer('up').notNull().default(0),
+    down: integer('down').notNull().default(0),
+    maintenance: integer('maintenance').notNull().default(0),
+    totalMs: integer('total_ms').notNull().default(0),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.monitorId, table.hourBucket] })],
+)
+
+/** `heartbeats_daily` — the same counters keyed by UTC day start (unix ms). */
+export const heartbeatsDaily = sqliteTable(
+  'heartbeats_daily',
+  {
+    monitorId: integer('monitor_id')
+      .notNull()
+      .references(() => monitors.id, { onDelete: 'cascade' }),
+    dayBucket: integer('day_bucket').notNull(),
+    up: integer('up').notNull().default(0),
+    down: integer('down').notNull().default(0),
+    maintenance: integer('maintenance').notNull().default(0),
+    totalMs: integer('total_ms').notNull().default(0),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.monitorId, table.dayBucket] })],
 )

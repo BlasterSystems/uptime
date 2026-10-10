@@ -5,7 +5,22 @@ import { fileURLToPath } from 'node:url'
 
 import Sqlite from 'better-sqlite3'
 import type { Database as SqliteConnection } from 'better-sqlite3'
-import { and, count, desc, eq, inArray, isNotNull, isNull, lt, lte, max, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  max,
+  sql,
+  sum,
+} from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
@@ -13,8 +28,12 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from './schema.js'
 import {
   apiKeys,
+  dockerHosts,
   heartbeats,
+  heartbeatsDaily,
+  heartbeatsHourly,
   incidents,
+  maintenanceWindows,
   monitorNotifications,
   monitors,
   monitorTags,
@@ -22,9 +41,12 @@ import {
   pushTokens,
   sessions,
   settings,
+  statusPages,
   tags,
   users,
   type HeartbeatStatus,
+  type MaintenanceScope,
+  type MaintenanceStrategy,
   type UserRole,
 } from './schema.js'
 
@@ -133,8 +155,105 @@ export interface TagRow {
   createdAt: Date
 }
 
+export interface StatusPageRow {
+  id: number
+  slug: string
+  title: string
+  logo: string | null
+  published: boolean
+  monitorIds: number[]
+  theme: Record<string, unknown> | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface NewStatusPage {
+  slug: string
+  title: string
+  logo?: string | null
+  published?: boolean
+  monitorIds?: number[]
+  theme?: Record<string, unknown> | null
+}
+
+export interface MaintenanceWindowRow {
+  id: number
+  name: string
+  scope: MaintenanceScope
+  monitorIds: number[]
+  tagIds: number[]
+  strategy: MaintenanceStrategy
+  startAt: Date | null
+  endAt: Date | null
+  intervalS: number | null
+  weekdays: number[] | null
+  startTime: string | null
+  endTime: string | null
+  cronExpr: string | null
+  cronTz: string | null
+  active: boolean
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface NewMaintenanceWindow {
+  name: string
+  scope: MaintenanceScope
+  monitorIds?: number[]
+  tagIds?: number[]
+  strategy: MaintenanceStrategy
+  startAt?: Date | null
+  endAt?: Date | null
+  intervalS?: number | null
+  weekdays?: number[] | null
+  startTime?: string | null
+  endTime?: string | null
+  cronExpr?: string | null
+  cronTz?: string | null
+  active?: boolean
+}
+
+export interface UptimeStats {
+  /** Every rolled-up beat in the window, `pending` included. */
+  total: number
+  up: number
+  down: number
+  maintenance: number
+  /** `up / (up + down)` in percent — maintenance is planned, so excluded; 100 with no up/down. */
+  uptimePct: number
+}
+
 type MonitorSelect = typeof monitors.$inferSelect
+
+export interface DockerHostRow {
+  id: number
+  name: string
+  uri: string
+  tlsCaEnc: string | null
+  tlsCertEnc: string | null
+  tlsKeyEnc: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+type DockerHostSelect = typeof dockerHosts.$inferSelect
+
+function toDockerHostRow(row: DockerHostSelect): DockerHostRow {
+  return {
+    id: row.id,
+    name: row.name,
+    uri: row.uri,
+    tlsCaEnc: row.tlsCaEnc,
+    tlsCertEnc: row.tlsCertEnc,
+    tlsKeyEnc: row.tlsKeyEnc,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
 type ApiKeySelect = typeof apiKeys.$inferSelect
+type StatusPageSelect = typeof statusPages.$inferSelect
+type MaintenanceWindowSelect = typeof maintenanceWindows.$inferSelect
 
 /** `scopes` is stored as a JSON array and parsed back at the boundary. */
 function toApiKeyRow(row: ApiKeySelect): ApiKeyRow {
@@ -159,6 +278,27 @@ function toMonitorRow(row: MonitorSelect): MonitorRow {
     updatedAt: row.updatedAt,
   }
 }
+
+/** JSON id arrays are stored as text and parsed back at the boundary. */
+function toStatusPageRow(row: StatusPageSelect): StatusPageRow {
+  return {
+    ...row,
+    monitorIds: JSON.parse(row.monitorIds) as number[],
+    theme: row.theme === null ? null : (JSON.parse(row.theme) as Record<string, unknown>),
+  }
+}
+
+function toMaintenanceWindowRow(row: MaintenanceWindowSelect): MaintenanceWindowRow {
+  return {
+    ...row,
+    monitorIds: JSON.parse(row.monitorIds) as number[],
+    tagIds: JSON.parse(row.tagIds) as number[],
+    weekdays: row.weekdays === null ? null : (JSON.parse(row.weekdays) as number[]),
+  }
+}
+
+/** `settings` key holding the exclusive lower bound (unix ms) of the last rollup run. */
+const ROLLUP_WATERMARK_KEY = 'rollup_watermark'
 
 export class Database {
   readonly #sqlite: SqliteConnection
@@ -804,5 +944,383 @@ export class Database {
       .orderBy(monitors.id)
       .all()
     return rows.map((row) => ({ monitor: toMonitorRow(row.monitor), lastBeatAt: row.lastBeatAt }))
+  }
+
+  // Status pages
+
+  /** `slug` is unique; a duplicate throws (SQLITE_CONSTRAINT_UNIQUE). */
+  createStatusPage(input: NewStatusPage): StatusPageRow {
+    const now = new Date()
+    const row = this.#db
+      .insert(statusPages)
+      .values({
+        slug: input.slug,
+        title: input.title,
+        logo: input.logo ?? null,
+        published: input.published ?? false,
+        monitorIds: JSON.stringify(input.monitorIds ?? []),
+        theme:
+          input.theme === undefined || input.theme === null ? null : JSON.stringify(input.theme),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+      .all()[0]
+    if (row === undefined) {
+      throw new Error('createStatusPage: insert returned no row')
+    }
+    return toStatusPageRow(row)
+  }
+
+  listStatusPages(): StatusPageRow[] {
+    return this.#db.select().from(statusPages).orderBy(statusPages.id).all().map(toStatusPageRow)
+  }
+
+  getStatusPage(id: number): StatusPageRow | null {
+    const row = this.#db.select().from(statusPages).where(eq(statusPages.id, id)).get()
+    return row === undefined ? null : toStatusPageRow(row)
+  }
+
+  /** Published pages only — drafts and unknown slugs resolve to `null`. */
+  getPublicStatusPage(slug: string): StatusPageRow | null {
+    const row = this.#db
+      .select()
+      .from(statusPages)
+      .where(and(eq(statusPages.slug, slug), eq(statusPages.published, true)))
+      .get()
+    return row === undefined ? null : toStatusPageRow(row)
+  }
+
+  /** `null` and `undefined` clear `logo`/`theme`; the other patches replace wholesale. */
+  updateStatusPage(id: number, patch: Partial<NewStatusPage>): StatusPageRow | null {
+    const values: Partial<typeof statusPages.$inferInsert> = { updatedAt: new Date() }
+    if (patch.slug !== undefined) values.slug = patch.slug
+    if (patch.title !== undefined) values.title = patch.title
+    if (patch.logo !== undefined) values.logo = patch.logo
+    if (patch.published !== undefined) values.published = patch.published
+    if (patch.monitorIds !== undefined) values.monitorIds = JSON.stringify(patch.monitorIds)
+    if (patch.theme !== undefined) {
+      values.theme = patch.theme === null ? null : JSON.stringify(patch.theme)
+    }
+
+    const row = this.#db
+      .update(statusPages)
+      .set(values)
+      .where(eq(statusPages.id, id))
+      .returning()
+      .all()[0]
+    return row === undefined ? null : toStatusPageRow(row)
+  }
+
+  deleteStatusPage(id: number): boolean {
+    return this.#db.delete(statusPages).where(eq(statusPages.id, id)).run().changes > 0
+  }
+
+  // Maintenance windows
+
+  createMaintenanceWindow(input: NewMaintenanceWindow): MaintenanceWindowRow {
+    const now = new Date()
+    const row = this.#db
+      .insert(maintenanceWindows)
+      .values({
+        name: input.name,
+        scope: input.scope,
+        monitorIds: JSON.stringify(input.monitorIds ?? []),
+        tagIds: JSON.stringify(input.tagIds ?? []),
+        strategy: input.strategy,
+        startAt: input.startAt ?? null,
+        endAt: input.endAt ?? null,
+        intervalS: input.intervalS ?? null,
+        weekdays:
+          input.weekdays === undefined || input.weekdays === null
+            ? null
+            : JSON.stringify(input.weekdays),
+        startTime: input.startTime ?? null,
+        endTime: input.endTime ?? null,
+        cronExpr: input.cronExpr ?? null,
+        cronTz: input.cronTz ?? null,
+        active: input.active ?? true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+      .all()[0]
+    if (row === undefined) {
+      throw new Error('createMaintenanceWindow: insert returned no row')
+    }
+    return toMaintenanceWindowRow(row)
+  }
+
+  listMaintenanceWindows(): MaintenanceWindowRow[] {
+    return this.#db
+      .select()
+      .from(maintenanceWindows)
+      .orderBy(maintenanceWindows.id)
+      .all()
+      .map(toMaintenanceWindowRow)
+  }
+
+  /** `null` clears the optional fields; the id lists and `weekdays` replace wholesale. */
+  updateMaintenanceWindow(
+    id: number,
+    patch: Partial<NewMaintenanceWindow>,
+  ): MaintenanceWindowRow | null {
+    const values: Partial<typeof maintenanceWindows.$inferInsert> = { updatedAt: new Date() }
+    if (patch.name !== undefined) values.name = patch.name
+    if (patch.scope !== undefined) values.scope = patch.scope
+    if (patch.monitorIds !== undefined) values.monitorIds = JSON.stringify(patch.monitorIds)
+    if (patch.tagIds !== undefined) values.tagIds = JSON.stringify(patch.tagIds)
+    if (patch.strategy !== undefined) values.strategy = patch.strategy
+    if (patch.startAt !== undefined) values.startAt = patch.startAt
+    if (patch.endAt !== undefined) values.endAt = patch.endAt
+    if (patch.intervalS !== undefined) values.intervalS = patch.intervalS
+    if (patch.weekdays !== undefined) {
+      values.weekdays = patch.weekdays === null ? null : JSON.stringify(patch.weekdays)
+    }
+    if (patch.startTime !== undefined) values.startTime = patch.startTime
+    if (patch.endTime !== undefined) values.endTime = patch.endTime
+    if (patch.cronExpr !== undefined) values.cronExpr = patch.cronExpr
+    if (patch.cronTz !== undefined) values.cronTz = patch.cronTz
+    if (patch.active !== undefined) values.active = patch.active
+
+    const row = this.#db
+      .update(maintenanceWindows)
+      .set(values)
+      .where(eq(maintenanceWindows.id, id))
+      .returning()
+      .all()[0]
+    return row === undefined ? null : toMaintenanceWindowRow(row)
+  }
+
+  deleteMaintenanceWindow(id: number): boolean {
+    return (
+      this.#db.delete(maintenanceWindows).where(eq(maintenanceWindows.id, id)).run().changes > 0
+    )
+  }
+
+  // Heartbeat rollups
+
+  /**
+   * Aggregates raw heartbeats earlier than `before` into the hourly and daily
+   * counter rows and advances the `rollup_watermark` setting (unix ms) so the
+   * next run only reads the new window. Counters add into existing buckets, so
+   * partial hours accumulate correctly and rerunning is a no-op; the whole run
+   * is one transaction, hence a crash cannot double-count. Beats that arrive
+   * with a time older than the watermark are not re-counted.
+   *
+   * Returns the number of raw heartbeats aggregated.
+   */
+  rollupHeartbeats(before: Date): number {
+    const beforeMs = before.getTime()
+    const watermarkRaw = this.getSetting(ROLLUP_WATERMARK_KEY)
+    const parsed = watermarkRaw === null ? Number.NaN : Number(watermarkRaw)
+    const watermark = Number.isFinite(parsed) ? parsed : null
+    if (watermark !== null && beforeMs <= watermark) return 0
+
+    const windowFilter =
+      watermark === null
+        ? lt(heartbeats.time, before)
+        : and(gte(heartbeats.time, new Date(watermark)), lt(heartbeats.time, before))
+    const hourBucketExpr = sql<number>`cast(${heartbeats.time} / 3600000 as integer) * 3600000`
+    const dayBucketExpr = sql<number>`cast(${heartbeats.time} / 86400000 as integer) * 86400000`
+    const hourBucket = hourBucketExpr.as('hour_bucket')
+    const dayBucket = dayBucketExpr.as('day_bucket')
+    const upCount = sql<number>`sum(case when ${heartbeats.status} = 'up' then 1 else 0 end)`.as(
+      'up',
+    )
+    const downCount =
+      sql<number>`sum(case when ${heartbeats.status} = 'down' then 1 else 0 end)`.as('down')
+    const maintenanceCount =
+      sql<number>`sum(case when ${heartbeats.status} = 'maintenance' then 1 else 0 end)`.as(
+        'maintenance',
+      )
+    const totalMs = sql<number>`sum(coalesce(${heartbeats.latencyMs}, 0))`.as('total_ms')
+    const beatCount = sql<number>`count(*)`.as('count')
+
+    return this.#db.transaction((tx) => {
+      const counted = tx.select({ value: count() }).from(heartbeats).where(windowFilter).get()
+      const aggregated = counted?.value ?? 0
+
+      tx.insert(heartbeatsHourly)
+        .select(
+          tx
+            .select({
+              monitorId: heartbeats.monitorId,
+              hourBucket,
+              up: upCount,
+              down: downCount,
+              maintenance: maintenanceCount,
+              totalMs,
+              count: beatCount,
+            })
+            .from(heartbeats)
+            .where(windowFilter)
+            .groupBy(heartbeats.monitorId, hourBucketExpr),
+        )
+        .onConflictDoUpdate({
+          target: [heartbeatsHourly.monitorId, heartbeatsHourly.hourBucket],
+          set: {
+            up: sql`${heartbeatsHourly.up} + excluded.up`,
+            down: sql`${heartbeatsHourly.down} + excluded.down`,
+            maintenance: sql`${heartbeatsHourly.maintenance} + excluded.maintenance`,
+            totalMs: sql`${heartbeatsHourly.totalMs} + excluded.total_ms`,
+            count: sql`${heartbeatsHourly.count} + excluded.count`,
+          },
+        })
+        .run()
+
+      tx.insert(heartbeatsDaily)
+        .select(
+          tx
+            .select({
+              monitorId: heartbeats.monitorId,
+              dayBucket,
+              up: upCount,
+              down: downCount,
+              maintenance: maintenanceCount,
+              totalMs,
+              count: beatCount,
+            })
+            .from(heartbeats)
+            .where(windowFilter)
+            .groupBy(heartbeats.monitorId, dayBucketExpr),
+        )
+        .onConflictDoUpdate({
+          target: [heartbeatsDaily.monitorId, heartbeatsDaily.dayBucket],
+          set: {
+            up: sql`${heartbeatsDaily.up} + excluded.up`,
+            down: sql`${heartbeatsDaily.down} + excluded.down`,
+            maintenance: sql`${heartbeatsDaily.maintenance} + excluded.maintenance`,
+            totalMs: sql`${heartbeatsDaily.totalMs} + excluded.total_ms`,
+            count: sql`${heartbeatsDaily.count} + excluded.count`,
+          },
+        })
+        .run()
+
+      tx.insert(settings)
+        .values({ key: ROLLUP_WATERMARK_KEY, value: String(beforeMs) })
+        .onConflictDoUpdate({ target: settings.key, set: { value: String(beforeMs) } })
+        .run()
+
+      return aggregated
+    })
+  }
+
+  /**
+   * Rolled-up availability for the trailing `hours`: hourly counters up to 48 h,
+   * daily counters beyond. Rollups lag the newest raw heartbeats until the next
+   * {@link rollupHeartbeats} run (`uptimePct` is `up / (up + down)`, so planned
+   * maintenance neither helps nor hurts; 100 when there is nothing to divide).
+   */
+  getUptime(monitorId: number, hours: number): UptimeStats {
+    const sinceMs = Date.now() - hours * 3_600_000
+    const counters =
+      hours <= 48
+        ? this.#db
+            .select({
+              up: sum(heartbeatsHourly.up),
+              down: sum(heartbeatsHourly.down),
+              maintenance: sum(heartbeatsHourly.maintenance),
+              total: sum(heartbeatsHourly.count),
+            })
+            .from(heartbeatsHourly)
+            .where(
+              and(
+                eq(heartbeatsHourly.monitorId, monitorId),
+                gte(heartbeatsHourly.hourBucket, sinceMs),
+              ),
+            )
+            .get()
+        : this.#db
+            .select({
+              up: sum(heartbeatsDaily.up),
+              down: sum(heartbeatsDaily.down),
+              maintenance: sum(heartbeatsDaily.maintenance),
+              total: sum(heartbeatsDaily.count),
+            })
+            .from(heartbeatsDaily)
+            .where(
+              and(
+                eq(heartbeatsDaily.monitorId, monitorId),
+                gte(heartbeatsDaily.dayBucket, sinceMs),
+              ),
+            )
+            .get()
+    const up = Number(counters?.up ?? 0)
+    const down = Number(counters?.down ?? 0)
+    const decisive = up + down
+    return {
+      total: Number(counters?.total ?? 0),
+      up,
+      down,
+      maintenance: Number(counters?.maintenance ?? 0),
+      uptimePct: decisive === 0 ? 100 : (up / decisive) * 100,
+    }
+  }
+
+  /** Oldest first; `since` is inclusive and `limit` caps the batch for streaming reads. */
+  listHeartbeatsSince(monitorId: number, since: Date, limit = 5000): HeartbeatRow[] {
+    return this.#db
+      .select()
+      .from(heartbeats)
+      .where(and(eq(heartbeats.monitorId, monitorId), gte(heartbeats.time, since)))
+      .orderBy(asc(heartbeats.time), asc(heartbeats.id))
+      .limit(limit)
+      .all()
+  }
+
+  // ---- Docker hosts (SPEC §4) ----
+
+  createDockerHost(input: {
+    name: string
+    uri: string
+    tlsCaEnc?: string
+    tlsCertEnc?: string
+    tlsKeyEnc?: string
+  }): DockerHostRow {
+    const now = new Date()
+    const row = this.#db
+      .insert(dockerHosts)
+      .values({
+        name: input.name,
+        uri: input.uri,
+        tlsCaEnc: input.tlsCaEnc ?? null,
+        tlsCertEnc: input.tlsCertEnc ?? null,
+        tlsKeyEnc: input.tlsKeyEnc ?? null,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+      .all()[0]
+    if (row === undefined) throw new Error('createDockerHost: insert returned no row')
+    return toDockerHostRow(row)
+  }
+
+  listDockerHosts(): DockerHostRow[] {
+    return this.#db.select().from(dockerHosts).orderBy(asc(dockerHosts.id)).all().map(toDockerHostRow)
+  }
+
+  getDockerHost(id: number): DockerHostRow | null {
+    const row = this.#db.select().from(dockerHosts).where(eq(dockerHosts.id, id)).all()[0]
+    return row === undefined ? null : toDockerHostRow(row)
+  }
+
+  updateDockerHost(
+    id: number,
+    patch: Partial<{ name: string; uri: string; tlsCaEnc: string | null; tlsCertEnc: string | null; tlsKeyEnc: string | null }>,
+  ): DockerHostRow | null {
+    const values: Partial<typeof dockerHosts.$inferSelect> = { updatedAt: new Date() }
+    if (patch.name !== undefined) values.name = patch.name
+    if (patch.uri !== undefined) values.uri = patch.uri
+    if (patch.tlsCaEnc !== undefined) values.tlsCaEnc = patch.tlsCaEnc
+    if (patch.tlsCertEnc !== undefined) values.tlsCertEnc = patch.tlsCertEnc
+    if (patch.tlsKeyEnc !== undefined) values.tlsKeyEnc = patch.tlsKeyEnc
+    const row = this.#db.update(dockerHosts).set(values).where(eq(dockerHosts.id, id)).returning().all()[0]
+    return row === undefined ? null : toDockerHostRow(row)
+  }
+
+  deleteDockerHost(id: number): boolean {
+    const result = this.#db.delete(dockerHosts).where(eq(dockerHosts.id, id)).run()
+    return result.changes > 0
   }
 }

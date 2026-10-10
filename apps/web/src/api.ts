@@ -43,10 +43,122 @@ export interface Tag {
 }
 
 export interface Heartbeat {
+  id?: number
+  monitorId?: number
   status: HeartbeatStatus
   latencyMs: number | null
   responseSnippet: string | null
   time: string
+}
+
+/** Aggregate for `GET /monitors/:id/uptime`. */
+export interface UptimeStats {
+  total: number
+  up: number
+  down: number
+  maintenance: number
+  uptimePct: number
+}
+
+export type StatusPageDark = 'light' | 'dark' | 'auto'
+
+export interface StatusPageTheme {
+  accent?: string
+  dark?: StatusPageDark
+}
+
+export interface StatusPage {
+  id: number
+  slug: string
+  title: string
+  logo: string | null
+  published: boolean
+  monitorIds: number[]
+  theme: StatusPageTheme | null
+}
+
+/** Body of `POST /status-pages` / `PATCH /status-pages/:id`. */
+export interface StatusPageInput {
+  slug?: string
+  title?: string
+  logo?: string | null
+  published?: boolean
+  monitorIds?: number[]
+  theme?: StatusPageTheme | null
+}
+
+/** Shape served by the unauthenticated `GET /status/:slug`. */
+export interface PublicStatusMonitor {
+  id: number
+  name: string
+  status: HeartbeatStatus
+  latencyMs: number | null
+  uptimePct: number
+  tags: Tag[]
+}
+
+export interface PublicStatusIncident {
+  id: number
+  monitorId: number
+  monitorName: string
+  openedAt: string
+  title: string
+  body: string | null
+}
+
+export interface PublicStatusPage {
+  slug: string
+  title: string
+  logo: string | null
+  theme: StatusPageTheme | null
+  monitors: PublicStatusMonitor[]
+  incidents: PublicStatusIncident[]
+}
+
+export type MaintenanceScope = 'all' | 'ids' | 'tags'
+export type MaintenanceStrategy = 'single' | 'recurring-interval' | 'recurring-weekday' | 'cron'
+
+export interface MaintenanceWindow {
+  id: number
+  name: string
+  scope: MaintenanceScope
+  monitorIds: number[]
+  tagIds: number[]
+  strategy: MaintenanceStrategy
+  startAt: string | null
+  endAt: string | null
+  intervalS: number | null
+  /** Day indices (`0` = Sunday … `6` = Saturday) for `recurring-weekday`. */
+  weekdays: number[]
+  /** `HH:MM` local time bound. */
+  startTime: string | null
+  endTime: string | null
+  cronExpr: string | null
+  cronTz: string | null
+  active: boolean
+}
+
+/** Body of `POST /maintenance-windows` / `PATCH /maintenance-windows/:id`. */
+export interface MaintenanceWindowInput {
+  name?: string
+  scope?: MaintenanceScope
+  monitorIds?: number[]
+  tagIds?: number[]
+  strategy?: MaintenanceStrategy
+  startAt?: string | null
+  endAt?: string | null
+  intervalS?: number | null
+  weekdays?: number[]
+  startTime?: string | null
+  endTime?: string | null
+  cronExpr?: string | null
+  cronTz?: string | null
+  active?: boolean
+}
+
+export interface AppSettings {
+  title: string
+  timezone: string
 }
 
 export interface MonitorConfig {
@@ -400,4 +512,88 @@ export async function fetchIncidents(activeOnly = false): Promise<Incident[]> {
     activeOnly ? '/incidents?active=1' : '/incidents',
   )
   return body.incidents ?? []
+}
+
+/* Uptime */
+
+/** Aggregate uptime for the trailing `hours` window. */
+export function fetchUptime(id: number, hours: number): Promise<UptimeStats> {
+  return request<UptimeStats>(
+    `/monitors/${encodeURIComponent(String(id))}/uptime?hours=${encodeURIComponent(String(hours))}`,
+  )
+}
+
+/* Status pages (admin) */
+
+export async function fetchStatusPages(): Promise<StatusPage[]> {
+  const body = await request<{ statusPages?: StatusPage[] }>('/status-pages')
+  return body.statusPages ?? []
+}
+
+export async function createStatusPage(input: StatusPageInput): Promise<StatusPage> {
+  const body = await request<{ statusPage: StatusPage }>('/status-pages', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return body.statusPage
+}
+
+export async function updateStatusPage(id: number, input: StatusPageInput): Promise<StatusPage> {
+  const body = await request<{ statusPage: StatusPage }>(
+    `/status-pages/${encodeURIComponent(String(id))}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  )
+  return body.statusPage
+}
+
+export function deleteStatusPage(id: number): Promise<void> {
+  return request(`/status-pages/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+}
+
+/** Unauthenticated status page payload rendered at `/status/:slug`. */
+export function fetchPublicStatus(slug: string): Promise<PublicStatusPage> {
+  return request<PublicStatusPage>(`/status/${encodeURIComponent(slug)}`, {}, {
+    allowUnauthenticated: true,
+  })
+}
+
+/* Maintenance windows (admin) */
+
+export async function fetchMaintenanceWindows(): Promise<MaintenanceWindow[]> {
+  const body = await request<{ windows?: MaintenanceWindow[] }>('/maintenance-windows')
+  return body.windows ?? []
+}
+
+export async function createMaintenanceWindow(input: MaintenanceWindowInput): Promise<void> {
+  await request('/maintenance-windows', { method: 'POST', body: JSON.stringify(input) })
+}
+
+export async function updateMaintenanceWindow(
+  id: number,
+  input: MaintenanceWindowInput,
+): Promise<void> {
+  await request(`/maintenance-windows/${encodeURIComponent(String(id))}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteMaintenanceWindow(id: number): Promise<void> {
+  return request(`/maintenance-windows/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+}
+
+/* Instance settings */
+
+export function fetchSettings(): Promise<AppSettings> {
+  return request<AppSettings>('/settings')
+}
+
+export async function updateSettings(input: {
+  title?: string
+  timezone?: string
+}): Promise<AppSettings | null> {
+  return request<AppSettings | null>('/settings', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
 }

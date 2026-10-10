@@ -111,8 +111,9 @@ export class Scheduler {
 
   /** Add or replace a monitor; while running this restarts its schedule and probes it now. */
   upsert(monitor: ScheduledMonitor): void {
-    // Push monitors are heartbeat-receiver-driven (SPEC §6): never armed here; drop a stale entry.
-    if (monitor.type === 'push') {
+    // Only `http` monitors are probe-scheduled (SPEC §6): push is heartbeat-driven and
+    // the remaining types are not wired into the scheduler yet; drop a stale entry.
+    if (monitor.type !== 'http') {
       this.remove(monitor.id)
       return
     }
@@ -258,11 +259,14 @@ function spacingMs(monitor: ScheduledMonitor, mode: Mode): number {
   return retryS * 1000
 }
 
-/** Per-host concurrency bucket: the hostname of the monitor's URL. */
+/** Per-host concurrency bucket: the hostname of an `http` monitor's URL. */
 function hostOf(monitor: ScheduledMonitor): string {
-  try {
-    return new URL(monitor.config.url).hostname
-  } catch {
-    return `monitor-${monitor.id}`
+  if ('url' in monitor.config) {
+    try {
+      return new URL(monitor.config.url).hostname
+    } catch {
+      // Not a parseable URL: fall back to a per-monitor bucket.
+    }
   }
+  return `monitor-${monitor.id}`
 }

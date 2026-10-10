@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { deleteMonitor, errorMessage, fetchMonitors, fetchTags } from '../api.js'
 import type { Monitor, Tag } from '../api.js'
 import MonitorCard from '../components/MonitorCard.vue'
@@ -12,9 +13,18 @@ import Icon from '../components/ui/Icon.vue'
 import Spinner from '../components/ui/Spinner.vue'
 import { useToast } from '../components/ui/toast.js'
 import { formatLatency } from '../format.js'
+import { realtimeState, subscribeRealtime } from '../realtime.js'
+import type {
+  RealtimeEvent,
+  RealtimeHeartbeatEvent,
+  RealtimeMaintenanceEvent,
+} from '../realtime.js'
 
-const POLL_INTERVAL_MS = 5000
+/** Full reconcile while the SSE stream is live; polling cadence otherwise. */
+const RECONCILE_LIVE_MS = 30_000
+const POLL_FALLBACK_MS = 10_000
 
+const router = useRouter()
 const monitors = ref<Monitor[]>([])
 const tags = ref<Tag[]>([])
 const loadError = ref<string | null>(null)
@@ -26,6 +36,8 @@ const deleting = ref(false)
 
 const toast = useToast()
 let pollTimer: number | null = null
+let reconcileTimer: number | null = null
+let unsubscribeRealtime: (() => void) | null = null
 let refreshInFlight = false
 
 const summary = computed(() => {
@@ -117,10 +129,68 @@ function handleCreated(monitor: Monitor): void {
   void refreshTags()
 }
 
+function applyHeartbeat(event: RealtimeHeartbeatEvent): void {
+  const monitor = monitors.value.find((item) => item.id === event.monitorId)
+  if (monitor === undefined) return
+  const previous = monitor.latestHeartbeat
+  monitor.latestHeartbeat = {
+    status: event.status,
+    latencyMs: event.latencyMs,
+    time: event.time,
+    // SSE heartbeats carry no body; keep the last snippet only while still down.
+    responseSnippet:
+      event.status === 'down' && previous?.status === 'down' ? previous.responseSnippet : null,
+  }
+}
+
+function applyMaintenance(event: RealtimeMaintenanceEvent): void {
+  const monitor = monitors.value.find((item) => item.id === event.monitorId)
+  if (monitor === undefined) return
+  if (event.under) {
+    monitor.latestHeartbeat = {
+      status: 'maintenance',
+      latencyMs: monitor.latestHeartbeat?.latencyMs ?? null,
+      time: event.time,
+      responseSnippet: null,
+    }
+    return
+  }
+  // Leaving maintenance: the resulting status is unknown, so reconcile shortly.
+  scheduleReconcile()
+}
+
+function scheduleReconcile(): void {
+  if (reconcileTimer !== null) return
+  reconcileTimer = window.setTimeout(() => {
+    reconcileTimer = null
+    void refresh()
+  }, 1000)
+}
+
+function handleRealtimeEvent(event: RealtimeEvent): void {
+  if (event.type === 'heartbeat') applyHeartbeat(event)
+  else if (event.type === 'maintenance') applyMaintenance(event)
+}
+
+function applyPollInterval(): void {
+  if (pollTimer !== null) window.clearInterval(pollTimer)
+  pollTimer = window.setInterval(
+    () => void refresh(),
+    realtimeState.status === 'live' ? RECONCILE_LIVE_MS : POLL_FALLBACK_MS,
+  )
+}
+
+function openMonitor(id: number): void {
+  void router.push({ name: 'monitor-detail', params: { id } })
+}
+
+watch(() => realtimeState.status, applyPollInterval)
+
 onMounted(() => {
   void refresh()
   void refreshTags()
-  pollTimer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS)
+  unsubscribeRealtime = subscribeRealtime(handleRealtimeEvent)
+  applyPollInterval()
 })
 
 onUnmounted(() => {
@@ -128,6 +198,12 @@ onUnmounted(() => {
     window.clearInterval(pollTimer)
     pollTimer = null
   }
+  if (reconcileTimer !== null) {
+    window.clearTimeout(reconcileTimer)
+    reconcileTimer = null
+  }
+  unsubscribeRealtime?.()
+  unsubscribeRealtime = null
 })
 </script>
 
@@ -223,13 +299,25 @@ onUnmounted(() => {
         v-for="monitor in visibleMonitors"
         :key="monitor.id"
         :monitor="monitor"
+        @open="openMonitor"
         @delete="requestDelete"
       />
     </section>
 
     <footer v-if="loadedOnce" class="refresh-note">
-      <Badge variant="neutral" dot>Live</Badge>
-      <span>Refreshing every 5 seconds</span>
+      <Badge :variant="realtimeState.status === 'live' ? 'success' : 'neutral'" dot>
+        {{
+          realtimeState.status === 'live'
+            ? 'Live'
+            : realtimeState.status === 'connecting'
+              ? 'Connecting'
+              : 'Polling'
+        }}
+      </Badge>
+      <span v-if="realtimeState.status === 'live'">
+        Real-time updates · full refresh every 30 seconds
+      </span>
+      <span v-else>Refreshing every 10 seconds</span>
     </footer>
 
     <MonitorForm :open="formOpen" @created="handleCreated" @close="formOpen = false" />

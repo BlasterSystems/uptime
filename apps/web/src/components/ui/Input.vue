@@ -9,7 +9,17 @@ const props = withDefaults(
     label?: string
     hint?: string
     error?: string | null
-    type?: 'text' | 'email' | 'password' | 'number' | 'url' | 'search' | 'date' | 'datetime-local'
+    type?:
+      | 'text'
+      | 'email'
+      | 'password'
+      | 'number'
+      | 'url'
+      | 'search'
+      | 'date'
+      | 'datetime-local'
+      | 'time'
+      | 'color'
     placeholder?: string
     autocomplete?: string
     inputmode?: 'text' | 'numeric' | 'decimal' | 'email' | 'tel' | 'url' | 'search' | 'none'

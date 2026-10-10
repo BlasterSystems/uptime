@@ -31,6 +31,7 @@ describe('parseMonitorConfig', () => {
       acceptedStatus: [200, 201],
       keyword: { value: 'pong', inverse: true },
       maxResponseMs: 800,
+      certExpiryDays: 14,
     }
     expect(parseMonitorConfig('http', raw)).toEqual(raw)
   })
@@ -41,6 +42,16 @@ describe('parseMonitorConfig', () => {
       acceptedStatus: 'any',
     })
     expect(config.acceptedStatus).toBe('any')
+  })
+
+  it('keeps certExpiryDays and strips unknown keys', () => {
+    const config = parseMonitorConfig('http', {
+      url: 'https://example.com',
+      certExpiryDays: 7,
+      bogus: true,
+    })
+    expect(config.certExpiryDays).toBe(7)
+    expect(config).not.toHaveProperty('bogus')
   })
 
   it('rejects invalid configs with a ZodError', () => {
@@ -56,6 +67,8 @@ describe('parseMonitorConfig', () => {
       ['non-string keyword', { url: 'https://example.com', keyword: { value: 42 } }],
       ['non-positive response cap', { url: 'https://example.com', maxResponseMs: 0 }],
       ['fractional response cap', { url: 'https://example.com', maxResponseMs: 10.5 }],
+      ['non-positive cert expiry', { url: 'https://example.com', certExpiryDays: 0 }],
+      ['fractional cert expiry', { url: 'https://example.com', certExpiryDays: 14.5 }],
       ['non-string header value', { url: 'https://example.com', headers: { a: 1 } }],
     ]
     for (const [label, raw] of invalids) {
@@ -64,7 +77,8 @@ describe('parseMonitorConfig', () => {
   })
 
   it('rejects unsupported monitor types', () => {
-    expect(() => parseMonitorConfig('tcp' as unknown as 'http', {})).toThrowError(
+    // `snmp` is a SPEC §3 phase-2 type and intentionally outside `MonitorType`.
+    expect(() => parseMonitorConfig('snmp' as unknown as 'http', {})).toThrowError(
       /unsupported monitor type/,
     )
   })
@@ -72,6 +86,11 @@ describe('parseMonitorConfig', () => {
   it('dispatches by monitor type', () => {
     expect(parseMonitorConfig('http', { url: 'https://example.com' }).method).toBe('GET')
     expect(parseMonitorConfig('push', {})).toEqual({ graceSeconds: 60 })
+    expect(parseMonitorConfig('tcp', { host: 'db.internal', port: 5432 })).toEqual({
+      host: 'db.internal',
+      port: 5432,
+      timeoutMs: 10_000,
+    })
 
     // Dynamic dispatch (the API layer passes a validated `type` column value).
     const type: MonitorType = 'push'

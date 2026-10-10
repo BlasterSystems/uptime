@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
 import type { HeartbeatStatus, Monitor } from '../api.js'
 import { formatDateTime, formatInterval, formatLatency, relativeTime } from '../format.js'
 import Badge from './ui/Badge.vue'
 import Button from './ui/Button.vue'
 
 const props = defineProps<{ monitor: Monitor }>()
-const emit = defineEmits<{ delete: [id: number] }>()
+const emit = defineEmits<{ delete: [id: number]; open: [id: number] }>()
 
 const STATUS_META: Record<
   HeartbeatStatus,
@@ -44,10 +45,18 @@ const failureSnippet = computed(() =>
 </script>
 
 <template>
-  <article class="card">
+  <article class="card" @click="emit('open', monitor.id)">
     <header class="card-head">
       <span class="status-dot" :class="`dot-${status.variant}`" aria-hidden="true" />
-      <h3 class="card-name" :title="monitor.name">{{ monitor.name }}</h3>
+      <h3 class="card-name" :title="monitor.name">
+        <RouterLink
+          class="card-link"
+          :to="{ name: 'monitor-detail', params: { id: monitor.id } }"
+          @click.stop
+        >
+          {{ monitor.name }}
+        </RouterLink>
+      </h3>
       <Badge :variant="status.variant" dot>{{ status.label }}</Badge>
       <Badge v-if="monitor.type === 'push'" variant="accent">push</Badge>
       <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
@@ -95,7 +104,7 @@ const failureSnippet = computed(() =>
         variant="secondary"
         size="sm"
         :aria-label="`Delete monitor ${monitor.name}`"
-        @click="emit('delete', monitor.id)"
+        @click.stop="emit('delete', monitor.id)"
       >
         Delete
       </Button>
@@ -114,6 +123,7 @@ const failureSnippet = computed(() =>
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  cursor: pointer;
   transition: border-color 140ms ease;
 }
 
@@ -158,6 +168,10 @@ const failureSnippet = computed(() =>
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.card-link {
+  color: inherit;
 }
 
 .card-target {

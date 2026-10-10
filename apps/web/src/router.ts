@@ -4,9 +4,11 @@ import AppLayout from './layouts/AppLayout.vue'
 import DashboardView from './views/DashboardView.vue'
 import IncidentsView from './views/IncidentsView.vue'
 import LoginView from './views/LoginView.vue'
+import MonitorDetailView from './views/MonitorDetailView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import SettingsView from './views/SettingsView.vue'
 import SetupView from './views/SetupView.vue'
+import StatusPageView from './views/StatusPageView.vue'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -27,6 +29,12 @@ const routes: RouteRecordRaw[] = [
         name: 'dashboard',
         component: DashboardView,
         meta: { title: 'Dashboard' },
+      },
+      {
+        path: 'monitors/:id',
+        name: 'monitor-detail',
+        component: MonitorDetailView,
+        meta: { title: 'Monitor' },
       },
       {
         path: 'incidents',
@@ -55,6 +63,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Sign in', public: true },
   },
   {
+    path: '/status/:slug',
+    name: 'status-page',
+    component: StatusPageView,
+    meta: { title: 'Status', public: true },
+  },
+  {
     path: '/setup',
     name: 'setup',
     component: SetupView,
@@ -73,7 +87,7 @@ router.beforeEach(async (to) => {
   if (!authState.ready) await bootstrapAuth()
 
   if (authState.setupRequired) {
-    return to.name === 'setup' ? true : { name: 'setup' }
+    return to.name === 'setup' || to.name === 'status-page' ? true : { name: 'setup' }
   }
 
   if (to.name === 'setup') {

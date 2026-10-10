@@ -5,16 +5,35 @@ import {
   ApiError,
   createApiKey,
   deleteApiKey,
+  deleteMaintenanceWindow,
+  deleteStatusPage,
   disableTotp,
   errorMessage,
   fetchApiKeys,
+  fetchMaintenanceWindows,
+  fetchMonitors,
+  fetchSettings,
+  fetchStatusPages,
+  fetchTags,
   startTotpSetup,
+  updateSettings,
   verifyTotpSetup,
 } from '../api.js'
-import type { ApiKey, ApiKeyScope } from '../api.js'
+import type {
+  ApiKey,
+  ApiKeyScope,
+  MaintenanceScope,
+  MaintenanceStrategy,
+  MaintenanceWindow,
+  Monitor,
+  StatusPage,
+  Tag,
+} from '../api.js'
 import { useAuth } from '../auth.js'
 import { copyText } from '../clipboard.js'
 import { formatDateTime } from '../format.js'
+import MaintenanceWindowForm from '../components/MaintenanceWindowForm.vue'
+import StatusPageForm from '../components/StatusPageForm.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import Card from '../components/ui/Card.vue'
@@ -23,6 +42,7 @@ import EmptyState from '../components/ui/EmptyState.vue'
 import Icon from '../components/ui/Icon.vue'
 import Input from '../components/ui/Input.vue'
 import Modal from '../components/ui/Modal.vue'
+import Spinner from '../components/ui/Spinner.vue'
 import Switch from '../components/ui/Switch.vue'
 import Table from '../components/ui/Table.vue'
 import Tabs from '../components/ui/Tabs.vue'
@@ -41,6 +61,9 @@ const TABS = [
   { id: 'profile', label: 'Profile' },
   { id: 'security', label: 'Security' },
   { id: 'api-keys', label: 'API keys' },
+  { id: 'status-pages', label: 'Status pages' },
+  { id: 'maintenance', label: 'Maintenance' },
+  { id: 'general', label: 'General' },
 ] as const
 
 const { state, isAdmin } = useAuth()
@@ -221,6 +244,199 @@ async function confirmKeyDelete(): Promise<void> {
   }
 }
 
+/* Status pages */
+
+const statusPages = ref<StatusPage[]>([])
+const statusPagesLoaded = ref(false)
+const statusPagesError = ref<string | null>(null)
+const monitors = ref<Monitor[]>([])
+const statusPageFormOpen = ref(false)
+const editingStatusPage = ref<StatusPage | null>(null)
+const pendingStatusPageDelete = ref<StatusPage | null>(null)
+const deletingStatusPage = ref(false)
+
+const statusPageColumns: TableColumn<StatusPage>[] = [
+  { key: 'slug', label: 'Slug' },
+  { key: 'title', label: 'Title' },
+  { key: 'published', label: 'Published', width: '130px' },
+  { key: 'link', label: 'Link', width: '110px' },
+  { key: 'actions', label: '', align: 'right', width: '150px' },
+]
+
+async function loadStatusPages(): Promise<void> {
+  try {
+    const [pages, monitorList] = await Promise.all([fetchStatusPages(), fetchMonitors()])
+    statusPages.value = pages
+    monitors.value = monitorList
+    statusPagesError.value = null
+  } catch (error) {
+    statusPagesError.value = errorMessage(error, 'Could not load status pages.')
+  } finally {
+    statusPagesLoaded.value = true
+  }
+}
+
+function openStatusPageForm(page: StatusPage | null): void {
+  editingStatusPage.value = page
+  statusPageFormOpen.value = true
+}
+
+function closeStatusPageForm(): void {
+  statusPageFormOpen.value = false
+  editingStatusPage.value = null
+}
+
+async function onStatusPageSaved(): Promise<void> {
+  toast.success(editingStatusPage.value === null ? 'Status page created' : 'Status page updated')
+  await loadStatusPages()
+}
+
+async function confirmStatusPageDelete(): Promise<void> {
+  if (pendingStatusPageDelete.value === null) return
+  const page = pendingStatusPageDelete.value
+  deletingStatusPage.value = true
+  try {
+    await deleteStatusPage(page.id)
+    toast.success('Status page deleted', page.slug)
+    pendingStatusPageDelete.value = null
+    await loadStatusPages()
+  } catch (error) {
+    toast.error('Could not delete the status page', errorMessage(error, 'Try again.'))
+  } finally {
+    deletingStatusPage.value = false
+  }
+}
+
+/* Maintenance windows */
+
+const maintenanceWindows = ref<MaintenanceWindow[]>([])
+const maintenanceLoaded = ref(false)
+const maintenanceError = ref<string | null>(null)
+const tags = ref<Tag[]>([])
+const maintenanceFormOpen = ref(false)
+const editingMaintenance = ref<MaintenanceWindow | null>(null)
+const pendingMaintenanceDelete = ref<MaintenanceWindow | null>(null)
+const deletingMaintenance = ref(false)
+
+const SCOPE_LABELS: Record<MaintenanceScope, string> = {
+  all: 'All monitors',
+  ids: 'Selected monitors',
+  tags: 'Tagged monitors',
+}
+
+const STRATEGY_LABELS: Record<MaintenanceStrategy, string> = {
+  single: 'Single window',
+  'recurring-interval': 'Repeats on an interval',
+  'recurring-weekday': 'Weekly schedule',
+  cron: 'Cron schedule',
+}
+
+const maintenanceColumns: TableColumn<MaintenanceWindow>[] = [
+  { key: 'name', label: 'Name' },
+  { key: 'scope', label: 'Scope', width: '170px' },
+  { key: 'strategy', label: 'Strategy', width: '200px' },
+  { key: 'active', label: 'Active', width: '120px' },
+  { key: 'actions', label: '', align: 'right', width: '150px' },
+]
+
+async function loadMaintenance(): Promise<void> {
+  try {
+    const [windows, monitorList, tagList] = await Promise.all([
+      fetchMaintenanceWindows(),
+      fetchMonitors(),
+      fetchTags(),
+    ])
+    maintenanceWindows.value = windows
+    monitors.value = monitorList
+    tags.value = tagList
+    maintenanceError.value = null
+  } catch (error) {
+    maintenanceError.value = errorMessage(error, 'Could not load maintenance windows.')
+  } finally {
+    maintenanceLoaded.value = true
+  }
+}
+
+function openMaintenanceForm(item: MaintenanceWindow | null): void {
+  editingMaintenance.value = item
+  maintenanceFormOpen.value = true
+}
+
+function closeMaintenanceForm(): void {
+  maintenanceFormOpen.value = false
+  editingMaintenance.value = null
+}
+
+async function onMaintenanceSaved(): Promise<void> {
+  toast.success(
+    editingMaintenance.value === null ? 'Maintenance window created' : 'Maintenance window updated',
+  )
+  await loadMaintenance()
+}
+
+async function confirmMaintenanceDelete(): Promise<void> {
+  if (pendingMaintenanceDelete.value === null) return
+  const item = pendingMaintenanceDelete.value
+  deletingMaintenance.value = true
+  try {
+    await deleteMaintenanceWindow(item.id)
+    toast.success('Maintenance window deleted', item.name)
+    pendingMaintenanceDelete.value = null
+    await loadMaintenance()
+  } catch (error) {
+    toast.error('Could not delete the maintenance window', errorMessage(error, 'Try again.'))
+  } finally {
+    deletingMaintenance.value = false
+  }
+}
+
+/* General settings */
+
+const settingsTitle = ref('')
+const settingsTimezone = ref('')
+const settingsLoaded = ref(false)
+const settingsError = ref<string | null>(null)
+const settingsTitleError = ref<string | null>(null)
+const settingsSaveError = ref<string | null>(null)
+const settingsSaving = ref(false)
+
+async function loadSettings(): Promise<void> {
+  try {
+    const settings = await fetchSettings()
+    settingsTitle.value = settings.title
+    settingsTimezone.value = settings.timezone
+    settingsError.value = null
+  } catch (error) {
+    settingsError.value = errorMessage(error, 'Could not load settings.')
+  } finally {
+    settingsLoaded.value = true
+  }
+}
+
+async function saveSettings(): Promise<void> {
+  const trimmedTitle = settingsTitle.value.trim()
+  settingsTitleError.value = trimmedTitle === '' ? 'Enter a title.' : null
+  if (settingsTitleError.value !== null) return
+
+  settingsSaving.value = true
+  settingsSaveError.value = null
+  try {
+    const updated = await updateSettings({
+      title: trimmedTitle,
+      timezone: settingsTimezone.value.trim(),
+    })
+    if (updated !== null) {
+      settingsTitle.value = updated.title
+      settingsTimezone.value = updated.timezone
+    }
+    toast.success('Settings saved')
+  } catch (error) {
+    settingsSaveError.value = errorMessage(error, 'Could not save the settings.')
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
 /* Shared */
 
 async function copyToClipboard(text: string, label: string): Promise<void> {
@@ -233,6 +449,9 @@ async function copyToClipboard(text: string, label: string): Promise<void> {
 
 watch(tab, (value) => {
   if (value === 'api-keys' && isAdmin.value && !keysLoaded.value) void loadApiKeys()
+  if (value === 'status-pages' && isAdmin.value && !statusPagesLoaded.value) void loadStatusPages()
+  if (value === 'maintenance' && isAdmin.value && !maintenanceLoaded.value) void loadMaintenance()
+  if (value === 'general' && isAdmin.value && !settingsLoaded.value) void loadSettings()
 })
 
 onMounted(() => {
@@ -456,6 +675,214 @@ onMounted(() => {
           </Table>
         </Card>
       </template>
+
+      <template #tab-status-pages>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can manage status pages."
+        >
+          <template #icon><Icon name="settings" :size="18" /></template>
+        </EmptyState>
+
+        <Card
+          v-else
+          title="Status pages"
+          subtitle="Public pages that publish monitor status."
+          padding="none"
+        >
+          <template #actions>
+            <Button variant="primary" size="sm" @click="openStatusPageForm(null)">
+              <Icon name="plus" :size="14" />
+              Create page
+            </Button>
+          </template>
+
+          <p v-if="statusPagesError !== null" class="banner" role="alert">{{ statusPagesError }}</p>
+
+          <Table
+            :columns="statusPageColumns"
+            :rows="statusPages"
+            :loading="!statusPagesLoaded"
+            :row-key="(row) => row.id"
+          >
+            <template #empty>
+              <EmptyState
+                title="No status pages"
+                description="Create a page to publish monitor status to your users."
+              />
+            </template>
+
+            <template #cell-slug="{ row }">
+              <code class="mono cell-strong">{{ row.slug }}</code>
+            </template>
+
+            <template #cell-published="{ row }">
+              <Badge :variant="row.published ? 'success' : 'neutral'" dot>
+                {{ row.published ? 'Published' : 'Draft' }}
+              </Badge>
+            </template>
+
+            <template #cell-link="{ row }">
+              <a v-if="row.published" :href="'/status/' + row.slug" target="_blank" rel="noopener">
+                Open
+              </a>
+              <span v-else class="muted">Draft</span>
+            </template>
+
+            <template #cell-actions="{ row }">
+              <div class="row-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="`Edit status page ${row.slug}`"
+                  @click="openStatusPageForm(row)"
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="`Delete status page ${row.slug}`"
+                  @click="pendingStatusPageDelete = row"
+                >
+                  Delete
+                </Button>
+              </div>
+            </template>
+          </Table>
+        </Card>
+      </template>
+
+      <template #tab-maintenance>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can manage maintenance windows."
+        >
+          <template #icon><Icon name="settings" :size="18" /></template>
+        </EmptyState>
+
+        <Card
+          v-else
+          title="Maintenance windows"
+          subtitle="Suppress alerts while you deploy or migrate."
+          padding="none"
+        >
+          <template #actions>
+            <Button variant="primary" size="sm" @click="openMaintenanceForm(null)">
+              <Icon name="plus" :size="14" />
+              Create window
+            </Button>
+          </template>
+
+          <p v-if="maintenanceError !== null" class="banner" role="alert">{{ maintenanceError }}</p>
+
+          <Table
+            :columns="maintenanceColumns"
+            :rows="maintenanceWindows"
+            :loading="!maintenanceLoaded"
+            :row-key="(row) => row.id"
+          >
+            <template #empty>
+              <EmptyState
+                title="No maintenance windows"
+                description="Create a window to silence alerts during planned work."
+              />
+            </template>
+
+            <template #cell-name="{ row }">
+              <span class="cell-strong">{{ row.name }}</span>
+            </template>
+
+            <template #cell-scope="{ row }">
+              <span class="text-note">{{ SCOPE_LABELS[row.scope] }}</span>
+            </template>
+
+            <template #cell-strategy="{ row }">
+              <span class="text-note">{{ STRATEGY_LABELS[row.strategy] }}</span>
+            </template>
+
+            <template #cell-active="{ row }">
+              <Badge :variant="row.active ? 'success' : 'neutral'" dot>
+                {{ row.active ? 'Active' : 'Inactive' }}
+              </Badge>
+            </template>
+
+            <template #cell-actions="{ row }">
+              <div class="row-actions">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="`Edit maintenance window ${row.name}`"
+                  @click="openMaintenanceForm(row)"
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  :aria-label="`Delete maintenance window ${row.name}`"
+                  @click="pendingMaintenanceDelete = row"
+                >
+                  Delete
+                </Button>
+              </div>
+            </template>
+          </Table>
+        </Card>
+      </template>
+
+      <template #tab-general>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can change the application settings."
+        >
+          <template #icon><Icon name="settings" :size="18" /></template>
+        </EmptyState>
+
+        <Card v-else title="Application" subtitle="Instance title and reporting timezone.">
+          <p v-if="settingsError !== null" class="banner" role="alert">{{ settingsError }}</p>
+
+          <div v-if="!settingsLoaded" class="loading-row">
+            <Spinner size="sm" />
+            <span class="text-note">Loading settings…</span>
+          </div>
+
+          <div v-else class="stack-sm">
+            <div class="form-grid">
+              <Input
+                v-model="settingsTitle"
+                label="Title"
+                placeholder="Uptime"
+                required
+                :error="settingsTitleError"
+              />
+              <Input
+                v-model="settingsTimezone"
+                label="Timezone"
+                placeholder="Europe/Lisbon"
+                hint="IANA timezone, such as Europe/Lisbon"
+              />
+            </div>
+            <p v-if="settingsSaveError !== null" class="form-error" role="alert">
+              {{ settingsSaveError }}
+            </p>
+          </div>
+
+          <template #footer>
+            <Button
+              variant="primary"
+              :loading="settingsSaving"
+              :disabled="!settingsLoaded"
+              @click="saveSettings"
+            >
+              Save
+            </Button>
+          </template>
+        </Card>
+      </template>
     </Tabs>
 
     <Modal
@@ -518,6 +945,53 @@ onMounted(() => {
       :loading="deletingKey"
       @confirm="confirmKeyDelete"
       @cancel="pendingKeyDelete = null"
+    />
+
+    <StatusPageForm
+      :open="statusPageFormOpen"
+      :page="editingStatusPage"
+      :monitors="monitors"
+      @saved="onStatusPageSaved"
+      @close="closeStatusPageForm"
+    />
+
+    <MaintenanceWindowForm
+      :open="maintenanceFormOpen"
+      :window="editingMaintenance"
+      :monitors="monitors"
+      :tags="tags"
+      @saved="onMaintenanceSaved"
+      @close="closeMaintenanceForm"
+    />
+
+    <ConfirmDialog
+      :open="pendingStatusPageDelete !== null"
+      title="Delete status page"
+      :message="
+        pendingStatusPageDelete === null
+          ? undefined
+          : `“${pendingStatusPageDelete.slug}” stops responding immediately. This cannot be undone.`
+      "
+      confirm-label="Delete page"
+      danger
+      :loading="deletingStatusPage"
+      @confirm="confirmStatusPageDelete"
+      @cancel="pendingStatusPageDelete = null"
+    />
+
+    <ConfirmDialog
+      :open="pendingMaintenanceDelete !== null"
+      title="Delete maintenance window"
+      :message="
+        pendingMaintenanceDelete === null
+          ? undefined
+          : `“${pendingMaintenanceDelete.name}” stops silencing alerts. This cannot be undone.`
+      "
+      confirm-label="Delete window"
+      danger
+      :loading="deletingMaintenance"
+      @confirm="confirmMaintenanceDelete"
+      @cancel="pendingMaintenanceDelete = null"
     />
   </div>
 </template>
@@ -619,6 +1093,19 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-1);
   flex-wrap: wrap;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.loading-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .cell-strong {

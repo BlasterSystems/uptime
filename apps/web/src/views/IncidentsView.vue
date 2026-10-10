@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { errorMessage, fetchIncidents } from '../api.js'
+import { errorMessage, fetchIncidents, fetchMonitors } from '../api.js'
 import type { Incident } from '../api.js'
 import Badge from '../components/ui/Badge.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
@@ -9,8 +9,12 @@ import Table from '../components/ui/Table.vue'
 import Tabs from '../components/ui/Tabs.vue'
 import type { TableColumn } from '../components/ui/table.js'
 import { formatDateTime, formatDuration, relativeTime } from '../format.js'
+import { realtimeState, subscribeRealtime } from '../realtime.js'
+import type { RealtimeEvent } from '../realtime.js'
 
 const POLL_INTERVAL_MS = 10000
+/** Wait before asking the API for the canonical row after an SSE incident event. */
+const SSE_RECONCILE_MS = 2000
 
 const FILTERS = [
   { id: 'active', label: 'Active' },
@@ -23,7 +27,12 @@ const loadError = ref<string | null>(null)
 const loadedOnce = ref(false)
 const now = ref(Date.now())
 
+/** Best-effort monitor names for SSE-prepended rows; polling replaces them. */
+const monitorNames = new Map<number, string>()
+
 let pollTimer: number | null = null
+let sseTimer: number | null = null
+let unsubscribeRealtime: (() => void) | null = null
 let refreshInFlight = false
 
 function durationMs(incident: Incident): number {
@@ -82,6 +91,68 @@ async function refresh(): Promise<void> {
   }
 }
 
+function scheduleRefresh(): void {
+  if (sseTimer !== null) return
+  sseTimer = window.setTimeout(() => {
+    sseTimer = null
+    void refresh()
+  }, SSE_RECONCILE_MS)
+}
+
+function applyIncidentEvent(event: RealtimeEvent): void {
+  if (event.type !== 'incident') return
+  const open = event.state === 'open'
+  const existing = incidents.value.find((incident) => incident.id === event.incidentId)
+
+  if (filter.value === 'active') {
+    if (open) {
+      if (existing === undefined) {
+        incidents.value = [
+          {
+            id: event.incidentId,
+            monitorId: event.monitorId,
+            monitorName: monitorNames.get(event.monitorId) ?? `Monitor #${event.monitorId}`,
+            openedAt: event.time,
+            resolvedAt: null,
+            title: event.title,
+            body: null,
+          },
+          ...incidents.value,
+        ]
+      }
+    } else if (existing !== undefined) {
+      incidents.value = incidents.value.filter((incident) => incident.id !== event.incidentId)
+    }
+  } else if (existing !== undefined) {
+    if (existing.resolvedAt === null) existing.resolvedAt = event.time
+  } else {
+    // Opened and resolved between two polls: add it now, canonical data follows.
+    incidents.value = [
+      {
+        id: event.incidentId,
+        monitorId: event.monitorId,
+        monitorName: monitorNames.get(event.monitorId) ?? `Monitor #${event.monitorId}`,
+        openedAt: event.time,
+        resolvedAt: event.time,
+        title: event.title,
+        body: null,
+      },
+      ...incidents.value,
+    ]
+  }
+
+  now.value = Date.now()
+  scheduleRefresh()
+}
+
+async function loadMonitorNames(): Promise<void> {
+  try {
+    for (const monitor of await fetchMonitors()) monitorNames.set(monitor.id, monitor.name)
+  } catch {
+    // Cosmetic only; the next poll reconciles monitor names.
+  }
+}
+
 watch(filter, () => {
   loadedOnce.value = false
   void refresh()
@@ -89,6 +160,8 @@ watch(filter, () => {
 
 onMounted(() => {
   void refresh()
+  void loadMonitorNames()
+  unsubscribeRealtime = subscribeRealtime(applyIncidentEvent)
   pollTimer = window.setInterval(() => void refresh(), POLL_INTERVAL_MS)
 })
 
@@ -97,6 +170,12 @@ onUnmounted(() => {
     window.clearInterval(pollTimer)
     pollTimer = null
   }
+  if (sseTimer !== null) {
+    window.clearTimeout(sseTimer)
+    sseTimer = null
+  }
+  unsubscribeRealtime?.()
+  unsubscribeRealtime = null
 })
 </script>
 
@@ -162,7 +241,18 @@ onUnmounted(() => {
       </Table>
     </section>
 
-    <p class="refresh-note">Refreshing every 10 seconds.</p>
+    <p class="refresh-note">
+      <Badge :variant="realtimeState.status === 'live' ? 'success' : 'neutral'" dot>
+        {{
+          realtimeState.status === 'live'
+            ? 'Live'
+            : realtimeState.status === 'connecting'
+              ? 'Connecting'
+              : 'Polling'
+        }}
+      </Badge>
+      Refreshing every 10 seconds.
+    </p>
   </div>
 </template>
 
@@ -217,6 +307,9 @@ onUnmounted(() => {
 }
 
 .refresh-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--muted);
   font-size: 12px;
 }

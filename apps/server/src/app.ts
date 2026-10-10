@@ -7,10 +7,14 @@ import type { MonitorType, PushMonitorConfig, ScheduledMonitor } from '@uptime/c
 import { parseChannelConfig, type ChannelType } from '@uptime/notify'
 import type { Database, MonitorRow, NewMonitor, TagRow } from '@uptime/db'
 import type { SecretBox } from '@uptime/db'
+import type { NewMaintenanceWindow } from '@uptime/db'
 import type { Notifier } from '@uptime/notify'
 import type { Metrics } from './metrics.js'
 import type { AuthModule } from './auth/index.js'
 import type { IncidentEngine } from './incidents.js'
+import type { EventHub } from './events.js'
+import type { MaintenanceEngine } from './maintenance.js'
+import { parseGroupConfig } from './groups.js'
 
 export interface SchedulerLike {
   upsert(monitor: ScheduledMonitor): void
@@ -26,6 +30,8 @@ export interface AppOptions {
   metrics?: Metrics
   webDist?: string | null
   incidentEngine?: Pick<IncidentEngine, 'onPushDown' | 'onResult' | 'reset'>
+  eventHub?: EventHub
+  maintenance?: MaintenanceEngine
 }
 
 export function toScheduled(row: MonitorRow): ScheduledMonitor {
@@ -113,12 +119,12 @@ function parseMonitorBody(
   if (typeof body !== 'object' || body === null) return { ok: false, error: 'body must be a JSON object' }
   const b = body as Record<string, unknown>
   const input: Partial<NewMonitor> = {}
-  let type: MonitorType = 'http'
+  let type: string = 'http'
   if (!partial || b.type !== undefined) {
-    if (b.type !== undefined && b.type !== 'http' && b.type !== 'push') {
-      return { ok: false, error: 'type must be "http" or "push"' }
+    if (b.type !== undefined && (typeof b.type !== 'string' || !['http', 'push', 'group'].includes(b.type))) {
+      return { ok: false, error: 'type must be http, push or group' }
     }
-    type = (b.type as MonitorType | undefined) ?? 'http'
+    type = (b.type as string | undefined) ?? 'http'
   }
   input.type = type
   if (!partial || b.name !== undefined) {
@@ -150,7 +156,7 @@ function parseMonitorBody(
   }
   if (!partial || b.config !== undefined) {
     try {
-      input.config = parseMonitorConfig(type, b.config)
+      input.config = type === 'group' ? parseGroupConfig(b.config) : parseMonitorConfig(type as MonitorType, b.config)
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'invalid config' }
     }
@@ -217,7 +223,15 @@ export function createApp(opts: AppOptions): Express {
   const pushPing = async (req: Request, res: Response) => {
     const monitor = resolvePushMonitor(String(req.params.token ?? ''))
     if (!monitor) return res.status(404).json({ error: 'unknown push token' })
+    const time = new Date()
     db.insertHeartbeat({ monitorId: monitor.id, status: 'up', responseSnippet: 'push received' })
+    opts.eventHub?.broadcast({
+      type: 'heartbeat',
+      monitorId: monitor.id,
+      status: 'up',
+      latencyMs: null,
+      time: time.toISOString(),
+    })
     if (monitor.type === 'push' && opts.incidentEngine && monitor.active) {
       await opts.incidentEngine.onResult(
         { id: monitor.id, name: monitor.name, retries: monitor.retries, resendNotificationS: monitor.resendNotificationS },
@@ -247,12 +261,20 @@ export function createApp(opts: AppOptions): Express {
     if (monitor.type !== 'push') return res.status(400).json({ error: 'not a push monitor' })
     const body = typeof req.query.body === 'string' ? req.query.body : undefined
     const snippet = body ? body.slice(0, 1024) : 'push failed'
+    const time = new Date()
     db.insertHeartbeat({ monitorId: monitor.id, status: 'down', responseSnippet: snippet })
+    opts.eventHub?.broadcast({
+      type: 'heartbeat',
+      monitorId: monitor.id,
+      status: 'down',
+      latencyMs: null,
+      time: time.toISOString(),
+    })
     if (opts.incidentEngine && monitor.active) {
       await opts.incidentEngine.onPushDown(
         { id: monitor.id, name: monitor.name, retries: monitor.retries, resendNotificationS: monitor.resendNotificationS },
         snippet,
-        new Date(),
+        time,
       )
     }
     res.status(200).json({ ok: true })
@@ -360,6 +382,250 @@ export function createApp(opts: AppOptions): Express {
       .listIncidents(listOpts)
       .map((i) => ({ ...i, monitorName: db.getMonitor(i.monitorId)?.name ?? null }))
     res.json({ incidents })
+  })
+
+  // ---- Realtime (SSE) ----
+  app.get('/api/v1/events', auth.requireAuth('viewer'), (req, res) => {
+    if (!opts.eventHub) return res.status(404).json({ error: 'events disabled' })
+    opts.eventHub.handle(req, res)
+  })
+
+  // ---- Status pages ----
+  const statusPageApi = (row: {
+    id: number
+    slug: string
+    title: string
+    logo: string | null
+    published: boolean
+    monitorIds: number[]
+    theme: Record<string, unknown> | null
+  }) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    logo: row.logo,
+    published: row.published,
+    monitorIds: row.monitorIds,
+    theme: row.theme,
+  })
+
+  app.get('/api/v1/status-pages', auth.requireAuth('admin'), (_req, res) => {
+    res.json({ statusPages: db.listStatusPages().map(statusPageApi) })
+  })
+
+  app.post('/api/v1/status-pages', auth.requireAuth('admin'), (req, res) => {
+    const b = req.body as Record<string, unknown>
+    if (typeof b.slug !== 'string' || !/^[a-z0-9-]{1,100}$/.test(b.slug)) {
+      return res.status(400).json({ error: 'slug must be lowercase letters, digits and dashes' })
+    }
+    if (typeof b.title !== 'string' || b.title.trim().length === 0) {
+      return res.status(400).json({ error: 'title must be a non-empty string' })
+    }
+    try {
+      const row = db.createStatusPage({
+        slug: b.slug,
+        title: b.title,
+        logo: typeof b.logo === 'string' ? b.logo : undefined,
+        published: b.published === true,
+        monitorIds: Array.isArray(b.monitorIds) ? (b.monitorIds as number[]) : [],
+        theme: (b.theme ?? undefined) as Record<string, unknown> | undefined,
+      })
+      res.status(201).json({ statusPage: statusPageApi(row) })
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'could not create status page' })
+    }
+  })
+
+  app.patch('/api/v1/status-pages/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    const b = req.body as Record<string, unknown>
+    const patch: Record<string, unknown> = {}
+    for (const key of ['slug', 'title', 'logo', 'published', 'monitorIds', 'theme'] as const) {
+      if (b[key] !== undefined) patch[key] = b[key]
+    }
+    const updated = db.updateStatusPage(id, patch)
+    if (!updated) return res.status(404).json({ error: 'status page not found' })
+    res.json({ statusPage: statusPageApi(updated) })
+  })
+
+  app.delete('/api/v1/status-pages/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    if (!db.deleteStatusPage(id)) return res.status(404).json({ error: 'status page not found' })
+    res.status(204).send()
+  })
+
+  // Public status page payload (SPEC §5).
+  app.get('/api/v1/status/:slug', (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page) return res.status(404).json({ error: 'status page not found' })
+    const monitors = page.monitorIds.flatMap((id) => {
+      const row = db.getMonitor(id)
+      if (!row) return []
+      const [latest] = db.listHeartbeats(id, { limit: 1 })
+      const uptime = db.getUptime(id, 24)
+      const tagById = tagMap()
+      const monitorTagIds = db.listMonitorTagIds(id)
+      return [
+        {
+          id: row.id,
+          name: row.name,
+          status: latest?.status ?? 'pending',
+          latencyMs: latest?.latencyMs ?? null,
+          uptimePct: uptime.uptimePct,
+          tags: monitorTagIds.flatMap((tid) => {
+            const t = tagById.get(tid)
+            return t ? [{ id: t.id, name: t.name, color: t.color }] : []
+          }),
+        },
+      ]
+    })
+    const openIncidents = db.listIncidents({ active: true }).filter((i) => page.monitorIds.includes(i.monitorId))
+    res.json({
+      slug: page.slug,
+      title: page.title,
+      logo: page.logo,
+      theme: page.theme,
+      monitors,
+      incidents: openIncidents.map((i) => ({
+        id: i.id,
+        monitorId: i.monitorId,
+        monitorName: db.getMonitor(i.monitorId)?.name ?? null,
+        openedAt: i.openedAt.toISOString(),
+        title: i.title,
+        body: i.body,
+      })),
+    })
+  })
+
+  // ---- Maintenance windows ----
+  // JSON bodies carry ISO date strings; the repo contract wants Dates.
+  const coerceWindow = (body: Record<string, unknown>): NewMaintenanceWindow => {
+    const out = { ...body } as unknown as NewMaintenanceWindow
+    if (typeof body.startAt === 'string') out.startAt = new Date(body.startAt)
+    if (typeof body.endAt === 'string') out.endAt = new Date(body.endAt)
+    return out
+  }
+
+  app.get('/api/v1/maintenance-windows', auth.requireAuth('viewer'), (_req, res) => {
+    res.json({ windows: db.listMaintenanceWindows() })
+  })
+
+  app.post('/api/v1/maintenance-windows', auth.requireAuth('admin'), (req, res) => {
+    try {
+      const row = db.createMaintenanceWindow(coerceWindow(req.body))
+      res.status(201).json({ window: row })
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
+    }
+  })
+
+  app.patch('/api/v1/maintenance-windows/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid maintenance window id' })
+    try {
+      const updated = db.updateMaintenanceWindow(id, coerceWindow(req.body))
+      if (!updated) return res.status(404).json({ error: 'maintenance window not found' })
+      res.json({ window: updated })
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
+    }
+  })
+
+  app.delete('/api/v1/maintenance-windows/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid maintenance window id' })
+    if (!db.deleteMaintenanceWindow(id)) return res.status(404).json({ error: 'maintenance window not found' })
+    res.status(204).send()
+  })
+
+  // ---- Instance settings ----
+  const DEFAULT_TITLE = 'Uptime Monitoring'
+  app.get('/api/v1/settings', auth.requireAuth('viewer'), (_req, res) => {
+    res.json({
+      title: db.getSetting('title') ?? DEFAULT_TITLE,
+      timezone: db.getSetting('timezone') ?? 'UTC',
+    })
+  })
+
+  app.put('/api/v1/settings', auth.requireAuth('admin'), (req, res) => {
+    const b = req.body as Record<string, unknown>
+    if (b.title !== undefined) {
+      if (typeof b.title !== 'string' || b.title.trim().length === 0 || b.title.length > 200) {
+        return res.status(400).json({ error: 'title must be a non-empty string of at most 200 characters' })
+      }
+      db.setSetting('title', b.title)
+    }
+    if (b.timezone !== undefined) {
+      if (typeof b.timezone !== 'string' || b.timezone.length === 0 || b.timezone.length > 64) {
+        return res.status(400).json({ error: 'timezone must be a non-empty string' })
+      }
+      db.setSetting('timezone', b.timezone)
+    }
+    res.json({ title: db.getSetting('title') ?? DEFAULT_TITLE, timezone: db.getSetting('timezone') ?? 'UTC' })
+  })
+
+  // ---- Docker hosts (SPEC §4) ----
+  const dockerHostApi = (row: { id: number; name: string; uri: string; createdAt: Date; updatedAt: Date }) => ({
+    id: row.id,
+    name: row.name,
+    uri: row.uri,
+    hasTls: false as boolean,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  })
+
+  app.get('/api/v1/docker-hosts', auth.requireAuth('viewer'), (_req, res) => {
+    res.json({ dockerHosts: db.listDockerHosts().map((row) => ({ ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null })) })
+  })
+
+  app.post('/api/v1/docker-hosts', auth.requireAuth('admin'), (req, res) => {
+    const b = req.body as Record<string, unknown>
+    if (typeof b.name !== 'string' || b.name.trim().length === 0) {
+      return res.status(400).json({ error: 'name must be a non-empty string' })
+    }
+    if (typeof b.uri !== 'string' || b.uri.length === 0) {
+      return res.status(400).json({ error: 'uri must be a non-empty string' })
+    }
+    const row = db.createDockerHost({
+      name: b.name,
+      uri: b.uri,
+      tlsCaEnc: typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : undefined,
+      tlsCertEnc: typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : undefined,
+      tlsKeyEnc: typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : undefined,
+    })
+    res.status(201).json({ dockerHost: dockerHostApi(row) })
+  })
+
+  app.patch('/api/v1/docker-hosts/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid docker host id' })
+    const b = req.body as Record<string, unknown>
+    const patch: Record<string, string | null> = {}
+    if (b.name !== undefined) {
+      if (typeof b.name !== 'string' || b.name.trim().length === 0) {
+        return res.status(400).json({ error: 'name must be a non-empty string' })
+      }
+      patch.name = b.name
+    }
+    if (b.uri !== undefined) {
+      if (typeof b.uri !== 'string' || b.uri.length === 0) return res.status(400).json({ error: 'uri must be a non-empty string' })
+      patch.uri = b.uri
+    }
+    if (b.tlsCa !== undefined) patch.tlsCaEnc = typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : null
+    if (b.tlsCert !== undefined) patch.tlsCertEnc = typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : null
+    if (b.tlsKey !== undefined) patch.tlsKeyEnc = typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : null
+    const updated = db.updateDockerHost(id, patch)
+    if (!updated) return res.status(404).json({ error: 'docker host not found' })
+    res.json({ dockerHost: { ...dockerHostApi(updated), hasTls: updated.tlsCaEnc !== null } })
+  })
+
+  app.delete('/api/v1/docker-hosts/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid docker host id' })
+    if (!db.deleteDockerHost(id)) return res.status(404).json({ error: 'docker host not found' })
+    res.status(204).send()
   })
 
   // ---- Monitors ----
@@ -511,6 +777,17 @@ export function createApp(opts: AppOptions): Express {
     metrics?.removeMonitor(id)
     opts.incidentEngine?.reset(id)
     res.status(204).send()
+  })
+
+  app.get('/api/v1/monitors/:id/uptime', auth.requireAuth('viewer'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid monitor id' })
+    if (!db.getMonitor(id)) return res.status(404).json({ error: 'monitor not found' })
+    const raw = Number(req.query.hours ?? 24)
+    // 7/30/365 are day-based ranges per SPEC §5; 24 stays hours.
+    const HOURS_BY_RANGE: Record<number, number> = { 24: 24, 7: 168, 30: 720, 365: 8760 }
+    const hours = HOURS_BY_RANGE[raw] ?? raw
+    res.json(db.getUptime(id, hours))
   })
 
   app.get('/api/v1/monitors/:id/heartbeats', auth.requireAuth('viewer'), (req, res) => {

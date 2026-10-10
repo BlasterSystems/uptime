@@ -1,16 +1,28 @@
+import { getCertExpiryDays } from './cert.js'
 import type { CheckResult, HttpMonitorConfig } from './types.js'
 
 /** Results carry at most the first 1024 bytes of the body / failure reason (SPEC §4). */
 const SNIPPET_BYTES = 1024
 
+/** Injectable seams for {@link runHttpCheck}, used by tests. */
+export interface RunHttpCheckOptions {
+  /** TLS certificate probe override; defaults to {@link getCertExpiryDays}. */
+  certProbe?: typeof getCertExpiryDays
+}
+
 /**
  * Run one HTTP probe. Never rejects: transport failures (DNS, TLS, timeout,
  * caller abort) and unmet expectations all resolve to `status: 'down'` with the
  * reason recorded in `responseSnippet`.
+ *
+ * With `certExpiryDays` configured, an https URL additionally fails when the
+ * TLS certificate expires in fewer days than the threshold; an unreadable
+ * certificate (`certProbe` resolving `null`) never fails the check on its own.
  */
 export async function runHttpCheck(
   config: HttpMonitorConfig,
   signal?: AbortSignal,
+  opts?: RunHttpCheckOptions,
 ): Promise<CheckResult> {
   const timeoutSignal = AbortSignal.timeout(config.timeoutMs)
   const combined = AbortSignal.any(signal === undefined ? [timeoutSignal] : [timeoutSignal, signal])
@@ -73,6 +85,17 @@ export async function runHttpCheck(
     return downResult(latencyMs, `latency ${latencyMs}ms exceeded cap ${maxResponseMs}ms`)
   }
 
+  const certExpiryDays = config.certExpiryDays
+  const httpsUrl = URL.canParse(config.url) && new URL(config.url).protocol === 'https:'
+  if (certExpiryDays !== undefined && httpsUrl) {
+    const certProbe = opts?.certProbe ?? getCertExpiryDays
+    const days = await certProbe(config.url, config.timeoutMs)
+    // An unreadable certificate is not a failure; only a known imminent expiry is.
+    if (days !== null && days < certExpiryDays) {
+      return downResult(latencyMs, `certificate expires in ${days} days (min ${certExpiryDays})`)
+    }
+  }
+
   return { status: 'up', latencyMs, responseSnippet: snippet(body) }
 }
 
@@ -89,8 +112,11 @@ function snippet(text: string): string | undefined {
     : bytes.subarray(0, SNIPPET_BYTES).toString('utf8')
 }
 
-/** Turn a transport failure into a diagnostic reason for `responseSnippet`. */
-function describeFailure(
+/**
+ * Turn a transport failure into a diagnostic reason for `responseSnippet`;
+ * shared with the non-HTTP probes in `checks.ts`.
+ */
+export function describeFailure(
   error: unknown,
   timeoutSignal: AbortSignal,
   signal: AbortSignal | undefined,

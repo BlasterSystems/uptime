@@ -10,25 +10,35 @@ export interface MonitorRef {
   resendNotificationS?: number
 }
 
+export interface NotificationPayload {
+  title: string
+  body: string
+  monitorName: string
+  status: 'up' | 'down'
+  latencyMs: number | null
+  downtimeMs: number | null
+  tags: string[]
+}
+
 export interface NotifierLike {
-  notifyMonitor(
-    monitorId: number,
-    payload: {
-      title: string
-      body: string
-      monitorName: string
-      status: 'up' | 'down'
-      latencyMs: number | null
-      downtimeMs: number | null
-      tags: string[]
-    },
-  ): Promise<unknown>
+  notifyMonitor(monitorId: number, payload: NotificationPayload): Promise<unknown>
 }
 
 export interface IncidentEngineDeps {
   db: Database
   notifier: NotifierLike
   tags: (monitorId: number) => string[]
+  /** When true, notifications for this monitor are suppressed (group-down rule, SPEC §3). */
+  isSuppressed?: (monitorId: number) => boolean
+  /** Optional sink for realtime events (SSE hub). */
+  onEvent?: (event: {
+    type: 'incident'
+    monitorId: number
+    incidentId: number
+    state: 'open' | 'resolved'
+    title: string
+    time: string
+  }) => void
 }
 
 interface MonitorState {
@@ -64,6 +74,11 @@ export class IncidentEngine {
     return st
   }
 
+  private async notify(m: MonitorRef, payload: NotificationPayload): Promise<void> {
+    if (this.deps.isSuppressed?.(m.id)) return
+    await this.deps.notifier.notifyMonitor(m.id, payload)
+  }
+
   async onResult(m: MonitorRef, result: CheckResult, time: Date): Promise<void> {
     const st = this.state(m.id)
     const open = this.deps.db.getOpenIncident(m.id)
@@ -72,7 +87,15 @@ export class IncidentEngine {
       if (open) {
         const downtimeMs = time.getTime() - open.openedAt.getTime()
         this.deps.db.resolveIncident(open.id, time)
-        await this.deps.notifier.notifyMonitor(m.id, {
+        this.deps.onEvent?.({
+          type: 'incident',
+          monitorId: m.id,
+          incidentId: open.id,
+          state: 'resolved',
+          title: open.title,
+          time: time.toISOString(),
+        })
+        await this.notify(m, {
           title: `${m.name} is back UP`,
           body: `Recovered after ${humanDuration(downtimeMs)}${result.latencyMs !== undefined ? ` (${result.latencyMs} ms)` : ''}.`,
           monitorName: m.name,
@@ -94,7 +117,15 @@ export class IncidentEngine {
         title: `${m.name} is DOWN`,
         body: result.responseSnippet ?? undefined,
       })
-      await this.deps.notifier.notifyMonitor(m.id, {
+      this.deps.onEvent?.({
+        type: 'incident',
+        monitorId: m.id,
+        incidentId: incident.id,
+        state: 'open',
+        title: incident.title,
+        time: time.toISOString(),
+      })
+      await this.notify(m, {
         title: incident.title,
         body: `${result.responseSnippet ?? 'Check failed'}${result.latencyMs !== undefined ? ` (${result.latencyMs} ms)` : ''}`,
         monitorName: m.name,
@@ -108,7 +139,7 @@ export class IncidentEngine {
     }
     if (open && (m.resendNotificationS ?? 0) > 0) {
       if (time.getTime() - st.lastNotifiedAt >= (m.resendNotificationS ?? 0) * 1000) {
-        await this.deps.notifier.notifyMonitor(m.id, {
+        await this.notify(m, {
           title: `${m.name} is still DOWN`,
           body: `Down for ${humanDuration(time.getTime() - open.openedAt.getTime())}. ${result.responseSnippet ?? ''}`.trim(),
           monitorName: m.name,

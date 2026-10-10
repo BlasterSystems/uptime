@@ -598,3 +598,420 @@ describe('listActivePushMonitors', () => {
     expect(rows[1]?.lastBeatAt).toBeNull()
   })
 })
+
+describe('status pages', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('creates with defaults and round-trips parsed fields', () => {
+    const created = db.createStatusPage({ slug: 'status', title: 'Status' })
+    expect(created.id).toBeGreaterThan(0)
+    expect(created).toMatchObject({
+      slug: 'status',
+      title: 'Status',
+      logo: null,
+      published: false,
+      monitorIds: [],
+      theme: null,
+    })
+    expect(created.createdAt).toBeInstanceOf(Date)
+    expect(created.updatedAt).toBeInstanceOf(Date)
+
+    const themed = db.createStatusPage({
+      slug: 'themed',
+      title: 'Themed',
+      logo: 'https://example.com/logo.svg',
+      published: true,
+      monitorIds: [1, 2, 3],
+      theme: { accent: '#0ea5e9', dark: 'auto' },
+    })
+    expect(themed).toMatchObject({
+      logo: 'https://example.com/logo.svg',
+      published: true,
+      monitorIds: [1, 2, 3],
+      theme: { accent: '#0ea5e9', dark: 'auto' },
+    })
+
+    expect(db.getStatusPage(created.id)).toEqual(created)
+    expect(db.getStatusPage(created.id + 1000)).toBeNull()
+    expect(db.listStatusPages().map((page) => page.slug)).toEqual(['status', 'themed'])
+  })
+
+  it('rejects duplicate slugs on create and update', () => {
+    db.createStatusPage({ slug: 'status', title: 'Status' })
+    expect(() => db.createStatusPage({ slug: 'status', title: 'Other' })).toThrow()
+
+    const other = db.createStatusPage({ slug: 'other', title: 'Other' })
+    expect(() => db.updateStatusPage(other.id, { slug: 'status' })).toThrow()
+    expect(db.getStatusPage(other.id)?.slug).toBe('other')
+  })
+
+  it('serves only published pages publicly', () => {
+    const draft = db.createStatusPage({ slug: 'draft', title: 'Draft' })
+    const live = db.createStatusPage({ slug: 'live', title: 'Live', published: true })
+
+    expect(db.getPublicStatusPage('draft')).toBeNull()
+    expect(db.getPublicStatusPage('missing')).toBeNull()
+    expect(db.getPublicStatusPage('live')?.id).toBe(live.id)
+
+    const published = db.updateStatusPage(draft.id, { published: true })
+    expect(published?.published).toBe(true)
+    expect(db.getPublicStatusPage('draft')?.id).toBe(draft.id)
+  })
+
+  it('patches provided fields, clears nullable ones and deletes', () => {
+    const created = db.createStatusPage({
+      slug: 'status',
+      title: 'Status',
+      logo: 'logo.svg',
+      monitorIds: [1],
+      theme: { accent: '#ffffff' },
+    })
+
+    const updated = db.updateStatusPage(created.id, {
+      title: 'Renamed',
+      logo: null,
+      monitorIds: [2, 3],
+      theme: null,
+    })
+    expect(updated).toMatchObject({
+      id: created.id,
+      slug: 'status',
+      title: 'Renamed',
+      logo: null,
+      published: false,
+      monitorIds: [2, 3],
+      theme: null,
+    })
+    expect(updated?.createdAt).toEqual(created.createdAt)
+    expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(created.updatedAt.getTime())
+
+    expect(db.updateStatusPage(created.id + 1000, { title: 'nope' })).toBeNull()
+    expect(db.deleteStatusPage(created.id)).toBe(true)
+    expect(db.deleteStatusPage(created.id)).toBe(false)
+    expect(db.getStatusPage(created.id)).toBeNull()
+  })
+})
+
+describe('maintenance windows', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('creates single and recurring windows with their defaults', () => {
+    const single = db.createMaintenanceWindow({
+      name: 'Upgrade',
+      scope: 'all',
+      strategy: 'single',
+      startAt: new Date('2026-03-01T01:00:00.000Z'),
+      endAt: new Date('2026-03-01T03:00:00.000Z'),
+    })
+    expect(single).toMatchObject({
+      name: 'Upgrade',
+      scope: 'all',
+      monitorIds: [],
+      tagIds: [],
+      strategy: 'single',
+      intervalS: null,
+      weekdays: null,
+      startTime: null,
+      endTime: null,
+      cronExpr: null,
+      cronTz: null,
+      active: true,
+    })
+    expect(single.startAt?.getTime()).toBe(Date.parse('2026-03-01T01:00:00.000Z'))
+    expect(single.endAt?.getTime()).toBe(Date.parse('2026-03-01T03:00:00.000Z'))
+    expect(single.createdAt).toBeInstanceOf(Date)
+    expect(single.updatedAt).toBeInstanceOf(Date)
+
+    const recurring = db.createMaintenanceWindow({
+      name: 'Nightly',
+      scope: 'ids',
+      monitorIds: [1, 2],
+      tagIds: [9],
+      strategy: 'recurring-weekday',
+      weekdays: [1, 3, 5],
+      startTime: '22:30',
+      endTime: '23:45',
+      cronExpr: '30 22 * * 1,3,5',
+      cronTz: 'Europe/Lisbon',
+      active: false,
+    })
+    expect(recurring).toMatchObject({
+      name: 'Nightly',
+      scope: 'ids',
+      monitorIds: [1, 2],
+      tagIds: [9],
+      strategy: 'recurring-weekday',
+      weekdays: [1, 3, 5],
+      startTime: '22:30',
+      endTime: '23:45',
+      cronExpr: '30 22 * * 1,3,5',
+      cronTz: 'Europe/Lisbon',
+      active: false,
+      startAt: null,
+      endAt: null,
+      intervalS: null,
+    })
+
+    const interval = db.createMaintenanceWindow({
+      name: 'Every six hours',
+      scope: 'tags',
+      tagIds: [4],
+      strategy: 'recurring-interval',
+      intervalS: 21_600,
+      startTime: '00:00',
+      endTime: '01:00',
+    })
+    expect(interval).toMatchObject({ scope: 'tags', intervalS: 21_600, startTime: '00:00' })
+
+    expect(db.listMaintenanceWindows().map((window) => window.name)).toEqual([
+      'Upgrade',
+      'Nightly',
+      'Every six hours',
+    ])
+  })
+
+  it('patches provided fields, clears nullable ones and deletes', () => {
+    const created = db.createMaintenanceWindow({
+      name: 'Upgrade',
+      scope: 'all',
+      strategy: 'single',
+      startAt: new Date('2026-03-01T01:00:00.000Z'),
+      endAt: new Date('2026-03-01T03:00:00.000Z'),
+    })
+
+    const updated = db.updateMaintenanceWindow(created.id, {
+      name: 'Renamed',
+      scope: 'tags',
+      tagIds: [7],
+      strategy: 'cron',
+      startAt: null,
+      endAt: null,
+      cronExpr: '0 3 * * *',
+      active: false,
+    })
+    expect(updated).toMatchObject({
+      id: created.id,
+      name: 'Renamed',
+      scope: 'tags',
+      tagIds: [7],
+      monitorIds: [],
+      strategy: 'cron',
+      startAt: null,
+      endAt: null,
+      cronExpr: '0 3 * * *',
+      active: false,
+    })
+    expect(updated?.createdAt).toEqual(created.createdAt)
+    expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(created.updatedAt.getTime())
+
+    expect(db.updateMaintenanceWindow(created.id + 1000, { name: 'nope' })).toBeNull()
+    expect(db.deleteMaintenanceWindow(created.id)).toBe(true)
+    expect(db.deleteMaintenanceWindow(created.id)).toBe(false)
+    expect(db.listMaintenanceWindows()).toEqual([])
+  })
+})
+
+describe('heartbeat rollups', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('aggregates hourly and daily counters, advances the watermark and reruns safely', () => {
+    const monitor = createPushMonitor(db, 'rolled')
+    const other = createPushMonitor(db, 'other')
+    const now = Date.now()
+
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'up',
+      latencyMs: 10,
+      time: new Date(now - 90 * 60_000),
+    })
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'down',
+      latencyMs: 30,
+      time: new Date(now - 85 * 60_000),
+    })
+    db.insertHeartbeat({ monitorId: monitor.id, status: 'up', time: new Date(now - 10 * 60_000) })
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'maintenance',
+      time: new Date(now - 5 * 60_000),
+    })
+    db.insertHeartbeat({ monitorId: other.id, status: 'up', time: new Date(now - 5 * 60_000) })
+
+    const before = new Date(now + 1000)
+    expect(db.rollupHeartbeats(before)).toBe(5)
+    expect(db.getSetting('rollup_watermark')).toBe(String(before.getTime()))
+
+    const stats = db.getUptime(monitor.id, 24)
+    expect(stats.total).toBe(4)
+    expect(stats.up).toBe(2)
+    expect(stats.down).toBe(1)
+    expect(stats.maintenance).toBe(1)
+    expect(stats.uptimePct).toBeCloseTo((2 / 3) * 100)
+    expect(db.getUptime(other.id, 24)).toEqual({
+      total: 1,
+      up: 1,
+      down: 0,
+      maintenance: 0,
+      uptimePct: 100,
+    })
+
+    // Rerunning with the same horizon is a no-op with unchanged counters.
+    expect(db.rollupHeartbeats(before)).toBe(0)
+    expect(db.getUptime(monitor.id, 24)).toEqual(stats)
+    expect(db.getSetting('rollup_watermark')).toBe(String(before.getTime()))
+
+    // Only the window after the watermark is processed.
+    db.insertHeartbeat({ monitorId: monitor.id, status: 'down', time: new Date(now + 2000) })
+    const later = new Date(now + 10_000)
+    expect(db.rollupHeartbeats(later)).toBe(1)
+    expect(db.getSetting('rollup_watermark')).toBe(String(later.getTime()))
+    expect(db.getUptime(monitor.id, 24)).toEqual({
+      total: 5,
+      up: 2,
+      down: 2,
+      maintenance: 1,
+      uptimePct: 50,
+    })
+  })
+
+  it('accumulates partial buckets without double counting', () => {
+    const monitor = createPushMonitor(db, 'partial')
+    const now = Date.now()
+    const hourStart = Math.floor((now - 2 * 3_600_000) / 3_600_000) * 3_600_000
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'up',
+      latencyMs: 10,
+      time: new Date(hourStart + 1000),
+    })
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'down',
+      latencyMs: 20,
+      time: new Date(hourStart + 2000),
+    })
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'up',
+      latencyMs: 30,
+      time: new Date(hourStart + 3000),
+    })
+
+    expect(db.rollupHeartbeats(new Date(hourStart + 2000))).toBe(1)
+    expect(db.getUptime(monitor.id, 24)).toMatchObject({ total: 1, up: 1, down: 0 })
+
+    expect(db.rollupHeartbeats(new Date(hourStart + 4000))).toBe(2)
+    const stats = db.getUptime(monitor.id, 24)
+    expect(stats.total).toBe(3)
+    expect(stats.up).toBe(2)
+    expect(stats.down).toBe(1)
+    expect(stats.uptimePct).toBeCloseTo((2 / 3) * 100)
+    // The daily counters accumulate across the same partial runs.
+    expect(db.getUptime(monitor.id, 720).total).toBe(3)
+
+    expect(db.rollupHeartbeats(new Date(hourStart + 4000))).toBe(0)
+    expect(db.getUptime(monitor.id, 24)).toEqual(stats)
+  })
+
+  it('serves the 7-day window from daily counters', () => {
+    const monitor = createPushMonitor(db, 'daily')
+    const now = Date.now()
+    const day = 86_400_000
+    db.insertHeartbeat({ monitorId: monitor.id, status: 'up', time: new Date(now - 2 * day) })
+    db.insertHeartbeat({
+      monitorId: monitor.id,
+      status: 'down',
+      latencyMs: 40,
+      time: new Date(now - day),
+    })
+    db.insertHeartbeat({ monitorId: monitor.id, status: 'up', time: new Date(now - 10 * day) })
+
+    expect(db.rollupHeartbeats(new Date(now + 1000))).toBe(3)
+
+    const stats = db.getUptime(monitor.id, 168)
+    expect(stats).toEqual({ total: 2, up: 1, down: 1, maintenance: 0, uptimePct: 50 })
+    // The hourly path sees the same 7-day slice only.
+    expect(db.getUptime(monitor.id, 24).total).toBe(0)
+  })
+
+  it('reports 100% with no data and ignores rows already rolled up', () => {
+    const monitor = createPushMonitor(db, 'empty')
+    expect(db.getUptime(monitor.id, 24)).toEqual({
+      total: 0,
+      up: 0,
+      down: 0,
+      maintenance: 0,
+      uptimePct: 100,
+    })
+    expect(db.rollupHeartbeats(new Date())).toBe(0)
+    expect(db.getSetting('rollup_watermark')).not.toBeNull()
+    expect(db.getUptime(monitor.id, 720)).toEqual({
+      total: 0,
+      up: 0,
+      down: 0,
+      maintenance: 0,
+      uptimePct: 100,
+    })
+  })
+})
+
+describe('listHeartbeatsSince', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('returns the window oldest first, scoped to the monitor and limited', () => {
+    const monitor = createPushMonitor(db, 'since')
+    const other = createPushMonitor(db, 'other')
+    const base = Date.UTC(2026, 1, 1)
+    const times = [base, base + 60_000, base + 120_000, base + 180_000]
+    for (const ms of times) {
+      db.insertHeartbeat({ monitorId: monitor.id, status: 'up', time: new Date(ms) })
+    }
+    db.insertHeartbeat({ monitorId: other.id, status: 'down', time: new Date(base + 60_000) })
+
+    expect(db.listHeartbeatsSince(monitor.id, new Date(base)).map((h) => h.time.getTime())).toEqual(
+      times,
+    )
+    expect(
+      db.listHeartbeatsSince(monitor.id, new Date(base + 60_000)).map((h) => h.time.getTime()),
+    ).toEqual(times.slice(1))
+    expect(
+      db.listHeartbeatsSince(monitor.id, new Date(base), 2).map((h) => h.time.getTime()),
+    ).toEqual(times.slice(0, 2))
+    expect(db.listHeartbeatsSince(monitor.id, new Date(base + 10_000_000))).toEqual([])
+    expect(db.listHeartbeatsSince(other.id, new Date(base))).toHaveLength(1)
+  })
+})

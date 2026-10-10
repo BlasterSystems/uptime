@@ -1,0 +1,27 @@
+feat: M3 realtime/status/metrics/maintenance + M4 monitor types & groups
+
+M3:
+- SSE hub (/api/v1/events) with heartbeat/incident/maintenance events; web
+  realtime client with polling fallback (review J7: SSE primary).
+- Status pages: CRUD + public payload /api/v1/status/:slug + public web page.
+- Prometheus full: monitor_response_ms histogram, monitor_cert_expiry_days,
+  monitor_maintenance, tag_monitors_up/down (SPEC 11).
+- Maintenance windows: single/recurring-interval/recurring-weekday/cron+tz
+  engine; checks record 'maintenance' heartbeats and skip alerting.
+- Uptime API (24h/7d/30d/365d) from hourly/daily rollups (review B3: single
+  heartbeats table + rollups, no day-partitioning); 15s rollup job.
+- Settings API + instance title/timezone; cert-expiry probe loop (6h).
+- Web: monitor detail (uptime chips, SVG latency chart, 90-day heartbeat
+  strip), status page form, maintenance form, settings tabs, SSE wiring.
+
+M4 (core + server):
+- Monitor types: tcp/dns/icmp/postgres/mysql/mssql/mongodb/redis/docker with
+  real probes (pg/mysql2/mssql/mongodb/redis drivers, node net/dns, ping
+  binary for icmp); runCheck dispatcher; 105 core tests.
+- docker_hosts CRUD (TLS material encrypted at rest).
+- Group monitors: any-up/all-up/percentage engine + group-down member
+  notification suppression (SPEC 3); 52 server tests.
+- Dockerfile: iputils for icmp; note NET_RAW requirement.
+
+Live smoke verified: incidents, SSE, maintenance heartbeats, public status,
+uptime API. 230 tests green.

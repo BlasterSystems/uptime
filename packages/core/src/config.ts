@@ -1,6 +1,17 @@
 import { z } from 'zod'
-import { pushMonitorConfigSchema, type PushMonitorConfig } from './config-push.js'
-import type { HttpMonitorConfig, MonitorType } from './types.js'
+import {
+  dockerMonitorConfigSchema,
+  dnsMonitorConfigSchema,
+  icmpMonitorConfigSchema,
+  mongodbMonitorConfigSchema,
+  mssqlMonitorConfigSchema,
+  mysqlMonitorConfigSchema,
+  postgresMonitorConfigSchema,
+  redisMonitorConfigSchema,
+  tcpMonitorConfigSchema,
+} from './config-checks.js'
+import { pushMonitorConfigSchema } from './config-push.js'
+import type { MonitorConfigMap, MonitorType } from './types.js'
 
 /** Minimum allowed monitor interval in seconds (SPEC §3); enforced by the API layer. */
 export const MIN_INTERVAL_S = 20
@@ -30,7 +41,7 @@ const acceptedStatusSchema = z.union([
 ])
 
 /**
- * Zod schema for {@link HttpMonitorConfig}, including its defaults:
+ * Zod schema for the `http` monitor config, including its defaults:
  * `method: 'GET'`, `timeoutMs: 10000`, `acceptedStatus: [200, 299]`.
  */
 export const httpMonitorConfigSchema = z.object({
@@ -42,27 +53,42 @@ export const httpMonitorConfigSchema = z.object({
   acceptedStatus: acceptedStatusSchema.default([200, 299]),
   keyword: keywordSchema.optional(),
   maxResponseMs: z.int().positive().optional(),
+  certExpiryDays: z.int().positive().optional(),
 })
 
 /**
  * Validate a raw monitor config of the given type, applying defaults.
  * Throws a `ZodError` when `raw` does not match the type's schema.
  */
-export function parseMonitorConfig(type: 'http', raw: unknown): HttpMonitorConfig
-export function parseMonitorConfig(type: 'push', raw: unknown): PushMonitorConfig
-export function parseMonitorConfig(
-  type: MonitorType,
+export function parseMonitorConfig<T extends MonitorType>(
+  type: T,
   raw: unknown,
-): HttpMonitorConfig | PushMonitorConfig
-export function parseMonitorConfig(
-  type: MonitorType,
-  raw: unknown,
-): HttpMonitorConfig | PushMonitorConfig {
+): MonitorConfigMap[T]
+export function parseMonitorConfig(type: MonitorType, raw: unknown): MonitorConfigMap[MonitorType]
+export function parseMonitorConfig(type: MonitorType, raw: unknown): MonitorConfigMap[MonitorType] {
   switch (type) {
     case 'http':
       return httpMonitorConfigSchema.parse(raw)
     case 'push':
       return pushMonitorConfigSchema.parse(raw)
+    case 'tcp':
+      return tcpMonitorConfigSchema.parse(raw)
+    case 'dns':
+      return dnsMonitorConfigSchema.parse(raw)
+    case 'icmp':
+      return icmpMonitorConfigSchema.parse(raw)
+    case 'postgres':
+      return postgresMonitorConfigSchema.parse(raw)
+    case 'mysql':
+      return mysqlMonitorConfigSchema.parse(raw)
+    case 'mssql':
+      return mssqlMonitorConfigSchema.parse(raw)
+    case 'mongodb':
+      return mongodbMonitorConfigSchema.parse(raw)
+    case 'redis':
+      return redisMonitorConfigSchema.parse(raw)
+    case 'docker':
+      return dockerMonitorConfigSchema.parse(raw)
     default:
       throw new Error(`unsupported monitor type: ${String(type)}`)
   }

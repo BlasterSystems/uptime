@@ -15,7 +15,8 @@
     "@uptime/db": "workspace:*",
     "@uptime/notify": "workspace:*",
     "express": "^5.1.0",
-    "prom-client": "^15.1.3"
+    "prom-client": "^15.1.3",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

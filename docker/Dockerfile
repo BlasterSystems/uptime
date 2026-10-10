@@ -20,6 +20,9 @@ RUN pnpm --filter @uptime/core --filter @uptime/db --filter @uptime/server build
     && pnpm --filter @uptime/server --prod deploy --legacy /out
 
 FROM node:24-alpine
+# iputils provides the `ping` binary used by icmp monitors (Node has no raw ICMP
+# sockets); requires NET_RAW on the container for non-root use.
+RUN apk add --no-cache iputils
 ENV NODE_ENV=production \
     PORT=3001 \
     DATA_DIR=/data \

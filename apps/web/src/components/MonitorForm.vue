@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { MIN_INTERVAL_S, createMonitor, errorMessage, fetchChannels, fetchTags } from '../api.js'
+import {
+  MIN_INTERVAL_S,
+  createMonitor,
+  errorMessage,
+  fetchChannels,
+  fetchTags,
+  updateMonitor,
+} from '../api.js'
 import type { Channel, Monitor, MonitorInput, MonitorType, Tag } from '../api.js'
 import { copyText } from '../clipboard.js'
 import Badge from './ui/Badge.vue'
@@ -12,10 +19,16 @@ import Select from './ui/Select.vue'
 import Switch from './ui/Switch.vue'
 import { useToast } from './ui/toast.js'
 
-const props = defineProps<{ open: boolean }>()
-const emit = defineEmits<{ created: [monitor: Monitor]; close: [] }>()
+const props = withDefaults(defineProps<{ open: boolean; monitor?: Monitor | null }>(), {
+  monitor: null,
+})
+const emit = defineEmits<{ created: [monitor: Monitor]; saved: [monitor: Monitor]; close: [] }>()
 
 const toast = useToast()
+
+/** Monitor being edited; `null` keeps the form in create mode. */
+const editingMonitor = computed<Monitor | null>(() => props.monitor ?? null)
+const isEdit = computed(() => editingMonitor.value !== null)
 
 const form = reactive({
   name: '',
@@ -45,6 +58,11 @@ const selectedChannelIds = ref<number[]>([])
 const submitting = ref(false)
 const formError = ref<string | null>(null)
 const created = ref<Monitor | null>(null)
+
+const modalTitle = computed(() => {
+  if (created.value !== null) return 'Monitor created'
+  return isEdit.value ? 'Edit monitor' : 'Add monitor'
+})
 
 const typeOptions = [
   { value: 'http', label: 'HTTP — poll a URL on a schedule' },
@@ -131,14 +149,34 @@ async function loadOptions(): Promise<void> {
   }
 }
 
-watch(
-  () => props.open,
-  (open) => {
-    if (!open) return
-    reset()
-    void loadOptions()
-  },
-)
+/** Changes only when the dialog opens/closes or is repointed at another monitor. */
+const prefillKey = computed(() => {
+  if (!props.open) return null
+  const monitor = editingMonitor.value
+  return monitor === null ? 'create' : `edit:${monitor.id}`
+})
+
+watch(prefillKey, (key) => {
+  if (key === null) return
+  reset()
+  const monitor = editingMonitor.value
+  if (monitor !== null) {
+    form.name = monitor.name
+    form.type = monitor.type
+    form.url = monitor.config.url ?? ''
+    if (monitor.config.timeoutMs !== undefined) {
+      form.timeoutMs = String(monitor.config.timeoutMs)
+    }
+    if (monitor.config.graceSeconds !== undefined) {
+      form.graceSeconds = String(monitor.config.graceSeconds)
+    }
+    form.intervalS = String(monitor.intervalS)
+    form.retries = String(monitor.retries)
+    form.tagText = monitor.tags.map((tag) => tag.name).join(', ')
+    selectedChannelIds.value = [...monitor.channelIds]
+  }
+  void loadOptions()
+})
 
 function integerField(value: string, min: number): number | null {
   const parsed = Number(value)
@@ -215,12 +253,23 @@ async function submit(): Promise<void> {
   submitting.value = true
   formError.value = null
   try {
+    const editing = editingMonitor.value
+    if (editing !== null) {
+      const updated = await updateMonitor(editing.id, payload)
+      emit('saved', updated)
+      toast.success('Monitor updated', updated.name)
+      emit('close')
+      return
+    }
     const monitor = await createMonitor(payload)
     created.value = monitor
     emit('created', monitor)
     if (monitor.pushUrl === undefined) emit('close')
   } catch (error) {
-    formError.value = errorMessage(error, 'Could not create the monitor.')
+    formError.value = errorMessage(
+      error,
+      isEdit.value ? 'Could not save the monitor.' : 'Could not create the monitor.',
+    )
   } finally {
     submitting.value = false
   }
@@ -240,7 +289,7 @@ async function copyPushUrl(): Promise<void> {
 <template>
   <Modal
     :open="open"
-    :title="created === null ? 'Add monitor' : 'Monitor created'"
+    :title="modalTitle"
     size="lg"
     :close-on-backdrop="created === null"
     @close="emit('close')"
@@ -384,7 +433,9 @@ async function copyPushUrl(): Promise<void> {
       </template>
       <template v-else>
         <Button variant="secondary" :disabled="submitting" @click="emit('close')">Cancel</Button>
-        <Button variant="primary" :loading="submitting" @click="submit">Create monitor</Button>
+        <Button variant="primary" :loading="submitting" @click="submit">
+          {{ isEdit ? 'Save changes' : 'Create monitor' }}
+        </Button>
       </template>
     </template>
   </Modal>
