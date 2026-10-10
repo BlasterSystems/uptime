@@ -102,7 +102,7 @@ the default storage path.
 
 ## Revisit triggers
 
-- >10⁷-heartbeat use cases appear, making ClickHouse worth its operational cost.
+- > 10⁷-heartbeat use cases appear, making ClickHouse worth its operational cost.
 - PostgreSQL becomes the dominant deployment, making dual-dialect maintenance wasteful.
 - Key rotation or the encryption scheme proves operationally unsafe.
 

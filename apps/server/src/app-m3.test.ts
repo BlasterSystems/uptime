@@ -16,7 +16,11 @@ function makeApp(eventHub?: unknown) {
   const app = createApp({
     db,
     secrets,
-    notifier: new Notifier({ channels: () => [], monitorChannelIds: () => [], defaultChannelIds: () => [] }),
+    notifier: new Notifier({
+      channels: () => [],
+      monitorChannelIds: () => [],
+      defaultChannelIds: () => [],
+    }),
     auth: createAuthModule({ db, secrets }),
     metrics: new Metrics(),
     ...(eventHub === undefined ? {} : { eventHub: eventHub as never }),
@@ -26,7 +30,9 @@ function makeApp(eventHub?: unknown) {
 
 async function authed(app: Express): Promise<{ agent: Agent; csrf: string }> {
   const agent = request.agent(app)
-  const res = await agent.post('/api/v1/auth/setup').send({ email: 'admin@example.com', password: 'password123' })
+  const res = await agent
+    .post('/api/v1/auth/setup')
+    .send({ email: 'admin@example.com', password: 'password123' })
   expect(res.status).toBe(200)
   return { agent, csrf: res.body.csrfToken as string }
 }
@@ -56,7 +62,12 @@ describe('M3 routes', () => {
   const put = (url: string, body: object) => agent.put(url).set('x-csrf-token', csrf).send(body)
 
   it('manages status pages end-to-end', async () => {
-    const created = await post('/api/v1/status-pages', { slug: 'corp', title: 'Corp Status', published: true, monitorIds: [] })
+    const created = await post('/api/v1/status-pages', {
+      slug: 'corp',
+      title: 'Corp Status',
+      published: true,
+      monitorIds: [],
+    })
     expect(created.status).toBe(201)
     expect((await agent.get('/api/v1/status-pages')).body.statusPages).toHaveLength(1)
 
@@ -82,7 +93,10 @@ describe('M3 routes', () => {
     expect(list.body.dockerHosts[0].tlsCaEnc).toBeUndefined()
     expect(list.body.dockerHosts[0].hasTls).toBe(true)
 
-    expect((await patch(`/api/v1/docker-hosts/${created.body.dockerHost.id}`, { name: 'build-2' })).status).toBe(200)
+    expect(
+      (await patch(`/api/v1/docker-hosts/${created.body.dockerHost.id}`, { name: 'build-2' }))
+        .status,
+    ).toBe(200)
     expect((await del(`/api/v1/docker-hosts/${created.body.dockerHost.id}`)).status).toBe(204)
     expect((await post('/api/v1/docker-hosts', { name: '', uri: 'x' })).status).toBe(400)
   })

@@ -21,8 +21,8 @@ notifications, and exposes Prometheus metrics and status pages.
 4. **Low resource**: < 256 MB RSS idle; checks are I/O-bound and event-loop friendly.
 5. **Multi-platform images**: `linux/amd64` + `linux/arm64` via GitHub Actions → GHCR.
 6. **Honest single-node**: this is a self-hosted tool, not an HA cluster. Backup/restore
-   + documented Postgres path cover durability; distributed setups use the optional
-   agent (M5), not sharded servers.
+   - documented Postgres path cover durability; distributed setups use the optional
+     agent (M5), not sharded servers.
 
 ### Non-goals (v1)
 
@@ -63,17 +63,17 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
 
 ## 3. Monitor types (v1.0)
 
-| Type | Key options | Success criteria | Inspired by |
-|---|---|---|---|
-| `http` | method (GET/POST/HEAD/PUT/DELETE), url, headers, body, timeout, `acceptedStatus: [200..299] | any`, `keyword: {value, inverse}`, `maxResponseMs`, `certExpiryDays`, `jsonPaths` (metrics) | 2xx (or accepted range) AND (keyword present/absent) AND latency ≤ cap; TLS cert valid ≥ N days | Kuma + Gatus |
-| `tcp` | host, port, timeout, `payload`, `expectResponse` | connect (± round-trip) within timeout | Kuma/Pulse |
-| `icmp` | host, timeout, packetCount | reply within timeout | Kuma/Pulse (needs `NET_RAW`) |
-| `dns` | host, resolver, port, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue | resolver answers; if `expectedValue`, match | Kuma |
-| `push` | token (path), graceSeconds, cron schedule (optional), `expectsBody` | heartbeat received within interval+grace; `/start`/`/fail` semantics | Healthchecks |
-| `docker` | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState` | container state == expected (event-driven + poll fallback) | Kuma/Beszel |
-| `postgres` / `mysql` / `mssql` / `mongodb` / `redis` | connection string, timeout, `query` (default `SELECT 1` / `PING`) | connection + query succeed | PulseMonitor |
-| `snmp` (v2c/v3) | host, community/version/creds, oid, expectedValue | query within timeout | PulseMonitor (phase 2) |
-| `group` | member monitor ids, strategy `any-up \| all-up \| percentage: N` | per strategy; **suppresses member notifications** when the group itself is down | PulseMonitor groups |
+| Type                                                 | Key options                                                                                 | Success criteria                                                                            | Inspired by                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `http`                                               | method (GET/POST/HEAD/PUT/DELETE), url, headers, body, timeout, `acceptedStatus: [200..299] | any`, `keyword: {value, inverse}`, `maxResponseMs`, `certExpiryDays`, `jsonPaths` (metrics) | 2xx (or accepted range) AND (keyword present/absent) AND latency ≤ cap; TLS cert valid ≥ N days | Kuma + Gatus |
+| `tcp`                                                | host, port, timeout, `payload`, `expectResponse`                                            | connect (± round-trip) within timeout                                                       | Kuma/Pulse                                                                                      |
+| `icmp`                                               | host, timeout, packetCount                                                                  | reply within timeout                                                                        | Kuma/Pulse (needs `NET_RAW`)                                                                    |
+| `dns`                                                | host, resolver, port, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue                | resolver answers; if `expectedValue`, match                                                 | Kuma                                                                                            |
+| `push`                                               | token (path), graceSeconds, cron schedule (optional), `expectsBody`                         | heartbeat received within interval+grace; `/start`/`/fail` semantics                        | Healthchecks                                                                                    |
+| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (event-driven + poll fallback)                                  | Kuma/Beszel                                                                                     |
+| `postgres` / `mysql` / `mssql` / `mongodb` / `redis` | connection string, timeout, `query` (default `SELECT 1` / `PING`)                           | connection + query succeed                                                                  | PulseMonitor                                                                                    |
+| `snmp` (v2c/v3)                                      | host, community/version/creds, oid, expectedValue                                           | query within timeout                                                                        | PulseMonitor (phase 2)                                                                          |
+| `group`                                              | member monitor ids, strategy `any-up \| all-up \| percentage: N`                            | per strategy; **suppresses member notifications** when the group itself is down             | PulseMonitor groups                                                                             |
 
 Every monitor: `name`, `interval` (min 20 s), `retries`, `retryInterval` (while down),
 `resendNotificationInterval`, `maintenanceWindows[]`, `tags[]`, `notificationIds[]`,
@@ -175,6 +175,7 @@ generic Webhook (JSON template). Phase 2: PagerDuty Events v2, Opsgenie, SMS (Tw
 
 **No automatic import** (research: none of Kuma/Gatus/PulseMonitor/Healthchecks supports
 it). Instead:
+
 1. The Admin API makes generation trivial: `scripts/openapi-bootstrap.ts` (in-repo CLI)
    reads an OpenAPI 3 document and creates one `http` monitor per `GET` path with
    `acceptedStatus`, tagged `openapi:<title>`. Skips endpoints requiring auth unless a

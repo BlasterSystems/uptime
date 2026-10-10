@@ -49,7 +49,12 @@ export class PushEngine {
         responseSnippet: `no push received within ${monitor.intervalS}s + ${cfg.graceSeconds}s grace`,
       })
       await this.deps.onDown(
-        { id: monitor.id, name: monitor.name, retries: monitor.retries, resendNotificationS: monitor.resendNotificationS },
+        {
+          id: monitor.id,
+          name: monitor.name,
+          retries: monitor.retries,
+          resendNotificationS: monitor.resendNotificationS,
+        },
         'push deadline missed',
         now,
       )

@@ -28,7 +28,12 @@ class StubScheduler implements SchedulerLike {
   }
 }
 
-const httpConfig = { url: 'https://example.com/', method: 'GET', timeoutMs: 10000, acceptedStatus: [200, 299] }
+const httpConfig = {
+  url: 'https://example.com/',
+  method: 'GET',
+  timeoutMs: 10000,
+  acceptedStatus: [200, 299],
+}
 
 function makeNotifier(): Notifier {
   return new Notifier({
@@ -56,7 +61,9 @@ function makeApp() {
 
 async function authed(app: Express): Promise<{ agent: Agent; csrf: string }> {
   const agent = request.agent(app)
-  const res = await agent.post('/api/v1/auth/setup').send({ email: 'admin@example.com', password: 'password123' })
+  const res = await agent
+    .post('/api/v1/auth/setup')
+    .send({ email: 'admin@example.com', password: 'password123' })
   expect(res.status).toBe(200)
   return { agent, csrf: res.body.csrfToken as string }
 }
@@ -122,7 +129,10 @@ describe('monitor CRUD (authenticated)', () => {
       channelIds: [channelId],
     })
     expect(created.status).toBe(201)
-    expect(created.body.monitor.tags.map((t: { name: string }) => t.name).sort()).toEqual(['prod', 'web'])
+    expect(created.body.monitor.tags.map((t: { name: string }) => t.name).sort()).toEqual([
+      'prod',
+      'web',
+    ])
     expect(created.body.monitor.channelIds).toEqual([channelId])
     expect(scheduler.upserts).toHaveLength(1)
 
@@ -146,10 +156,18 @@ describe('monitor CRUD (authenticated)', () => {
   })
 
   it('rejects invalid input and enforces CSRF', async () => {
-    expect((await post('/api/v1/monitors', { name: 'x', config: { url: 'ftp://nope' } })).status).toBe(400)
-    expect((await post('/api/v1/monitors', { name: 'x', intervalS: 5, config: httpConfig })).status).toBe(400)
-    expect((await agent.post('/api/v1/monitors').send({ name: 'x', config: httpConfig })).status).toBe(403)
-    expect((await post('/api/v1/monitors', { name: 'x', type: 'snmp', config: {} })).status).toBe(400)
+    expect(
+      (await post('/api/v1/monitors', { name: 'x', config: { url: 'ftp://nope' } })).status,
+    ).toBe(400)
+    expect(
+      (await post('/api/v1/monitors', { name: 'x', intervalS: 5, config: httpConfig })).status,
+    ).toBe(400)
+    expect(
+      (await agent.post('/api/v1/monitors').send({ name: 'x', config: httpConfig })).status,
+    ).toBe(403)
+    expect((await post('/api/v1/monitors', { name: 'x', type: 'snmp', config: {} })).status).toBe(
+      400,
+    )
   })
 
   it('serves heartbeats newest-first with a limit', async () => {
@@ -229,7 +247,11 @@ describe('push monitors', () => {
   })
 
   it('records pending heartbeat on /start', async () => {
-    const created = await post('/api/v1/monitors', { name: 'Job', type: 'push', config: { graceSeconds: 60 } })
+    const created = await post('/api/v1/monitors', {
+      name: 'Job',
+      type: 'push',
+      config: { graceSeconds: 60 },
+    })
     const token = (created.body.monitor.pushUrl as string).split('/').pop() as string
     expect((await request(app).post(`/api/v1/push/${token}/start`)).status).toBe(200)
     const beats = await agent.get(`/api/v1/monitors/${created.body.monitor.id}/heartbeats`)
@@ -283,8 +305,13 @@ describe('notification channels', () => {
   })
 
   it('rejects invalid channel type and config', async () => {
-    expect((await post('/api/v1/notifications', { type: 'smoke-signals', name: 'x', config: {} })).status).toBe(400)
-    expect((await post('/api/v1/notifications', { type: 'webhook', name: 'x', config: {} })).status).toBe(400)
+    expect(
+      (await post('/api/v1/notifications', { type: 'smoke-signals', name: 'x', config: {} }))
+        .status,
+    ).toBe(400)
+    expect(
+      (await post('/api/v1/notifications', { type: 'webhook', name: 'x', config: {} })).status,
+    ).toBe(400)
   })
 })
 

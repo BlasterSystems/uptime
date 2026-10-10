@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -328,6 +328,23 @@ function toMaintenanceWindowRow(row: MaintenanceWindowSelect): MaintenanceWindow
 
 /** `settings` key holding the exclusive lower bound (unix ms) of the last rollup run. */
 const ROLLUP_WATERMARK_KEY = 'rollup_watermark'
+
+/** Quote a SQL identifier (names come from `sqlite_master`, never from input). */
+function quoteIdentifier(name: string): string {
+  return `"${name.replaceAll('"', '""')}"`
+}
+
+/** Column names of `schema.table` in declaration order. */
+function tableColumns(
+  sqlite: SqliteConnection,
+  schema: 'main' | 'restore_src',
+  table: string,
+): string[] {
+  const rows = sqlite
+    .prepare(`PRAGMA ${schema}.table_info(${quoteIdentifier(table)})`)
+    .all() as Array<{ name: string }>
+  return rows.map((row) => row.name)
+}
 
 export class Database {
   readonly #sqlite: SqliteConnection
@@ -1390,6 +1407,70 @@ export class Database {
    */
   async backupTo(filePath: string): Promise<void> {
     await this.#sqlite.backup(filePath)
+  }
+
+  /**
+   * Replaces the live database content with the SQLite snapshot at `backupPath`
+   * — the inverse of {@link backupTo}, used by `POST /api/v1/restore` (PLAN M6).
+   *
+   * better-sqlite3 (12.x) exposes `backup()` but no `.restore()` — verified in
+   * node_modules — so the snapshot is ATTACHed and copied table-by-table inside
+   * a single transaction. Only columns present on both sides are copied, so a
+   * snapshot predating a migration still restores (columns it lacks keep their
+   * defaults); tables the snapshot does not contain are left untouched.
+   * Foreign keys are disabled for the copy: with every table emptied in turn,
+   * parent/child insert order carries no meaning.
+   */
+  async restoreFrom(backupPath: string): Promise<void> {
+    if (!existsSync(backupPath)) {
+      throw new Error(`restore snapshot not found: ${backupPath}`)
+    }
+    const sqlite = this.#sqlite
+    // Fold the WAL into the main file first so the copy starts from a settled base.
+    sqlite.pragma('wal_checkpoint(TRUNCATE)')
+    sqlite.prepare('ATTACH DATABASE ? AS restore_src').run(backupPath)
+    try {
+      const snapshotTables = sqlite
+        .prepare(
+          "SELECT name FROM restore_src.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        )
+        .all() as Array<{ name: string }>
+      const liveTables = new Set(
+        (
+          sqlite
+            .prepare(
+              "SELECT name FROM main.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+            )
+            .all() as Array<{ name: string }>
+        ).map((row) => row.name),
+      )
+      const foreignKeys = sqlite.pragma('foreign_keys', { simple: true }) === 1
+      sqlite.pragma('foreign_keys = OFF')
+      try {
+        sqlite.transaction(() => {
+          for (const { name } of snapshotTables) {
+            if (!liveTables.has(name)) continue
+            const snapshotColumns = new Set(tableColumns(sqlite, 'restore_src', name))
+            const shared = tableColumns(sqlite, 'main', name).filter((column) =>
+              snapshotColumns.has(column),
+            )
+            if (shared.length === 0) continue
+            const columns = shared.map(quoteIdentifier).join(', ')
+            const target = quoteIdentifier(name)
+            sqlite.prepare(`DELETE FROM main.${target}`).run()
+            sqlite
+              .prepare(
+                `INSERT INTO main.${target} (${columns}) SELECT ${columns} FROM restore_src.${target}`,
+              )
+              .run()
+          }
+        })()
+      } finally {
+        sqlite.pragma(`foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`)
+      }
+    } finally {
+      sqlite.prepare('DETACH DATABASE restore_src').run()
+    }
   }
 
   /** Deletes every raw heartbeat with `time < cutoff`; returns the number removed. */

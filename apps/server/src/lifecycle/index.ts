@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express'
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { closeSync, mkdirSync, openSync, readSync, statSync } from 'node:fs'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { MIN_INTERVAL_S, parseMonitorConfig } from '@uptime/core'
 import type { MonitorType } from '@uptime/core'
 import type { Database, KumaImportInput, MonitorRow, NewMonitor, SecretBox } from '@uptime/db'
@@ -10,6 +10,21 @@ export interface LifecycleDeps {
   db: Database
   secrets: SecretBox
   dataDir: string
+}
+
+/** Every SQLite 3 database file starts with these 15 bytes (PLAN M6 restore check). */
+const SQLITE_MAGIC = 'SQLite format 3'
+
+/** True when the file at `path` starts with the SQLite magic header. */
+function isSqliteFile(path: string): boolean {
+  const fd = openSync(path, 'r')
+  try {
+    const header = Buffer.alloc(16)
+    if (readSync(fd, header, 0, 16, 0) < 15) return false
+    return header.toString('utf8', 0, 15) === SQLITE_MAGIC
+  } finally {
+    closeSync(fd)
+  }
 }
 
 /** Raw-heartbeat retention default (SPEC §4): 180 days. */
@@ -268,6 +283,45 @@ export function createLifecycleRouter(deps: LifecycleDeps): Router {
       return
     }
     res.json({ path: relativePath })
+  })
+
+  // Restores a snapshot written by POST /backup (PLAN M6). The snapshot must
+  // live inside dataDir/backups; the live database is snapshotted to
+  // pre-restore-*.db first, so a regretted restore is recoverable.
+  router.post('/restore', admin, async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const requested = body.path
+    if (typeof requested !== 'string' || requested.length === 0) {
+      return res.status(400).json({ error: 'path must be a non-empty string' })
+    }
+    const backupsDir = resolve(dataDir, 'backups')
+    // POST /backup reports paths relative to dataDir (`backups/…`); accept that
+    // shape as well as a path relative to the backups directory itself.
+    const relativeRequest = requested.replaceAll('\\', '/').replace(/^backups\//, '')
+    const snapshot = resolve(backupsDir, relativeRequest)
+    const inside = relative(backupsDir, snapshot)
+    if (inside === '' || inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) {
+      return res.status(400).json({ error: 'path must point inside the backups directory' })
+    }
+    const stats = statSync(snapshot, { throwIfNoEntry: false })
+    if (stats === undefined || !stats.isFile()) {
+      return res.status(404).json({ error: 'snapshot not found' })
+    }
+    if (!isSqliteFile(snapshot)) {
+      return res.status(400).json({ error: 'not a SQLite database' })
+    }
+
+    mkdirSync(backupsDir, { recursive: true })
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+    try {
+      await db.backupTo(join(backupsDir, `pre-restore-${stamp}.db`))
+      await db.restoreFrom(snapshot)
+    } catch (error) {
+      return res
+        .status(500)
+        .json({ error: error instanceof Error ? error.message : 'restore failed' })
+    }
+    res.json({ restored: true })
   })
 
   router.post('/retention/run', admin, (req: Request, res: Response) => {

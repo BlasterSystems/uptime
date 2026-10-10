@@ -160,9 +160,7 @@ function reset(): void {
   startAt.value = toLocalInput(current?.startAt ?? null)
   endAt.value = toLocalInput(current?.endAt ?? null)
   intervalS.value =
-    current?.intervalS === null || current?.intervalS === undefined
-      ? ''
-      : String(current.intervalS)
+    current?.intervalS === null || current?.intervalS === undefined ? '' : String(current.intervalS)
   startTime.value = current?.startTime ?? ''
   endTime.value = current?.endTime ?? ''
   weekdays.value = current === null ? [] : [...current.weekdays]
@@ -264,9 +262,7 @@ function validate(): boolean {
       ? 'Select at least one monitor.'
       : null
   tagError.value =
-    scope.value === 'tags' && selectedTags.value.length === 0
-      ? 'Select at least one tag.'
-      : null
+    scope.value === 'tags' && selectedTags.value.length === 0 ? 'Select at least one tag.' : null
   startAtError.value = null
   endAtError.value = null
   intervalError.value = null
@@ -398,11 +394,7 @@ async function submit(): Promise<void> {
         <ul v-else class="picker-list">
           <li v-for="tag in tags" :key="tag.id">
             <label class="picker-row">
-              <input
-                type="checkbox"
-                :checked="isTagSelected(tag.id)"
-                @change="toggleTag(tag.id)"
-              />
+              <input type="checkbox" :checked="isTagSelected(tag.id)" @change="toggleTag(tag.id)" />
               <span>{{ tag.name }}</span>
             </label>
           </li>
@@ -426,13 +418,7 @@ async function submit(): Promise<void> {
             required
             :error="startAtError"
           />
-          <Input
-            v-model="endAt"
-            label="Ends"
-            type="datetime-local"
-            required
-            :error="endAtError"
-          />
+          <Input v-model="endAt" label="Ends" type="datetime-local" required :error="endAtError" />
         </div>
       </template>
 

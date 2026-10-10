@@ -24,7 +24,10 @@ describe('SecretBox', () => {
     const box = new SecretBox(KEY_HEX)
     const payload = box.encrypt('data')
     const parts = payload.split(':')
-    parts[3] = (parts[3] ?? '').slice(0, -2) + 'AA'
+    // Flip the first ciphertext character: always a different payload (unlike
+    // rewriting the trailing characters, which can be a no-op).
+    const ciphertext = parts[3] ?? ''
+    parts[3] = (ciphertext.startsWith('A') ? 'B' : 'A') + ciphertext.slice(1)
     expect(() => box.decrypt(parts.join(':'))).toThrow()
   })
 

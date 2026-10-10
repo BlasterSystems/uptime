@@ -28,6 +28,21 @@ export type MonitorType =
   | 'redis'
   | 'docker'
 
+/** Runtime list of the types above (server-side validation, UI selects). */
+export const MONITOR_TYPES = [
+  'http',
+  'push',
+  'tcp',
+  'dns',
+  'icmp',
+  'postgres',
+  'mysql',
+  'mssql',
+  'mongodb',
+  'redis',
+  'docker',
+] as const
+
 /** Validated configuration of an `http` monitor (SPEC §3). */
 export interface HttpMonitorConfig {
   method: 'GET' | 'POST' | 'HEAD' | 'PUT' | 'DELETE'
@@ -44,6 +59,14 @@ export interface HttpMonitorConfig {
   maxResponseMs?: number
   /** Optional minimum TLS certificate validity in days (https URLs only). */
   certExpiryDays?: number
+  /**
+   * Metrics extracted from a successful (2xx) JSON response body (SPEC §3
+   * `jsonPaths`), keyed by the metric name surfaced in `CheckResult.details`.
+   * Each value is a dot path with optional numeric `[index]` steps, e.g.
+   * `metrics.users.active` or `queue[0].size`; paths that cannot be resolved
+   * are skipped.
+   */
+  jsonPaths?: Record<string, string>
 }
 
 /** Validated configuration per monitor type (SPEC §3). */

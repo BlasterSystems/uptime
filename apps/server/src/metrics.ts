@@ -14,6 +14,13 @@ const RESPONSE_MS_BUCKETS = [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000]
  * `collectDefaultMetrics` (`process_*`, `nodejs_*`).
  */
 export class Metrics {
+  /**
+   * Env var holding the comma-separated IPv4 address/CIDR allowlist for the
+   * `/metrics` endpoint (SPEC §5). Unset or empty means the endpoint is open;
+   * see `metrics-auth.ts` for the middleware.
+   */
+  static readonly ALLOWLIST_ENV = 'METRICS_ALLOWLIST'
+
   readonly registry = new Registry()
   private readonly up: Gauge<MonitorLabel>
   private readonly responseMs: Histogram<MonitorLabel>

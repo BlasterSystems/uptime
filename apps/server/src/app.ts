@@ -1,10 +1,10 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { createHash } from 'node:crypto'
-import { MIN_INTERVAL_S, parseMonitorConfig } from '@uptime/core'
-import type { MonitorType, PushMonitorConfig, ScheduledMonitor } from '@uptime/core'
+import { MIN_INTERVAL_S, MONITOR_TYPES, parseMonitorConfig } from '@uptime/core'
+import type { MonitorType, ScheduledMonitor } from '@uptime/core'
 import { parseChannelConfig, type ChannelType } from '@uptime/notify'
+import { metricsAllowlistMiddleware } from './metrics-auth.js'
 import type { Database, MonitorRow, NewMonitor, TagRow } from '@uptime/db'
 import type { SecretBox } from '@uptime/db'
 import type { NewMaintenanceWindow } from '@uptime/db'
@@ -118,17 +118,16 @@ function isPositiveInt(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v > 0
 }
 
-function parseMonitorBody(
-  body: unknown,
-  partial: boolean,
-): ParsedInput {
-  if (typeof body !== 'object' || body === null) return { ok: false, error: 'body must be a JSON object' }
+function parseMonitorBody(body: unknown, partial: boolean): ParsedInput {
+  if (typeof body !== 'object' || body === null)
+    return { ok: false, error: 'body must be a JSON object' }
   const b = body as Record<string, unknown>
   const input: Partial<NewMonitor> = {}
   let type: string = 'http'
   if (!partial || b.type !== undefined) {
-    if (b.type !== undefined && (typeof b.type !== 'string' || !['http', 'push', 'group'].includes(b.type))) {
-      return { ok: false, error: 'type must be http, push or group' }
+    const valid = [...MONITOR_TYPES, 'group']
+    if (b.type !== undefined && (typeof b.type !== 'string' || !valid.includes(b.type))) {
+      return { ok: false, error: `type must be one of ${valid.join(', ')}` }
     }
     type = (b.type as string | undefined) ?? 'http'
   }
@@ -162,7 +161,10 @@ function parseMonitorBody(
   }
   if (!partial || b.config !== undefined) {
     try {
-      input.config = type === 'group' ? parseGroupConfig(b.config) : parseMonitorConfig(type as MonitorType, b.config)
+      input.config =
+        type === 'group'
+          ? parseGroupConfig(b.config)
+          : parseMonitorConfig(type as MonitorType, b.config)
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'invalid config' }
     }
@@ -172,7 +174,8 @@ function parseMonitorBody(
   let channelIds: number[] | undefined
   if (b.tagIds !== undefined) {
     const arr = b.tagIds
-    if (!Array.isArray(arr) || !arr.every(isPositiveInt)) return { ok: false, error: 'tagIds must be an array of positive integers' }
+    if (!Array.isArray(arr) || !arr.every(isPositiveInt))
+      return { ok: false, error: 'tagIds must be an array of positive integers' }
     tagIds = arr
   }
   if (b.tags !== undefined) {
@@ -211,9 +214,18 @@ export function createApp(opts: AppOptions): Express {
       db.listMonitors()
       res.json({ status: 'ok', db: 'ok' })
     } catch (err) {
-      res.status(503).json({ status: 'fail', db: 'fail', error: err instanceof Error ? err.message : 'db error' })
+      res
+        .status(503)
+        .json({
+          status: 'fail',
+          db: 'fail',
+          error: err instanceof Error ? err.message : 'db error',
+        })
     }
   })
+
+  // /metrics allowlist (SPEC §5): open by default, restrict via METRICS_ALLOWLIST.
+  app.use(metricsAllowlistMiddleware(process.env))
 
   app.get('/metrics', async (_req, res) => {
     if (!metrics) return res.status(404).json({ error: 'metrics disabled' })
@@ -240,7 +252,12 @@ export function createApp(opts: AppOptions): Express {
     })
     if (monitor.type === 'push' && opts.incidentEngine && monitor.active) {
       await opts.incidentEngine.onResult(
-        { id: monitor.id, name: monitor.name, retries: monitor.retries, resendNotificationS: monitor.resendNotificationS },
+        {
+          id: monitor.id,
+          name: monitor.name,
+          retries: monitor.retries,
+          resendNotificationS: monitor.resendNotificationS,
+        },
         { status: 'up', latencyMs: 0 },
         new Date(),
       )
@@ -278,7 +295,12 @@ export function createApp(opts: AppOptions): Express {
     })
     if (opts.incidentEngine && monitor.active) {
       await opts.incidentEngine.onPushDown(
-        { id: monitor.id, name: monitor.name, retries: monitor.retries, resendNotificationS: monitor.resendNotificationS },
+        {
+          id: monitor.id,
+          name: monitor.name,
+          retries: monitor.retries,
+          resendNotificationS: monitor.resendNotificationS,
+        },
         snippet,
         time,
       )
@@ -297,10 +319,7 @@ export function createApp(opts: AppOptions): Express {
   }
 
   // ---- Lifecycle: export/import, backup, retention, Kuma import (admin) ----
-  app.use(
-    '/api/v1',
-    createLifecycleRouter({ db, secrets, dataDir: opts.dataDir ?? '.' }),
-  )
+  app.use('/api/v1', createLifecycleRouter({ db, secrets, dataDir: opts.dataDir ?? '.' }))
 
   // ---- Tags ----
   app.get('/api/v1/tags', auth.requireAuth('viewer'), (_req, res) => {
@@ -308,7 +327,13 @@ export function createApp(opts: AppOptions): Express {
   })
 
   // ---- Notification channels ----
-  const channelApi = (row: { id: number; type: string; name: string; isDefault: boolean; active: boolean }) => ({
+  const channelApi = (row: {
+    id: number
+    type: string
+    name: string
+    isDefault: boolean
+    active: boolean
+  }) => ({
     id: row.id,
     type: row.type,
     name: row.name,
@@ -361,7 +386,9 @@ export function createApp(opts: AppOptions): Express {
         const config = parseChannelConfig(existing.type as ChannelType, b.config)
         patch.configEnc = secrets.encryptJson(config)
       } catch (err) {
-        return res.status(400).json({ error: err instanceof Error ? err.message : 'invalid channel config' })
+        return res
+          .status(400)
+          .json({ error: err instanceof Error ? err.message : 'invalid channel config' })
       }
     }
     const updated = db.updateChannel(id, patch)
@@ -383,7 +410,13 @@ export function createApp(opts: AppOptions): Express {
     if (!row) return res.status(404).json({ error: 'channel not found' })
     try {
       const config = secrets.decryptJson(row.configEnc)
-      await notifier.testChannel({ id: row.id, type: row.type as ChannelType, name: row.name, config, active: row.active })
+      await notifier.testChannel({
+        id: row.id,
+        type: row.type as ChannelType,
+        name: row.name,
+        config,
+        active: row.active,
+      })
       res.status(204).send()
     } catch (err) {
       res.status(400).json({ error: err instanceof Error ? err.message : 'test failed' })
@@ -393,8 +426,7 @@ export function createApp(opts: AppOptions): Express {
   // ---- Incidents ----
   app.get('/api/v1/incidents', auth.requireAuth('viewer'), (req, res) => {
     const active = req.query.active
-    const listOpts =
-      active === '1' ? { active: true } : active === '0' ? { active: false } : {}
+    const listOpts = active === '1' ? { active: true } : active === '0' ? { active: false } : {}
     const incidents = db
       .listIncidents(listOpts)
       .map((i) => ({ ...i, monitorName: db.getMonitor(i.monitorId)?.name ?? null }))
@@ -449,7 +481,9 @@ export function createApp(opts: AppOptions): Express {
       })
       res.status(201).json({ statusPage: statusPageApi(row) })
     } catch (err) {
-      res.status(400).json({ error: err instanceof Error ? err.message : 'could not create status page' })
+      res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : 'could not create status page' })
     }
   })
 
@@ -498,7 +532,9 @@ export function createApp(opts: AppOptions): Express {
         },
       ]
     })
-    const openIncidents = db.listIncidents({ active: true }).filter((i) => page.monitorIds.includes(i.monitorId))
+    const openIncidents = db
+      .listIncidents({ active: true })
+      .filter((i) => page.monitorIds.includes(i.monitorId))
     res.json({
       slug: page.slug,
       title: page.title,
@@ -534,7 +570,9 @@ export function createApp(opts: AppOptions): Express {
       const row = db.createMaintenanceWindow(coerceWindow(req.body))
       res.status(201).json({ window: row })
     } catch (err) {
-      res.status(400).json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
+      res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
     }
   })
 
@@ -546,14 +584,17 @@ export function createApp(opts: AppOptions): Express {
       if (!updated) return res.status(404).json({ error: 'maintenance window not found' })
       res.json({ window: updated })
     } catch (err) {
-      res.status(400).json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
+      res
+        .status(400)
+        .json({ error: err instanceof Error ? err.message : 'invalid maintenance window' })
     }
   })
 
   app.delete('/api/v1/maintenance-windows/:id', auth.requireAuth('admin'), (req, res) => {
     const id = monitorId(req)
     if (id === null) return res.status(400).json({ error: 'invalid maintenance window id' })
-    if (!db.deleteMaintenanceWindow(id)) return res.status(404).json({ error: 'maintenance window not found' })
+    if (!db.deleteMaintenanceWindow(id))
+      return res.status(404).json({ error: 'maintenance window not found' })
     res.status(204).send()
   })
 
@@ -570,7 +611,9 @@ export function createApp(opts: AppOptions): Express {
     const b = req.body as Record<string, unknown>
     if (b.title !== undefined) {
       if (typeof b.title !== 'string' || b.title.trim().length === 0 || b.title.length > 200) {
-        return res.status(400).json({ error: 'title must be a non-empty string of at most 200 characters' })
+        return res
+          .status(400)
+          .json({ error: 'title must be a non-empty string of at most 200 characters' })
       }
       db.setSetting('title', b.title)
     }
@@ -580,11 +623,20 @@ export function createApp(opts: AppOptions): Express {
       }
       db.setSetting('timezone', b.timezone)
     }
-    res.json({ title: db.getSetting('title') ?? DEFAULT_TITLE, timezone: db.getSetting('timezone') ?? 'UTC' })
+    res.json({
+      title: db.getSetting('title') ?? DEFAULT_TITLE,
+      timezone: db.getSetting('timezone') ?? 'UTC',
+    })
   })
 
   // ---- Docker hosts (SPEC §4) ----
-  const dockerHostApi = (row: { id: number; name: string; uri: string; createdAt: Date; updatedAt: Date }) => ({
+  const dockerHostApi = (row: {
+    id: number
+    name: string
+    uri: string
+    createdAt: Date
+    updatedAt: Date
+  }) => ({
     id: row.id,
     name: row.name,
     uri: row.uri,
@@ -594,7 +646,11 @@ export function createApp(opts: AppOptions): Express {
   })
 
   app.get('/api/v1/docker-hosts', auth.requireAuth('viewer'), (_req, res) => {
-    res.json({ dockerHosts: db.listDockerHosts().map((row) => ({ ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null })) })
+    res.json({
+      dockerHosts: db
+        .listDockerHosts()
+        .map((row) => ({ ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null })),
+    })
   })
 
   app.post('/api/v1/docker-hosts', auth.requireAuth('admin'), (req, res) => {
@@ -627,12 +683,16 @@ export function createApp(opts: AppOptions): Express {
       patch.name = b.name
     }
     if (b.uri !== undefined) {
-      if (typeof b.uri !== 'string' || b.uri.length === 0) return res.status(400).json({ error: 'uri must be a non-empty string' })
+      if (typeof b.uri !== 'string' || b.uri.length === 0)
+        return res.status(400).json({ error: 'uri must be a non-empty string' })
       patch.uri = b.uri
     }
-    if (b.tlsCa !== undefined) patch.tlsCaEnc = typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : null
-    if (b.tlsCert !== undefined) patch.tlsCertEnc = typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : null
-    if (b.tlsKey !== undefined) patch.tlsKeyEnc = typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : null
+    if (b.tlsCa !== undefined)
+      patch.tlsCaEnc = typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : null
+    if (b.tlsCert !== undefined)
+      patch.tlsCertEnc = typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : null
+    if (b.tlsKey !== undefined)
+      patch.tlsKeyEnc = typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : null
     const updated = db.updateDockerHost(id, patch)
     if (!updated) return res.status(404).json({ error: 'docker host not found' })
     res.json({ dockerHost: { ...dockerHostApi(updated), hasTls: updated.tlsCaEnc !== null } })
@@ -745,7 +805,7 @@ export function createApp(opts: AppOptions): Express {
     if (tagIds.length > 0) db.setMonitorTags(row.id, tagIds)
     if (parsed.channelIds) db.setMonitorChannels(row.id, parsed.channelIds)
     if (row.type === 'http' && row.active) scheduler?.upsert(toScheduled(row))
-    const { tagIdsBy, channelIdsBy, tagById } = apiContextFor([row])
+    const { tagById } = apiContextFor([row])
     res.status(201).json({
       monitor: toApiMonitor(row, {
         tagIds: tagIds.length > 0 ? tagIds : [],
@@ -827,7 +887,8 @@ export function createApp(opts: AppOptions): Express {
     app.use(express.static(webDist))
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET') return next()
-      if (req.path.startsWith('/api') || req.path === '/metrics' || req.path === '/healthz') return next()
+      if (req.path.startsWith('/api') || req.path === '/metrics' || req.path === '/healthz')
+        return next()
       res.sendFile(join(webDist, 'index.html'))
     })
   }

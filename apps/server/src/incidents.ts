@@ -1,4 +1,4 @@
-import type { Database, MonitorRow } from '@uptime/db'
+import type { Database } from '@uptime/db'
 import type { CheckResult } from '@uptime/core'
 
 /** Minimal monitor shape the engine needs — decoupled from the scheduler's type. */

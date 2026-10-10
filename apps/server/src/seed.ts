@@ -9,7 +9,12 @@ export function seedIfEmpty(db: Database, scheduler?: SchedulerLike): boolean {
     intervalS: 60,
     retries: 1,
     retryIntervalS: 60,
-    config: { url: 'https://example.com/', method: 'GET', timeoutMs: 10000, acceptedStatus: [200, 299] },
+    config: {
+      url: 'https://example.com/',
+      method: 'GET',
+      timeoutMs: 10000,
+      acceptedStatus: [200, 299],
+    },
   })
   scheduler?.upsert(toScheduled(row))
   return true

@@ -26,3 +26,4 @@ export type {
   MonitorType,
   ScheduledMonitor,
 } from './types.js'
+export { MONITOR_TYPES } from './types.js'

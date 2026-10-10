@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "generate": "drizzle-kit generate",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "rotate-key": "node dist/rotate-key.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.0",

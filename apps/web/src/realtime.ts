@@ -37,7 +37,8 @@ export interface RealtimeMaintenanceEvent {
   time: string
 }
 
-export type RealtimeEvent = RealtimeHeartbeatEvent | RealtimeIncidentEvent | RealtimeMaintenanceEvent
+export type RealtimeEvent =
+  RealtimeHeartbeatEvent | RealtimeIncidentEvent | RealtimeMaintenanceEvent
 
 export type RealtimeHandler = (event: RealtimeEvent) => void
 

@@ -41,6 +41,18 @@ const acceptedStatusSchema = z.union([
 ])
 
 /**
+ * Supported `jsonPaths` subset: dot-separated object keys with optional
+ * numeric `[index]` steps (`metrics.users.active`, `queue[0].size`). Anything
+ * else (quoted keys, wildcards, negative indices) is rejected at config time.
+ */
+const jsonPathSchema = z
+  .string()
+  .regex(
+    /^[^.[\]]+(?:\[\d+\])?(?:\.[^.[\]]+(?:\[\d+\])?)*$/,
+    'jsonPath must be a dot path with optional [index] steps',
+  )
+
+/**
  * Zod schema for the `http` monitor config, including its defaults:
  * `method: 'GET'`, `timeoutMs: 10000`, `acceptedStatus: [200, 299]`.
  */
@@ -54,6 +66,9 @@ export const httpMonitorConfigSchema = z.object({
   keyword: keywordSchema.optional(),
   maxResponseMs: z.int().positive().optional(),
   certExpiryDays: z.int().positive().optional(),
+  jsonPaths: z
+    .record(z.string().min(1, 'jsonPaths names must not be empty'), jsonPathSchema)
+    .optional(),
 })
 
 /**

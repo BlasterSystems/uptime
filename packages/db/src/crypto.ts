@@ -59,7 +59,10 @@ export class SecretBox {
     }
     const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(ivB64, 'base64url'))
     decipher.setAuthTag(Buffer.from(tagB64, 'base64url'))
-    return Buffer.concat([decipher.update(Buffer.from(ctB64, 'base64url')), decipher.final()]).toString('utf8')
+    return Buffer.concat([
+      decipher.update(Buffer.from(ctB64, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8')
   }
 
   encryptJson(value: unknown): string {

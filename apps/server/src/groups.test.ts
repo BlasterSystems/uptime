@@ -37,7 +37,14 @@ function makeDb() {
 }
 
 function httpMonitor(db: Database, name: string) {
-  return db.createMonitor({ type: 'http', name, intervalS: 60, retries: 1, retryIntervalS: 60, config: { url: `https://${name}.io` } })
+  return db.createMonitor({
+    type: 'http',
+    name,
+    intervalS: 60,
+    retries: 1,
+    retryIntervalS: 60,
+    config: { url: `https://${name}.io` },
+  })
 }
 
 function makeGroup(db: Database, memberIds: number[], strategy: string, percentage?: number) {
@@ -47,7 +54,8 @@ function makeGroup(db: Database, memberIds: number[], strategy: string, percenta
     intervalS: 20,
     retries: 1,
     retryIntervalS: 60,
-    config: percentage === undefined ? { memberIds, strategy } : { memberIds, strategy, percentage },
+    config:
+      percentage === undefined ? { memberIds, strategy } : { memberIds, strategy, percentage },
   })
 }
 
@@ -81,7 +89,14 @@ describe('GroupEngine', () => {
     const a = httpMonitor(db, 'a')
     db.insertHeartbeat({ monitorId: a.id, status: 'up' })
     makeGroup(db, [a.id], 'all-up')
-    db.createMonitor({ type: 'group', name: 'bad', intervalS: 20, retries: 1, retryIntervalS: 60, config: { strategy: 'percentage' } })
+    db.createMonitor({
+      type: 'group',
+      name: 'bad',
+      intervalS: 20,
+      retries: 1,
+      retryIntervalS: 60,
+      config: { strategy: 'percentage' },
+    })
 
     await engine.sweep(new Date('2026-01-01T00:00:00Z'))
     await engine.sweep(new Date('2026-01-01T00:00:25Z'))

@@ -56,6 +56,7 @@ export async function runHttpCheck(
   }
 
   const latencyMs = Math.round(performance.now() - startedAt)
+  const details = extractJsonPaths(body, config.jsonPaths, response.ok)
   const acceptedStatus = config.acceptedStatus
   if (acceptedStatus !== 'any') {
     const [min, max] = acceptedStatus
@@ -63,6 +64,7 @@ export async function runHttpCheck(
       return downResult(
         latencyMs,
         `status ${response.status} not accepted (expected ${min}-${max})`,
+        details,
       )
     }
   }
@@ -76,13 +78,14 @@ export async function runHttpCheck(
         keyword.inverse === true
           ? `keyword "${keyword.value}" found (inverse)`
           : `keyword "${keyword.value}" not found`,
+        details,
       )
     }
   }
 
   const maxResponseMs = config.maxResponseMs
   if (maxResponseMs !== undefined && latencyMs > maxResponseMs) {
-    return downResult(latencyMs, `latency ${latencyMs}ms exceeded cap ${maxResponseMs}ms`)
+    return downResult(latencyMs, `latency ${latencyMs}ms exceeded cap ${maxResponseMs}ms`, details)
   }
 
   const certExpiryDays = config.certExpiryDays
@@ -92,15 +95,27 @@ export async function runHttpCheck(
     const days = await certProbe(config.url, config.timeoutMs)
     // An unreadable certificate is not a failure; only a known imminent expiry is.
     if (days !== null && days < certExpiryDays) {
-      return downResult(latencyMs, `certificate expires in ${days} days (min ${certExpiryDays})`)
+      return downResult(
+        latencyMs,
+        `certificate expires in ${days} days (min ${certExpiryDays})`,
+        details,
+      )
     }
   }
 
-  return { status: 'up', latencyMs, responseSnippet: snippet(body) }
+  const result: CheckResult = { status: 'up', latencyMs, responseSnippet: snippet(body) }
+  if (details !== undefined) result.details = details
+  return result
 }
 
-function downResult(latencyMs: number, reason: string): CheckResult {
-  return { status: 'down', latencyMs, responseSnippet: snippet(reason) }
+function downResult(
+  latencyMs: number,
+  reason: string,
+  details?: CheckResult['details'],
+): CheckResult {
+  const result: CheckResult = { status: 'down', latencyMs, responseSnippet: snippet(reason) }
+  if (details !== undefined) result.details = details
+  return result
 }
 
 /** First 1024 bytes of `text`; `undefined` when there is nothing to capture. */
@@ -110,6 +125,78 @@ function snippet(text: string): string | undefined {
   return bytes.byteLength <= SNIPPET_BYTES
     ? text
     : bytes.subarray(0, SNIPPET_BYTES).toString('utf8')
+}
+
+/**
+ * Extract the configured `jsonPaths` metrics from a successful response body
+ * (SPEC §3 `jsonPaths`). Only 2xx responses whose body parses as JSON are
+ * inspected; a parse failure, a path that cannot be resolved or a `null` leaf
+ * skips just that metric — extraction never fails the check. Numbers, strings
+ * and booleans pass through untouched; structured values (objects, arrays) are
+ * JSON-stringified. Returns `undefined` when nothing was extracted so
+ * `details` stays absent from the result.
+ */
+function extractJsonPaths(
+  body: string,
+  jsonPaths: Record<string, string> | undefined,
+  ok: boolean,
+): Record<string, number | string | boolean> | undefined {
+  if (!ok || jsonPaths === undefined) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return undefined
+  }
+  const details: Record<string, number | string | boolean> = {}
+  for (const [name, path] of Object.entries(jsonPaths)) {
+    const value = resolveJsonPath(parsed, path)
+    if (value === undefined || value === null) continue
+    if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+      details[name] = value
+    } else {
+      details[name] = JSON.stringify(value)
+    }
+  }
+  return Object.keys(details).length > 0 ? details : undefined
+}
+
+/** One path segment: a key plus optional `[n]` index steps (`items[0][1]`). */
+const JSON_PATH_SEGMENT = /^([^[\]]+)((?:\[\d+\])*)$/
+
+/** Walk a `a.b[0].c` path; `undefined` for anything the path cannot address. */
+function resolveJsonPath(root: unknown, path: string): unknown {
+  let current: unknown = root
+  for (const segment of path.split('.')) {
+    // Config validation guarantees the shape; a malformed segment resolves to nothing.
+    const match = JSON_PATH_SEGMENT.exec(segment)
+    const key = match?.[1]
+    const indices = match?.[2]
+    if (key === undefined || indices === undefined) return undefined
+    current = step(current, key)
+    if (current === undefined) return undefined
+    for (const index of indices.matchAll(/\[(\d+)\]/g)) {
+      const position = index[1]
+      if (position === undefined) return undefined
+      current = step(current, position)
+      if (current === undefined) return undefined
+    }
+  }
+  return current
+}
+
+/** One lookup: array element by numeric index, otherwise an object property. */
+function step(current: unknown, key: string): unknown {
+  if (Array.isArray(current)) {
+    const index = Number(key)
+    return Number.isInteger(index) && index >= 0 && index < current.length
+      ? current[index]
+      : undefined
+  }
+  if (typeof current === 'object' && current !== null) {
+    return (current as Record<string, unknown>)[key]
+  }
+  return undefined
 }
 
 /**

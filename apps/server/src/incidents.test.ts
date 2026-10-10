@@ -6,15 +6,26 @@ import { IncidentEngine, type MonitorRef, type NotifierLike } from './incidents.
 class StubNotifier implements NotifierLike {
   calls: { monitorId: number; title: string; status: string }[] = []
 
-  async notifyMonitor(monitorId: number, payload: { title: string; status: string }): Promise<unknown> {
+  async notifyMonitor(
+    monitorId: number,
+    payload: { title: string; status: string },
+  ): Promise<unknown> {
     this.calls.push({ monitorId, title: payload.title, status: payload.status })
     return []
   }
 }
 
-const httpConfig = { url: 'https://example.com/', method: 'GET', timeoutMs: 10000, acceptedStatus: [200, 299] }
+const httpConfig = {
+  url: 'https://example.com/',
+  method: 'GET',
+  timeoutMs: 10000,
+  acceptedStatus: [200, 299],
+}
 
-function makeMonitor(db: Database, overrides: Partial<{ retries: number; resend: number; name: string }> = {}) {
+function makeMonitor(
+  db: Database,
+  overrides: Partial<{ retries: number; resend: number; name: string }> = {},
+) {
   return db.createMonitor({
     type: 'http',
     name: overrides.name ?? 'A',
@@ -26,7 +37,12 @@ function makeMonitor(db: Database, overrides: Partial<{ retries: number; resend:
   })
 }
 
-const ref = (m: { id: number; name: string; retries: number; resendNotificationS: number }): MonitorRef => m
+const ref = (m: {
+  id: number
+  name: string
+  retries: number
+  resendNotificationS: number
+}): MonitorRef => m
 
 const down: CheckResult = { status: 'down', latencyMs: 50, responseSnippet: 'connect refused' }
 const up: CheckResult = { status: 'up', latencyMs: 42 }

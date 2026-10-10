@@ -65,7 +65,7 @@ and a multi-stage Dockerfile + compose.
 - Configuration validation: `.agentic/bin/validate` → passed; `.agentic/bin/docs-check` → no gaps.
 - Tests: 54 passing (`pnpm -r test`: core 34, db 12, server 8); `pnpm -r typecheck`, `pnpm -r build`, `pnpm lint` clean.
 - Build: `docker compose build` → `uptime-monitoring:local`; container boots with `read_only: true`
-  + tmpfs, runs as `uptime` (UID 1001); CI workflow (`.github/workflows/ci.yml`) builds amd64+arm64.
+  - tmpfs, runs as `uptime` (UID 1001); CI workflow (`.github/workflows/ci.yml`) builds amd64+arm64.
 - Documentation check: README status/Development rewritten; SPEC §10 libc correction; PLAN M0
   status + native-module risk row corrected (plan review B1/J5).
 - Live smoke: server boots with seeded monitor → immediate probe of example.com (up, 97 ms),

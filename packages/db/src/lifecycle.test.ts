@@ -1,7 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import Sqlite from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { Database } from './index.js'
@@ -54,6 +55,84 @@ describe('backupTo', () => {
     expect(copy.listMonitors().map((row) => row.name)).toEqual(['api'])
     expect(copy.listHeartbeats(monitor.id)).toMatchObject([{ status: 'up', latencyMs: 42 }])
     copy.close()
+  })
+})
+
+describe('restoreFrom', () => {
+  it('replaces the live rows with the snapshot content', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uptime-restore-'))
+    tempDirs.push(dir)
+    const db = Database.open({ file: join(dir, 'live.db') })
+    try {
+      const monitor = createHttpMonitor(db, 'api')
+      db.insertHeartbeat({ monitorId: monitor.id, status: 'up', latencyMs: 42 })
+
+      const snapshot = join(dir, 'snapshot.db')
+      await db.backupTo(snapshot)
+
+      // Mutate after the snapshot: an extra monitor and an extra heartbeat.
+      createHttpMonitor(db, 'mutant')
+      db.insertHeartbeat({ monitorId: monitor.id, status: 'down' })
+      expect(db.listMonitors().map((row) => row.name)).toEqual(['api', 'mutant'])
+
+      await db.restoreFrom(snapshot)
+
+      expect(db.listMonitors().map((row) => row.name)).toEqual(['api'])
+      expect(db.listHeartbeats(monitor.id)).toMatchObject([{ status: 'up', latencyMs: 42 }])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('restores a snapshot that predates a schema column', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uptime-restore-'))
+    tempDirs.push(dir)
+    const db = Database.open({ file: join(dir, 'live.db') })
+    try {
+      createHttpMonitor(db, 'api')
+      const snapshot = join(dir, 'snapshot.db')
+      await db.backupTo(snapshot)
+
+      // Simulate a snapshot taken before a migration added the column.
+      const old = new Sqlite(snapshot)
+      old.exec('ALTER TABLE monitors DROP COLUMN resend_notification_s')
+      old.close()
+
+      await db.restoreFrom(snapshot)
+      expect(db.listMonitors().map((row) => row.name)).toEqual(['api'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('rejects a missing snapshot and leaves the database usable', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uptime-restore-'))
+    tempDirs.push(dir)
+    const db = Database.open({ file: join(dir, 'live.db') })
+    try {
+      createHttpMonitor(db, 'api')
+
+      await expect(db.restoreFrom(join(dir, 'nope.db'))).rejects.toThrowError(/snapshot not found/)
+      expect(db.listMonitors().map((row) => row.name)).toEqual(['api'])
+    } finally {
+      db.close()
+    }
+  })
+
+  it('rejects a file that is not a SQLite database without touching the live rows', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'uptime-restore-'))
+    tempDirs.push(dir)
+    const db = Database.open({ file: join(dir, 'live.db') })
+    try {
+      createHttpMonitor(db, 'api')
+      const garbage = join(dir, 'garbage.db')
+      writeFileSync(garbage, 'this is definitely not a SQLite database')
+
+      await expect(db.restoreFrom(garbage)).rejects.toThrow()
+      expect(db.listMonitors().map((row) => row.name)).toEqual(['api'])
+    } finally {
+      db.close()
+    }
   })
 })
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -66,6 +66,7 @@ describe('auth guard', () => {
     expect((await request(app).post('/api/v1/config/export')).status).toBe(401)
     expect((await request(app).post('/api/v1/config/import')).status).toBe(401)
     expect((await request(app).post('/api/v1/backup')).status).toBe(401)
+    expect((await request(app).post('/api/v1/restore')).status).toBe(401)
     expect((await request(app).post('/api/v1/retention/run')).status).toBe(401)
     expect((await request(app).post('/api/v1/import/kuma')).status).toBe(401)
   })
@@ -186,6 +187,91 @@ describe('backup', () => {
     } finally {
       copy.close()
     }
+  })
+})
+
+describe('restore', () => {
+  it('restores a snapshot taken through POST /backup and keeps a pre-restore copy', async () => {
+    const { app, db, dataDir } = makeApp()
+    const { agent, csrf } = await authed(app)
+    const original = db.createMonitor({
+      type: 'http',
+      name: 'api',
+      intervalS: 60,
+      retries: 1,
+      retryIntervalS: 60,
+      config: httpConfig,
+    })
+
+    const backup = await agent.post('/api/v1/backup').set('x-csrf-token', csrf)
+    expect(backup.status).toBe(200)
+
+    // Mutate after the snapshot: replace the monitor set.
+    db.deleteMonitor(original.id)
+    db.createMonitor({
+      type: 'http',
+      name: 'mutant',
+      intervalS: 60,
+      retries: 1,
+      retryIntervalS: 60,
+      config: httpConfig,
+    })
+
+    const res = await agent
+      .post('/api/v1/restore')
+      .set('x-csrf-token', csrf)
+      .send({ path: backup.body.path })
+    expect(res.status).toBe(200)
+    expect(res.body).toEqual({ restored: true })
+    expect(db.listMonitors().map((monitor) => monitor.name)).toEqual(['api'])
+
+    // The pre-restore snapshot of the mutated state is recoverable.
+    const files = readdirSync(join(dataDir, 'backups'))
+    expect(files.some((file) => file.startsWith('pre-restore-'))).toBe(true)
+  })
+
+  it('rejects paths that escape the backups directory', async () => {
+    const { app, dataDir } = makeApp()
+    const { agent, csrf } = await authed(app)
+    const paths = [
+      '../uptime.db',
+      'backups/../uptime.db',
+      '..',
+      'backups/',
+      join(dataDir, 'uptime.db'),
+      '/etc/passwd',
+    ]
+    for (const path of paths) {
+      const res = await agent.post('/api/v1/restore').set('x-csrf-token', csrf).send({ path })
+      expect(res.status, path).toBe(400)
+      expect(res.body, path).toEqual({ error: 'path must point inside the backups directory' })
+    }
+
+    for (const body of [{}, { path: '' }, { path: 42 }]) {
+      const res = await agent.post('/api/v1/restore').set('x-csrf-token', csrf).send(body)
+      expect(res.status).toBe(400)
+      expect(res.body).toEqual({ error: 'path must be a non-empty string' })
+    }
+  })
+
+  it('rejects missing and non-SQLite snapshots', async () => {
+    const { app, dataDir } = makeApp()
+    const { agent, csrf } = await authed(app)
+
+    const missing = await agent
+      .post('/api/v1/restore')
+      .set('x-csrf-token', csrf)
+      .send({ path: 'nope.db' })
+    expect(missing.status).toBe(404)
+
+    mkdirSync(join(dataDir, 'backups'), { recursive: true })
+    writeFileSync(join(dataDir, 'backups', 'evil.db'), 'definitely not a SQLite database')
+    const notSqlite = await agent
+      .post('/api/v1/restore')
+      .set('x-csrf-token', csrf)
+      .send({ path: 'evil.db' })
+    expect(notSqlite.status).toBe(400)
+    expect(notSqlite.body).toEqual({ error: 'not a SQLite database' })
   })
 })
 

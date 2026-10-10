@@ -253,4 +253,115 @@ describe('runHttpCheck', () => {
     expect(Buffer.byteLength(result.responseSnippet ?? '', 'utf8')).toBe(1024)
     expect(result.responseSnippet).toHaveLength(512)
   })
+
+  it('extracts jsonPaths metrics from a 2xx JSON body', async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          metrics: {
+            users: { active: 12, idle: 3, ratio: 0.75, enabled: true, mode: 'fast' },
+            queue: [3, { depth: 7 }],
+            nested: { deep: 1 },
+          },
+        }),
+      )
+    })
+
+    const result = await runHttpCheck(
+      parseMonitorConfig('http', {
+        url,
+        timeoutMs: 2000,
+        jsonPaths: {
+          activeUsers: 'metrics.users.active',
+          ratio: 'metrics.users.ratio',
+          enabled: 'metrics.users.enabled',
+          mode: 'metrics.users.mode',
+          secondQueue: 'metrics.queue[1].depth',
+          nested: 'metrics.nested',
+          missing: 'metrics.users.deleted',
+          outOfBounds: 'metrics.queue[9]',
+        },
+      }),
+    )
+
+    expect(result.status).toBe('up')
+    expect(result.details).toEqual({
+      activeUsers: 12,
+      ratio: 0.75,
+      enabled: true,
+      mode: 'fast',
+      secondQueue: 7,
+      nested: '{"deep":1}',
+    })
+  })
+
+  it('attaches extracted jsonPaths to a down result', async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"health":{"degraded":true}}')
+    })
+
+    const result = await runHttpCheck(
+      parseMonitorConfig('http', {
+        url,
+        timeoutMs: 2000,
+        keyword: { value: 'healthy' },
+        jsonPaths: { degraded: 'health.degraded' },
+      }),
+    )
+
+    expect(result.status).toBe('down')
+    expect(result.details).toEqual({ degraded: true })
+  })
+
+  it('skips jsonPaths extraction for non-2xx and non-JSON bodies', async () => {
+    const nonJson = await listen((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('not json at all')
+    })
+    const nonJsonResult = await runHttpCheck(
+      parseMonitorConfig('http', {
+        url: nonJson,
+        timeoutMs: 2000,
+        jsonPaths: { value: 'a.b' },
+      }),
+    )
+    expect(nonJsonResult.status).toBe('up')
+    expect(nonJsonResult.details).toBeUndefined()
+
+    const redirect = await listen((_req, res) => {
+      res.writeHead(503, { 'content-type': 'application/json' })
+      res.end('{"status":"unavailable"}')
+    })
+    const redirectResult = await runHttpCheck(
+      parseMonitorConfig('http', {
+        url: redirect,
+        timeoutMs: 2000,
+        acceptedStatus: 'any',
+        jsonPaths: { status: 'status' },
+      }),
+    )
+    // 503 is accepted here, but jsonPaths only reads 2xx bodies.
+    expect(redirectResult.status).toBe('up')
+    expect(redirectResult.details).toBeUndefined()
+  })
+
+  it('leaves details absent when no path resolves', async () => {
+    const url = await listen((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end('{"a":null}')
+    })
+
+    const result = await runHttpCheck(
+      parseMonitorConfig('http', {
+        url,
+        timeoutMs: 2000,
+        jsonPaths: { nothing: 'a', absent: 'b.c[0]' },
+      }),
+    )
+
+    expect(result.status).toBe('up')
+    expect(result).not.toHaveProperty('details')
+  })
 })

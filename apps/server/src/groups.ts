@@ -24,8 +24,18 @@ export function parseGroupConfig(raw: unknown): GroupConfig {
 
 export interface GroupEngineDeps {
   db: Database
-  onResult: (m: { id: number; name: string; retries: number; resendNotificationS?: number }, result: CheckResult, time: Date) => Promise<void>
-  broadcast: (event: { type: 'heartbeat'; monitorId: number; status: string; latencyMs: number | null; time: string }) => void
+  onResult: (
+    m: { id: number; name: string; retries: number; resendNotificationS?: number },
+    result: CheckResult,
+    time: Date,
+  ) => Promise<void>
+  broadcast: (event: {
+    type: 'heartbeat'
+    monitorId: number
+    status: string
+    latencyMs: number | null
+    time: string
+  }) => void
 }
 
 /**
@@ -74,9 +84,18 @@ export class GroupEngine {
     const [latest] = this.deps.db.listHeartbeats(row.id, { limit: 1 })
     if (latest?.status === status) return
 
-    const result: CheckResult = { status, latencyMs: 0, responseSnippet: `group: ${up}/${total} members up` }
+    const result: CheckResult = {
+      status,
+      latencyMs: 0,
+      responseSnippet: `group: ${up}/${total} members up`,
+    }
     await this.deps.onResult(
-      { id: row.id, name: row.name, retries: row.retries, resendNotificationS: row.resendNotificationS },
+      {
+        id: row.id,
+        name: row.name,
+        retries: row.retries,
+        resendNotificationS: row.resendNotificationS,
+      },
       result,
       now,
     )

@@ -68,9 +68,7 @@
       "indexes": {
         "api_keys_key_hash_unique": {
           "name": "api_keys_key_hash_unique",
-          "columns": [
-            "key_hash"
-          ],
+          "columns": ["key_hash"],
           "isUnique": true
         }
       },
@@ -79,12 +77,8 @@
           "name": "api_keys_created_by_users_id_fk",
           "tableFrom": "api_keys",
           "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -142,10 +136,7 @@
       "indexes": {
         "heartbeats_monitor_time_idx": {
           "name": "heartbeats_monitor_time_idx",
-          "columns": [
-            "monitor_id",
-            "time"
-          ],
+          "columns": ["monitor_id", "time"],
           "isUnique": false
         }
       },
@@ -154,12 +145,8 @@
           "name": "heartbeats_monitor_id_monitors_id_fk",
           "tableFrom": "heartbeats",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -217,10 +204,7 @@
       "indexes": {
         "incidents_monitor_opened_idx": {
           "name": "incidents_monitor_opened_idx",
-          "columns": [
-            "monitor_id",
-            "opened_at"
-          ],
+          "columns": ["monitor_id", "opened_at"],
           "isUnique": false
         }
       },
@@ -229,12 +213,8 @@
           "name": "incidents_monitor_id_monitors_id_fk",
           "tableFrom": "incidents",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -267,12 +247,8 @@
           "name": "monitor_notifications_monitor_id_monitors_id_fk",
           "tableFrom": "monitor_notifications",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -280,22 +256,15 @@
           "name": "monitor_notifications_channel_id_notification_channels_id_fk",
           "tableFrom": "monitor_notifications",
           "tableTo": "notification_channels",
-          "columnsFrom": [
-            "channel_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["channel_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "monitor_notifications_monitor_id_channel_id_pk": {
-          "columns": [
-            "monitor_id",
-            "channel_id"
-          ],
+          "columns": ["monitor_id", "channel_id"],
           "name": "monitor_notifications_monitor_id_channel_id_pk"
         }
       },
@@ -326,12 +295,8 @@
           "name": "monitor_tags_monitor_id_monitors_id_fk",
           "tableFrom": "monitor_tags",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -339,22 +304,15 @@
           "name": "monitor_tags_tag_id_tags_id_fk",
           "tableFrom": "monitor_tags",
           "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "monitor_tags_monitor_id_tag_id_pk": {
-          "columns": [
-            "monitor_id",
-            "tag_id"
-          ],
+          "columns": ["monitor_id", "tag_id"],
           "name": "monitor_tags_monitor_id_tag_id_pk"
         }
       },
@@ -469,12 +427,8 @@
           "name": "monitors_parent_id_monitors_id_fk",
           "tableFrom": "monitors",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -593,9 +547,7 @@
       "indexes": {
         "push_tokens_monitor_id_unique": {
           "name": "push_tokens_monitor_id_unique",
-          "columns": [
-            "monitor_id"
-          ],
+          "columns": ["monitor_id"],
           "isUnique": true
         }
       },
@@ -604,12 +556,8 @@
           "name": "push_tokens_monitor_id_monitors_id_fk",
           "tableFrom": "push_tokens",
           "tableTo": "monitors",
-          "columnsFrom": [
-            "monitor_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["monitor_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -677,12 +625,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -751,9 +695,7 @@
       "indexes": {
         "tags_name_unique": {
           "name": "tags_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         }
       },
@@ -834,9 +776,7 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },

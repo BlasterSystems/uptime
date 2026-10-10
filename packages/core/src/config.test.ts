@@ -32,6 +32,7 @@ describe('parseMonitorConfig', () => {
       keyword: { value: 'pong', inverse: true },
       maxResponseMs: 800,
       certExpiryDays: 14,
+      jsonPaths: { activeUsers: 'metrics.users.active', first: 'queue[0].id' },
     }
     expect(parseMonitorConfig('http', raw)).toEqual(raw)
   })
@@ -70,6 +71,12 @@ describe('parseMonitorConfig', () => {
       ['non-positive cert expiry', { url: 'https://example.com', certExpiryDays: 0 }],
       ['fractional cert expiry', { url: 'https://example.com', certExpiryDays: 14.5 }],
       ['non-string header value', { url: 'https://example.com', headers: { a: 1 } }],
+      ['empty jsonPath', { url: 'https://example.com', jsonPaths: { x: '' } }],
+      ['bracket-only jsonPath', { url: 'https://example.com', jsonPaths: { x: '[0]' } }],
+      ['jsonPath with empty segment', { url: 'https://example.com', jsonPaths: { x: 'a..b' } }],
+      ['jsonPath with wildcard index', { url: 'https://example.com', jsonPaths: { x: 'a[*]' } }],
+      ['empty jsonPaths metric name', { url: 'https://example.com', jsonPaths: { '': 'a' } }],
+      ['non-string jsonPath', { url: 'https://example.com', jsonPaths: { x: 42 } }],
     ]
     for (const [label, raw] of invalids) {
       expect(() => parseMonitorConfig('http', raw), label).toThrowError(ZodError)

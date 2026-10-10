@@ -2,7 +2,14 @@ import type { Response } from 'express'
 
 export type ServerEvent =
   | { type: 'heartbeat'; monitorId: number; status: string; latencyMs: number | null; time: string }
-  | { type: 'incident'; monitorId: number; incidentId: number; state: 'open' | 'resolved'; title: string; time: string }
+  | {
+      type: 'incident'
+      monitorId: number
+      incidentId: number
+      state: 'open' | 'resolved'
+      title: string
+      time: string
+    }
   | { type: 'maintenance'; monitorId: number; under: boolean; time: string }
 
 /** SSE hub at /api/v1/events — primary live transport (review J7: SSE reconnects natively). */
