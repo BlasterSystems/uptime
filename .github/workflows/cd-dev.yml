@@ -69,7 +69,7 @@ jobs:
           $SSH "cd '$VM_DEPLOY_DIR' && docker compose -f deploy/docker-compose.yml build --pull uptime"
           $SSH "cd '$VM_DEPLOY_DIR' && PREV=\$(docker images --format '{{.ID}}' uptime-dev:latest | head -1); echo \"\$PREV\" > /tmp/uptime-dev.prev"
 
-          $SSH "cd '$VM_DEPLOY_DIR' && docker compose -f deploy/docker-compose.yml up -d --no-deps uptime"
+          $SSH "cd '$VM_DEPLOY_DIR' && docker rm -f uptime-dev 2>/dev/null || true; docker compose -f deploy/docker-compose.yml up -d --no-deps uptime"
 
           # Health gate: 60 x 2s against /healthz inside the container.
           if ! $SSH "cd '$VM_DEPLOY_DIR' && for i in \$(seq 1 60); do docker compose -f deploy/docker-compose.yml exec -T uptime node -e \"fetch('http://127.0.0.1:3101/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\" && exit 0; sleep 2; done; exit 1"; then
