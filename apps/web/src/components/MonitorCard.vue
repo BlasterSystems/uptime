@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { HeartbeatStatus, Monitor } from '../api.js'
 import { formatDateTime, formatInterval, formatLatency, relativeTime } from '../format.js'
+import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
 import Badge from './ui/Badge.vue'
 import Button from './ui/Button.vue'
 
@@ -20,12 +21,6 @@ const STATUS_META: Record<
 }
 
 const status = computed(() => STATUS_META[props.monitor.latestHeartbeat?.status ?? 'pending'])
-
-const target = computed(() =>
-  props.monitor.type === 'push'
-    ? 'Waiting for incoming heartbeats'
-    : (props.monitor.config.url ?? '—'),
-)
 
 const heartbeat = computed(() => props.monitor.latestHeartbeat)
 
@@ -58,11 +53,11 @@ const failureSnippet = computed(() =>
         </RouterLink>
       </h3>
       <Badge :variant="status.variant" dot>{{ status.label }}</Badge>
-      <Badge v-if="monitor.type === 'push'" variant="accent">push</Badge>
+      <Badge variant="accent" mono>{{ MONITOR_TYPE_LABELS[monitor.type] }}</Badge>
       <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
     </header>
 
-    <p class="card-target mono" :title="target">{{ target }}</p>
+    <p class="card-target mono" :title="monitorTarget(monitor)">{{ monitorTarget(monitor) }}</p>
 
     <dl class="card-meta">
       <div class="meta-item">

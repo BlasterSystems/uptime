@@ -223,6 +223,35 @@ export interface UptimeStats {
   uptimePct: number
 }
 
+/** A monitor converted from Uptime-Kuma; the CLI (scripts/) produces these from Kuma's SQLite. */
+export interface KumaMonitorInput {
+  type: string
+  name: string
+  intervalS?: number
+  retries?: number
+  retryIntervalS?: number
+  config: unknown
+}
+
+/** A heartbeat converted from Uptime-Kuma; `monitorSlug` identifies the monitor by `name`. */
+export interface KumaHeartbeatInput {
+  monitorSlug: string
+  status: 'up' | 'down'
+  latencyMs: number | null
+  /** Unix milliseconds, as stored by Kuma. */
+  time: number
+}
+
+export interface KumaImportInput {
+  monitors: KumaMonitorInput[]
+  heartbeats: KumaHeartbeatInput[]
+}
+
+export interface KumaImportResult {
+  monitorsCreated: number
+  heartbeatsImported: number
+}
+
 type MonitorSelect = typeof monitors.$inferSelect
 
 export interface DockerHostRow {
@@ -510,6 +539,15 @@ export class Database {
       .values({ key, value })
       .onConflictDoUpdate({ target: settings.key, set: { value } })
       .run()
+  }
+
+  /** Every `settings` entry as a plain object (used by config export). */
+  listSettings(): Record<string, string> {
+    const result: Record<string, string> = {}
+    for (const row of this.#db.select().from(settings).orderBy(asc(settings.key)).all()) {
+      result[row.key] = row.value
+    }
+    return result
   }
 
   // Users
@@ -1297,7 +1335,12 @@ export class Database {
   }
 
   listDockerHosts(): DockerHostRow[] {
-    return this.#db.select().from(dockerHosts).orderBy(asc(dockerHosts.id)).all().map(toDockerHostRow)
+    return this.#db
+      .select()
+      .from(dockerHosts)
+      .orderBy(asc(dockerHosts.id))
+      .all()
+      .map(toDockerHostRow)
   }
 
   getDockerHost(id: number): DockerHostRow | null {
@@ -1307,7 +1350,13 @@ export class Database {
 
   updateDockerHost(
     id: number,
-    patch: Partial<{ name: string; uri: string; tlsCaEnc: string | null; tlsCertEnc: string | null; tlsKeyEnc: string | null }>,
+    patch: Partial<{
+      name: string
+      uri: string
+      tlsCaEnc: string | null
+      tlsCertEnc: string | null
+      tlsKeyEnc: string | null
+    }>,
   ): DockerHostRow | null {
     const values: Partial<typeof dockerHosts.$inferSelect> = { updatedAt: new Date() }
     if (patch.name !== undefined) values.name = patch.name
@@ -1315,12 +1364,190 @@ export class Database {
     if (patch.tlsCaEnc !== undefined) values.tlsCaEnc = patch.tlsCaEnc
     if (patch.tlsCertEnc !== undefined) values.tlsCertEnc = patch.tlsCertEnc
     if (patch.tlsKeyEnc !== undefined) values.tlsKeyEnc = patch.tlsKeyEnc
-    const row = this.#db.update(dockerHosts).set(values).where(eq(dockerHosts.id, id)).returning().all()[0]
+    const row = this.#db
+      .update(dockerHosts)
+      .set(values)
+      .where(eq(dockerHosts.id, id))
+      .returning()
+      .all()[0]
     return row === undefined ? null : toDockerHostRow(row)
   }
 
   deleteDockerHost(id: number): boolean {
     const result = this.#db.delete(dockerHosts).where(eq(dockerHosts.id, id)).run()
     return result.changes > 0
+  }
+
+  // ---- Snapshot backup, retention, Uptime-Kuma import (SPEC §4/§9, M6) ----
+
+  /**
+   * Writes a consistent copy of the database to `filePath` via SQLite's online
+   * backup API. WAL-safe: committed WAL frames are included and the copy is made
+   * while readers/writers continue (no `VACUUM`/lock). The parent directory must
+   * exist; an existing destination file is overwritten, and a failed backup
+   * removes the partial destination. Async by nature of `backup()` — callers
+   * await it before reporting success.
+   */
+  async backupTo(filePath: string): Promise<void> {
+    await this.#sqlite.backup(filePath)
+  }
+
+  /** Deletes every raw heartbeat with `time < cutoff`; returns the number removed. */
+  deleteHeartbeatsBefore(cutoff: Date): number {
+    return this.#db.delete(heartbeats).where(lt(heartbeats.time, cutoff)).run().changes
+  }
+
+  /**
+   * Deletes raw heartbeats that are both older than `cutoff` and already covered
+   * by the aggregates: `time < rollup_watermark`, the exclusive lower bound
+   * recorded by {@link rollupHeartbeats}. Returns 0 when no rollup has run —
+   * without a watermark nothing is known to be aggregated, so nothing is safe
+   * to drop.
+   */
+  deleteRolledupBefore(cutoff: Date): number {
+    const watermarkRaw = this.getSetting(ROLLUP_WATERMARK_KEY)
+    const watermark = watermarkRaw === null ? Number.NaN : Number(watermarkRaw)
+    if (!Number.isFinite(watermark)) return 0
+    const limit = new Date(Math.min(cutoff.getTime(), watermark))
+    return this.#db.delete(heartbeats).where(lt(heartbeats.time, limit)).run().changes
+  }
+
+  /**
+   * Inserts many heartbeats in one transaction (bulk imports); an empty batch is
+   * a no-op. Live checks keep using the single-row {@link insertHeartbeat}.
+   */
+  insertHeartbeatsBatch(
+    rows: Array<{
+      monitorId: number
+      status: HeartbeatStatus
+      latencyMs?: number | null
+      responseSnippet?: string | null
+      time: Date
+    }>,
+  ): void {
+    if (rows.length === 0) return
+    this.#db.transaction((tx) => {
+      for (const row of rows) {
+        tx.insert(heartbeats)
+          .values({
+            monitorId: row.monitorId,
+            status: row.status,
+            latencyMs: row.latencyMs ?? null,
+            responseSnippet: row.responseSnippet ?? null,
+            time: row.time,
+          })
+          .run()
+      }
+    })
+  }
+
+  /**
+   * Best-effort Uptime-Kuma import (PLAN M6). Monitors are created unless a
+   * monitor with the same `type` + `name` already exists — existing rows are
+   * never modified or deleted. Heartbeats are matched to monitors by
+   * `monitorSlug` = monitor `name` and inserted in one transaction. The import
+   * is idempotent: beats whose `(monitor_id, time)` pair already exists locally
+   * are skipped, as are entries with an unknown slug, an invalid status or a
+   * non-finite time. The CLI (scripts/) converts Kuma's SQLite into this JSON
+   * and maps each monitor's config to a shape `@uptime/core` validates; configs
+   * arrive here already converted and are stored verbatim.
+   */
+  importKuma(input: KumaImportInput): KumaImportResult {
+    const existingByKey = new Map<string, MonitorRow>()
+    const idByName = new Map<string, number>()
+    for (const row of this.listMonitors()) {
+      existingByKey.set(`${row.type}\u0000${row.name}`, row)
+      if (!idByName.has(row.name)) idByName.set(row.name, row.id)
+    }
+
+    let monitorsCreated = 0
+    for (const monitor of input.monitors) {
+      if (typeof monitor !== 'object' || monitor === null) continue
+      if (typeof monitor.type !== 'string' || monitor.type.length === 0) continue
+      if (typeof monitor.name !== 'string' || monitor.name.length === 0) continue
+      const key = `${monitor.type}\u0000${monitor.name}`
+      const existing = existingByKey.get(key)
+      if (existing !== undefined) {
+        if (!idByName.has(monitor.name)) idByName.set(monitor.name, existing.id)
+        continue
+      }
+      // Kuma stores interval/retries; fall back to the SPEC §3 defaults when a
+      // converted row omits them (mirrors the `monitors` column defaults).
+      const schedule = { intervalS: 60, retries: 1, retryIntervalS: 60 }
+      for (const field of ['intervalS', 'retries', 'retryIntervalS'] as const) {
+        const value = monitor[field]
+        if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+          schedule[field] = value
+        }
+      }
+      const row = this.createMonitor({
+        type: monitor.type,
+        name: monitor.name,
+        config: monitor.config,
+        ...schedule,
+      })
+      existingByKey.set(key, row)
+      if (!idByName.has(row.name)) idByName.set(row.name, row.id)
+      monitorsCreated += 1
+    }
+
+    let heartbeatsImported = 0
+    const pending: Array<{
+      monitorId: number
+      status: 'up' | 'down'
+      latencyMs: number | null
+      time: Date
+    }> = []
+    const bounds = new Map<number, { min: number; max: number }>()
+    const queued = new Set<string>()
+    for (const beat of input.heartbeats) {
+      if (typeof beat !== 'object' || beat === null) continue
+      if (typeof beat.monitorSlug !== 'string' || !Number.isFinite(beat.time)) continue
+      if (beat.status !== 'up' && beat.status !== 'down') continue
+      const monitorId = idByName.get(beat.monitorSlug)
+      if (monitorId === undefined) continue
+      const key = `${monitorId}\u0000${beat.time}`
+      if (queued.has(key)) continue
+      queued.add(key)
+      pending.push({
+        monitorId,
+        status: beat.status,
+        latencyMs:
+          typeof beat.latencyMs === 'number' && Number.isFinite(beat.latencyMs)
+            ? Math.round(beat.latencyMs)
+            : null,
+        time: new Date(beat.time),
+      })
+      const range = bounds.get(monitorId)
+      if (range === undefined) bounds.set(monitorId, { min: beat.time, max: beat.time })
+      else if (beat.time < range.min) range.min = beat.time
+      else if (beat.time > range.max) range.max = beat.time
+    }
+    if (pending.length > 0) {
+      // One indexed range query per monitor instead of per beat: Kuma exports
+      // can carry years of history, and re-runs must not duplicate it.
+      const present = new Set<string>()
+      for (const [monitorId, range] of bounds) {
+        const times = this.#db
+          .select({ time: heartbeats.time })
+          .from(heartbeats)
+          .where(
+            and(
+              eq(heartbeats.monitorId, monitorId),
+              gte(heartbeats.time, new Date(range.min)),
+              lte(heartbeats.time, new Date(range.max)),
+            ),
+          )
+          .all()
+        for (const row of times) present.add(`${monitorId}\u0000${row.time.getTime()}`)
+      }
+      const fresh = pending.filter(
+        (row) => !present.has(`${row.monitorId}\u0000${row.time.getTime()}`),
+      )
+      this.insertHeartbeatsBatch(fresh)
+      heartbeatsImported = fresh.length
+    }
+
+    return { monitorsCreated, heartbeatsImported }
   }
 }

@@ -9,6 +9,8 @@ withDefaults(
       | 'moon'
       | 'menu'
       | 'chevron-left'
+      | 'chevron-right'
+      | 'chevron-down'
       | 'dashboard'
       | 'incidents'
       | 'notifications'
@@ -63,6 +65,12 @@ withDefaults(
     </template>
     <template v-else-if="name === 'chevron-left'">
       <path d="m14 6-6 6 6 6" />
+    </template>
+    <template v-else-if="name === 'chevron-right'">
+      <path d="m10 6 6 6-6 6" />
+    </template>
+    <template v-else-if="name === 'chevron-down'">
+      <path d="m6 9 6 6 6-6" />
     </template>
     <template v-else-if="name === 'dashboard'">
       <rect x="3" y="3" width="7" height="7" rx="1.5" />

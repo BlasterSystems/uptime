@@ -17,6 +17,7 @@ import {
   formatLatency,
   relativeTime,
 } from '../format.js'
+import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
 import { realtimeState, subscribeRealtime } from '../realtime.js'
 import type { RealtimeEvent } from '../realtime.js'
 import MonitorForm from '../components/MonitorForm.vue'
@@ -131,8 +132,13 @@ const statusMeta = computed(() => STATUS_META[headerHeartbeat.value?.status ?? '
 
 const target = computed(() => {
   const current = monitor.value
-  if (current === null) return '—'
-  return current.type === 'push' ? 'Push monitor' : (current.config.url ?? '—')
+  return current === null ? '—' : monitorTarget(current)
+})
+
+/** Network and database endpoints read better in the monospace font. */
+const targetMono = computed(() => {
+  const current = monitor.value
+  return current !== null && current.type !== 'push' && current.type !== 'group'
 })
 
 const lastCheckRelative = computed(() => {
@@ -512,11 +518,11 @@ onUnmounted(() => {
           <div class="head-title">
             <h1 class="head-name">{{ monitor.name }}</h1>
             <Badge :variant="statusMeta.variant" dot>{{ statusMeta.label }}</Badge>
-            <Badge v-if="monitor.type === 'push'" variant="accent">push</Badge>
+            <Badge variant="accent" mono>{{ MONITOR_TYPE_LABELS[monitor.type] }}</Badge>
             <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
           </div>
 
-          <p class="head-target" :class="{ mono: monitor.type === 'http' }" :title="target">
+          <p class="head-target" :class="{ mono: targetMono }" :title="target">
             {{ target }}
           </p>
 

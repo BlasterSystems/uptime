@@ -1,0 +1,22 @@
+feat: M5 agent + M6 lifecycle/interop (export/import, backup, retention, Kuma import)
+
+M5:
+- packages/agent: UptimeAgent with WS link (hello/assigned/pulse{seq}/ack{seqs}),
+  drift-corrected scheduling via @uptime/core Scheduler, in-memory retry queue
+  (cap + drop-oldest), HTTP fallback (poll assigned + batched pulses with ack
+  removal), reconnect backoff 1s->30s + jitter; runAgentCli role entrypoint.
+- Server agent hub: token-authed /api/v1/agent (assigned, pulse with acked/
+  rejected, healthz); disabled without UPTIME_AGENT_TOKEN.
+- Release workflow: buildx amd64+arm64 -> GHCR (semver + latest) with SBOM +
+  provenance for server and agent images. Live e2e: agent pulses landed via
+  HTTP fallback. WS server-side hub is a documented follow-up.
+
+M6:
+- Lifecycle router (admin): /config/export + /config/import (validated,
+  upsert-by-name, never deletes), /backup (SQLite online backup to
+  data/backups), /retention/run (default 180d, watermark-aware), /import/kuma
+  (idempotent by name+type, batched heartbeats).
+- scripts/openapi-bootstrap.mjs: zero-dep CLI creating http monitors from an
+  OpenAPI 3 doc via the admin API (tags, headers, skip-authed, dry-run).
+
+278 tests green across the workspace; coverage gate >= 75% lines everywhere.

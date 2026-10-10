@@ -8,11 +8,18 @@ interface SelectOption {
   disabled?: boolean
 }
 
+/** A labelled `<optgroup>` of options; mutually exclusive with `options`. */
+interface SelectGroup {
+  label: string
+  options: readonly SelectOption[]
+}
+
 const model = defineModel<string>({ default: '' })
 
 const props = withDefaults(
   defineProps<{
-    options: readonly SelectOption[]
+    options?: readonly SelectOption[]
+    groups?: readonly SelectGroup[]
     label?: string
     hint?: string
     error?: string | null
@@ -21,7 +28,7 @@ const props = withDefaults(
     required?: boolean
     id?: string
   }>(),
-  { disabled: false, required: false, error: null },
+  { options: () => [], disabled: false, required: false, error: null },
 )
 
 const uid = useId()
@@ -49,14 +56,28 @@ const invalid = computed(() => props.error !== null && props.error !== '')
       :aria-describedby="describedBy"
     >
       <option v-if="placeholder !== undefined" value="" disabled>{{ placeholder }}</option>
-      <option
-        v-for="option in options"
-        :key="option.value"
-        :value="option.value"
-        :disabled="option.disabled"
-      >
-        {{ option.label }}
-      </option>
+      <template v-if="groups !== undefined">
+        <optgroup v-for="group in groups" :key="group.label" :label="group.label">
+          <option
+            v-for="option in group.options"
+            :key="option.value"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            {{ option.label }}
+          </option>
+        </optgroup>
+      </template>
+      <template v-else>
+        <option
+          v-for="option in options"
+          :key="option.value"
+          :value="option.value"
+          :disabled="option.disabled"
+        >
+          {{ option.label }}
+        </option>
+      </template>
     </select>
   </Field>
 </template>

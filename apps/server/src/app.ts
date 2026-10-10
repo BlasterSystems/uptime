@@ -15,6 +15,8 @@ import type { IncidentEngine } from './incidents.js'
 import type { EventHub } from './events.js'
 import type { MaintenanceEngine } from './maintenance.js'
 import { parseGroupConfig } from './groups.js'
+import { createAgentRouter } from './agent/index.js'
+import { createLifecycleRouter } from './lifecycle/index.js'
 
 export interface SchedulerLike {
   upsert(monitor: ScheduledMonitor): void
@@ -32,6 +34,10 @@ export interface AppOptions {
   incidentEngine?: Pick<IncidentEngine, 'onPushDown' | 'onResult' | 'reset'>
   eventHub?: EventHub
   maintenance?: MaintenanceEngine
+  /** Directory for backups (lifecycle router); defaults to cwd. */
+  dataDir?: string
+  /** Agent hub token; empty string disables the agent API. */
+  agentToken?: string
 }
 
 export function toScheduled(row: MonitorRow): ScheduledMonitor {
@@ -284,6 +290,17 @@ export function createApp(opts: AppOptions): Express {
 
   // ---- Auth ----
   app.use('/api/v1/auth', auth.router)
+
+  // ---- Agent hub (optional; disabled without a token) ----
+  if (opts.agentToken) {
+    app.use('/api/v1/agent', createAgentRouter({ db, secrets, token: opts.agentToken }))
+  }
+
+  // ---- Lifecycle: export/import, backup, retention, Kuma import (admin) ----
+  app.use(
+    '/api/v1',
+    createLifecycleRouter({ db, secrets, dataDir: opts.dataDir ?? '.' }),
+  )
 
   // ---- Tags ----
   app.get('/api/v1/tags', auth.requireAuth('viewer'), (_req, res) => {
@@ -595,7 +612,7 @@ export function createApp(opts: AppOptions): Express {
       tlsCertEnc: typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : undefined,
       tlsKeyEnc: typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : undefined,
     })
-    res.status(201).json({ dockerHost: dockerHostApi(row) })
+    res.status(201).json({ dockerHost: { ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null } })
   })
 
   app.patch('/api/v1/docker-hosts/:id', auth.requireAuth('admin'), (req, res) => {

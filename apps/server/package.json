@@ -7,10 +7,12 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "dev": "node --watch dist/main.js"
+    "dev": "node --watch dist/main.js",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.0",
+    "@uptime/agent": "workspace:*",
     "@uptime/core": "workspace:*",
     "@uptime/db": "workspace:*",
     "@uptime/notify": "workspace:*",

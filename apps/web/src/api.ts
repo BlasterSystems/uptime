@@ -6,7 +6,19 @@
 
 export type UserRole = 'admin' | 'editor' | 'viewer'
 export type ApiKeyScope = 'read' | 'write' | 'admin'
-export type MonitorType = 'http' | 'push'
+export type MonitorType =
+  | 'http'
+  | 'push'
+  | 'tcp'
+  | 'dns'
+  | 'icmp'
+  | 'postgres'
+  | 'mysql'
+  | 'mssql'
+  | 'mongodb'
+  | 'redis'
+  | 'docker'
+  | 'group'
 export type HeartbeatStatus = 'up' | 'down' | 'pending' | 'maintenance'
 export type ChannelType = 'telegram' | 'discord' | 'slack' | 'email' | 'ntfy' | 'gotify' | 'webhook'
 
@@ -20,7 +32,44 @@ export const CHANNEL_TYPES: readonly ChannelType[] = [
   'gotify',
   'webhook',
 ]
-export const MONITOR_TYPES: readonly MonitorType[] = ['http', 'push']
+export const MONITOR_TYPES: readonly MonitorType[] = [
+  'http',
+  'push',
+  'tcp',
+  'dns',
+  'icmp',
+  'postgres',
+  'mysql',
+  'mssql',
+  'mongodb',
+  'redis',
+  'docker',
+  'group',
+]
+
+/** Record types a `dns` monitor can resolve. */
+export const DNS_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV'] as const
+export type DnsRecordType = (typeof DNS_RECORD_TYPES)[number]
+
+/** Container states a `docker` monitor can expect (`State.Status`). */
+export const DOCKER_CONTAINER_STATES = [
+  'running',
+  'exited',
+  'paused',
+  'created',
+  'restarting',
+  'removing',
+  'dead',
+] as const
+export type DockerContainerState = (typeof DOCKER_CONTAINER_STATES)[number]
+
+/** Strategies a `group` monitor can combine its members with. */
+export const GROUP_STRATEGIES = ['any-up', 'all-up', 'percentage'] as const
+export type GroupStrategy = (typeof GROUP_STRATEGIES)[number]
+
+/** HTTP methods accepted by the check engine. */
+export const HTTP_METHODS = ['GET', 'POST', 'HEAD', 'PUT', 'DELETE'] as const
+export type HttpMethod = (typeof HTTP_METHODS)[number]
 
 /** Mirrors the `MIN_INTERVAL_S` limit enforced by the server/core check engine. */
 export const MIN_INTERVAL_S = 20
@@ -161,28 +210,114 @@ export interface AppSettings {
   timezone: string
 }
 
-export interface MonitorConfig {
-  url?: string
-  method?: string
+export interface HttpMonitorConfig {
+  url: string
+  method?: HttpMethod
+  headers?: Record<string, string>
+  body?: string
   timeoutMs?: number
-  graceSeconds?: number
-  [key: string]: unknown
+  acceptedStatus?: [number, number] | 'any'
+  keyword?: { value: string; inverse?: boolean }
+  maxResponseMs?: number
+  certExpiryDays?: number
 }
 
-export interface Monitor {
+export interface PushMonitorConfig {
+  graceSeconds?: number
+  cron?: string
+  expectsBody?: boolean
+}
+
+export interface TcpMonitorConfig {
+  host: string
+  port: number
+  timeoutMs?: number
+  payload?: string
+  /** Substring the response must contain (used with `payload`). */
+  expectResponse?: string
+}
+
+export interface DnsMonitorConfig {
+  host: string
+  resolver?: string
+  port?: number
+  recordType: DnsRecordType
+  expectedValue?: string
+  timeoutMs?: number
+}
+
+export interface IcmpMonitorConfig {
+  host: string
+  timeoutMs?: number
+  packetCount?: number
+}
+
+export interface DatabaseMonitorConfig {
+  connectionString: string
+  timeoutMs?: number
+  query?: string
+}
+
+export interface MongodbMonitorConfig {
+  connectionString: string
+  timeoutMs?: number
+}
+
+export interface RedisMonitorConfig {
+  connectionString: string
+  timeoutMs?: number
+  query?: string
+}
+
+export interface DockerMonitorConfig {
+  hostUri: string
+  containerNameOrId: string
+  expectedState?: DockerContainerState
+  tlsCaPem?: string
+  tlsCertPem?: string
+  tlsKeyPem?: string
+  timeoutMs?: number
+}
+
+export interface GroupMonitorConfig {
+  memberIds: number[]
+  strategy: GroupStrategy
+  percentage?: number
+}
+
+/** Validated configuration per monitor type, keyed by {@link MonitorType}. */
+export interface MonitorConfigMap {
+  http: HttpMonitorConfig
+  push: PushMonitorConfig
+  tcp: TcpMonitorConfig
+  dns: DnsMonitorConfig
+  icmp: IcmpMonitorConfig
+  postgres: DatabaseMonitorConfig
+  mysql: DatabaseMonitorConfig
+  mssql: DatabaseMonitorConfig
+  mongodb: MongodbMonitorConfig
+  redis: RedisMonitorConfig
+  docker: DockerMonitorConfig
+  group: GroupMonitorConfig
+}
+
+interface MonitorBase {
   id: number
-  type: MonitorType
   name: string
   active: boolean
   intervalS: number
   retries: number
   retryIntervalS: number
-  config: MonitorConfig
   tags: Tag[]
   channelIds: number[]
   latestHeartbeat: Heartbeat | null
   pushUrl?: string
 }
+
+/** A monitor whose `config` matches its `type`. */
+export type Monitor = {
+  [T in MonitorType]: MonitorBase & { type: T; config: MonitorConfigMap[T] }
+}[MonitorType]
 
 /** Body of `POST /monitors` / `PATCH /monitors/:id`. */
 export interface MonitorInput {
@@ -196,6 +331,25 @@ export interface MonitorInput {
   tagIds?: number[]
   tags?: string[]
   channelIds?: number[]
+}
+
+/** A reusable Docker endpoint (`GET /docker-hosts`); TLS material is write-only. */
+export interface DockerHost {
+  id: number
+  name: string
+  uri: string
+  hasTls: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Body of `POST /docker-hosts` / `PATCH /docker-hosts/:id`. */
+export interface DockerHostInput {
+  name?: string
+  uri?: string
+  tlsCa?: string
+  tlsCert?: string
+  tlsKey?: string
 }
 
 export interface Channel {
@@ -486,6 +640,36 @@ export async function fetchTags(): Promise<Tag[]> {
   return body.tags ?? []
 }
 
+/* Docker hosts */
+
+export async function fetchDockerHosts(): Promise<DockerHost[]> {
+  const body = await request<{ dockerHosts?: DockerHost[] }>('/docker-hosts')
+  return body.dockerHosts ?? []
+}
+
+export async function createDockerHost(input: DockerHostInput): Promise<DockerHost> {
+  const body = await request<{ dockerHost: DockerHost }>('/docker-hosts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return body.dockerHost
+}
+
+export async function updateDockerHost(id: number, input: DockerHostInput): Promise<DockerHost> {
+  const body = await request<{ dockerHost: DockerHost }>(
+    `/docker-hosts/${encodeURIComponent(String(id))}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  )
+  return body.dockerHost
+}
+
+export function deleteDockerHost(id: number): Promise<void> {
+  return request(`/docker-hosts/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+}
+
 /* Notification channels */
 
 export async function fetchChannels(): Promise<Channel[]> {
@@ -552,9 +736,13 @@ export function deleteStatusPage(id: number): Promise<void> {
 
 /** Unauthenticated status page payload rendered at `/status/:slug`. */
 export function fetchPublicStatus(slug: string): Promise<PublicStatusPage> {
-  return request<PublicStatusPage>(`/status/${encodeURIComponent(slug)}`, {}, {
-    allowUnauthenticated: true,
-  })
+  return request<PublicStatusPage>(
+    `/status/${encodeURIComponent(slug)}`,
+    {},
+    {
+      allowUnauthenticated: true,
+    },
+  )
 }
 
 /* Maintenance windows (admin) */

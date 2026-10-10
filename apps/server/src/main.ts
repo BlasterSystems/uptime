@@ -1,3 +1,4 @@
+import { runAgentCli } from '@uptime/agent'
 import { getCertExpiryDays, Scheduler, runHttpCheck, parseMonitorConfig } from '@uptime/core'
 import type { HttpMonitorConfig } from '@uptime/core'
 import { Notifier, type ChannelType } from '@uptime/notify'
@@ -15,8 +16,11 @@ import { seedIfEmpty } from './seed.js'
 
 const ROLE = process.argv[2] ?? 'server'
 
-if (ROLE !== 'server') {
-  console.error(`unknown role "${ROLE}" — only "server" is implemented (agent lands in M5)`)
+if (ROLE === 'agent') {
+  await runAgentCli()
+  process.exit(0)
+} else if (ROLE !== 'server') {
+  console.error(`unknown role "${ROLE}" — only "server" and "agent" are implemented`)
   process.exit(1)
 }
 
@@ -144,6 +148,8 @@ const app = createApp({
   incidentEngine,
   eventHub: hub,
   maintenance,
+  dataDir: cfg.dataDir,
+  agentToken: process.env.UPTIME_AGENT_TOKEN ?? '',
 })
 scheduler.start()
 pushEngine.start()
