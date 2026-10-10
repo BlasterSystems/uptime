@@ -1,0 +1,15 @@
+.git
+.claude
+.agents
+.opencode
+.agentic
+.github
+.vscode
+tasks
+docs
+data
+node_modules
+**/node_modules
+dist
+**/dist
+*.md

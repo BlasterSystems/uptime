@@ -1,0 +1,16 @@
+services:
+  uptime-monitoring:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: uptime-monitoring:local
+    ports:
+      - '3001:3001'
+    environment:
+      SEED: '1'
+    volumes:
+      - ./data:/data
+    tmpfs:
+      - /tmp
+    read_only: true
+    restart: unless-stopped
