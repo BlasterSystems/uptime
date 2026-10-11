@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { authState, bootstrapAuth, isAuthenticated } from './auth.js'
 import AppLayout from './layouts/AppLayout.vue'
 import DashboardView from './views/DashboardView.vue'
+import DocsView from './views/DocsView.vue'
 import IncidentsView from './views/IncidentsView.vue'
 import LoginView from './views/LoginView.vue'
 import MonitorDetailView from './views/MonitorDetailView.vue'
@@ -54,6 +55,12 @@ const routes: RouteRecordRaw[] = [
         name: 'settings',
         component: SettingsView,
         meta: { title: 'Settings' },
+      },
+      {
+        path: 'docs',
+        name: 'docs',
+        component: DocsView,
+        meta: { title: 'Integration Docs' },
       },
     ],
   },

@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { name: 'incidents', label: 'Incidents', icon: 'incidents' },
   { name: 'notifications', label: 'Notifications', icon: 'notifications' },
   { name: 'settings', label: 'Settings', icon: 'settings' },
+  { name: 'docs', label: 'Docs', icon: 'docs' },
 ] as const
 
 const COLLAPSE_KEY = 'uptime-sidebar-collapsed'

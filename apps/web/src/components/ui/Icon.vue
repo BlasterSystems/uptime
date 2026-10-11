@@ -16,6 +16,8 @@ withDefaults(
       | 'notifications'
       | 'settings'
       | 'plus'
+      | 'docs'
+      | 'check'
     size?: number
   }>(),
   { size: 18 },
@@ -101,6 +103,15 @@ withDefaults(
     <template v-else-if="name === 'plus'">
       <path d="M12 5v14" />
       <path d="M5 12h14" />
+    </template>
+    <template v-else-if="name === 'docs'">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+      <path d="M9 7h7" />
+      <path d="M9 11h5" />
+    </template>
+    <template v-else-if="name === 'check'">
+      <path d="M20 6 9 17l-5-5" />
     </template>
   </svg>
 </template>
