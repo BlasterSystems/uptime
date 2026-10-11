@@ -27,13 +27,19 @@ push/agent mode borrowed from the best parts of the above.
 
 ## Status
 
-**v1 feature-complete per SPEC.md**: all monitor types (http, push, tcp, dns, icmp,
-postgres, mysql, mssql, mongodb, redis, docker), groups with notification suppression,
-auth (Argon2id + TOTP 2FA + scoped API keys), 7 notification providers, incidents,
-realtime UI (SSE), status pages, maintenance windows, Prometheus metrics, uptime API
-from rollups, the optional agent image (HTTP-fallback transport; WS hub follow-up),
-export/import, backups, retention and Kuma import. Governance scaffold by
-[agentic-bootstrap](https://github.com/…/agentic-bootstrap) (`--platform all`).
+**v1 shipped for the single-container path**: http, push, and group checks (with
+group-down notification suppression) on the server; probe implementations for all SPEC §3
+types (tcp, dns, icmp, postgres, mysql, mssql, mongodb, redis, docker) run via the
+optional agent (WS attempt + HTTP fallback); auth (Argon2id + TOTP 2FA + scoped API
+keys), 7 notification providers, incidents, realtime UI (SSE), status pages (waves 1–2),
+maintenance windows, Prometheus metrics, uptime API from rollups, export/import, backups,
+retention and Kuma import. Remaining SPEC deltas: Postgres dialect, WebSocket hub,
+parent-dependency suppression, `upsideDown` semantics, server-side scheduling of
+non-http monitors — tracked in SPEC §14.
+
+Developer integration docs are served by the app itself under **`/docs`**
+(`apps/web/src/views/DocsView.vue`: API auth, push heartbeats, SSE, Prometheus, status
+badges, automation).
 
 Test coverage is gated at ≥75% lines per package in CI.
 

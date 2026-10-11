@@ -7,7 +7,7 @@ Authoritative detail: [SPEC.md](SPEC.md). This page maps components to deploymen
 ```
 ┌──────────────────────────── one Docker image (role: server) ───────────────────────────┐
 │  apps/web (Vue 3 SPA, static)      apps/server (Express 5 + TS)                        │
-│      │  served as static files         │  REST /api/v1  · /socket (WS) · /api/v1/push  │
+│      │  served as static files         │  REST /api/v1  · /api/v1/events (SSE) · /api/v1/push │
 │      └──────────────►──────────────────┤  /metrics · /healthz                          │
 │                                        │  scheduler + check engine (packages/core)     │
 │                                        │  notification dispatcher                      │
@@ -16,7 +16,8 @@ Authoritative detail: [SPEC.md](SPEC.md). This page maps components to deploymen
         ▲ probes: HTTP/TCP/ICMP/DNS/DB/docker         ▲ push: /api/v1/push/<token>
 
 ┌──────────── one Docker image (role: agent, optional, M5) ────────────┐
-│  apps/agent — WS link to server, pulls assigned monitors, pulses back│
+│  packages/agent — WS attempt + HTTP fallback: pulls assigned         │
+│  monitors from /api/v1/agent, pulses results back                    │
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -25,25 +26,26 @@ Authoritative detail: [SPEC.md](SPEC.md). This page maps components to deploymen
 - **Single process** for the server role: HTTP listener + scheduler + notifier. All v1
   monitors are I/O-bound; the event loop handles hundreds of concurrent probes without
   threads. Concurrency caps global (50) and per-host (5) protect flaky targets.
-- **Single-writer queue** for heartbeat inserts (SQLite WAL); batched every 500 ms;
-  rollup job hourly (SPEC §4 retention model).
-- The agent role is the same check engine with a WS control link instead of the HTTP
-  API + UI; it holds no database.
+- **Synchronous single-row inserts** for heartbeats (SQLite WAL); the rollup job runs
+  every 15 s (SPEC §4 retention model). Batching exists only for bulk imports.
+- The agent role is the same check engine with an HTTP control plane
+  (`/api/v1/agent/*`) instead of the full HTTP API + UI; it holds no database. The
+  agent client attempts a WS link first and falls back to HTTP polling.
 
 ## Data flow (down incident)
 
 ```
 scheduler → check engine (http) → N fails ≥ retries
   → incident opened (db) → notification dispatcher (channels, per-monitor routing)
-  → ws broadcast {heartbeat, incident} → UI live update
+  → SSE broadcast {heartbeat, incident} → UI live update
   → prometheus gauges updated → /metrics scrape
 ```
 
 ## Storage
 
-SQLite default (WAL, single-writer queue) with a Drizzle dialect switch to Postgres —
-same schema, migrations per dialect. Rationale and rejected options in
-[ADR-0002](adr/0002-sqlite-first-storage.md).
+SQLite (WAL) only today; the Drizzle dialect switch to Postgres is planned, not built
+(SPEC §14). Rationale and rejected options in
+[ADR-0002](adr/0002-sqlite-first-storage-secrets-encryption.md).
 
 ## Deployment
 

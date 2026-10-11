@@ -4,10 +4,10 @@
 
 **uptime-monitoring** — Software project uptime-monitoring
 
-- Languages/components: Not detected
-- Build: `Not configured`
-- Test: `Not configured`
-- Run: `Not configured`
+- Languages/components: TypeScript (Node 24) pnpm monorepo — `apps/server` (Express 5), `apps/web` (Vue 3 + Vite), `packages/{core,db,notify,agent}`
+- Build: `pnpm build`
+- Test: `pnpm test`
+- Run: `pnpm dev` (server on :3001; SQLite in ./data)
 - Task convention: No issue-tracker or ticket-prefix convention is configured.
 
 Treat values marked “Not configured” or “Not detected” as unknown. Inspect project-owned configuration or ask the user instead of inventing an answer.

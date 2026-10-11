@@ -47,12 +47,10 @@ Run applicable commands:
 
 ```bash
 .agentic/bin/validate
-Not configured
-Not configured
+pnpm build
+pnpm test
 .agentic/bin/docs-check
 ```
-
-Skip commands marked “Not configured”; record the missing configuration instead of executing that text.
 
 ## 6. Review
 

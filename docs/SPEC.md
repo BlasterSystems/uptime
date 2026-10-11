@@ -1,6 +1,6 @@
 # Uptime Monitoring — Product & Technical Specification
 
-Version: 1.0-draft · Status: **Proposed** · Owner: Carrigo/infra
+Version: 1.0 · Status: **Implemented** (single-container scope; deviations tracked in [§14](#14-deviations-from-the-spec)) · Owner: Carrigo/infra
 Related: [research/oss-comparison.md](research/oss-comparison.md) · [PLAN.md](PLAN.md) · [adr/](adr/)
 
 A single-repository, Docker-first, self-hosted health monitoring service: one container
@@ -37,26 +37,29 @@ notifications, and exposes Prometheus metrics and status pages.
 ```
 uptime-monitoring/                 (one repository — pnpm workspaces)
 ├── apps/
-│   ├── server/        Express 5 + TS — REST /api/v1, WebSocket hub, check scheduler,
+│   ├── server/        Express 5 + TS — REST /api/v1, SSE hub (/api/v1/events), check scheduler,
 │   │                  push receiver, notification dispatcher, /metrics, /healthz
-│   ├── web/           Vue 3 + Vite SPA (embedded into the server image as static files)
-│   └── agent/         Optional remote agent (same check engine; WS link to server)
+│   └── web/           Vue 3 + Vite SPA (embedded into the server image as static files)
 ├── packages/
 │   ├── core/          Monitor/check engine, expected-conditions, templating, config schema
-│   └── db/            Drizzle schema + migrations (better-sqlite3 & node-postgres dialects)
+│   ├── db/            Drizzle schema + migrations (SQLite; Postgres dialect planned, §14)
+│   ├── notify/        Notification providers (Telegram, Discord, Slack, email, Ntfy, Gotify, webhook)
+│   └── agent/         Optional remote agent (same check engine; WS attempt + HTTP fallback)
 ├── docker/            Dockerfile (multi-stage, one image, subcommand entrypoint), compose
 └── docs/              This spec, research, plan, ADRs
 ```
 
-- **One image, two roles**: the Dockerfile `ENTRYPOINT ["docker-entrypoint.sh"]` dispatches
-  `server` (default) and `agent` subcommands — `docker run … uptime-agent` role for remote
-  vantage points. Both images are built from the same repo; `agent` is just a tagged
-  variant with the web bundle stripped.
-- **Check execution**: the server process runs all monitors on `setTimeout` schedules
-  with jitter; I/O-bound checks (net/dns/http/db) never block the loop. CPU-bound work
-  (none planned in v1) would use worker threads.
-- **Live updates**: WebSocket channel (`/socket`) broadcasting heartbeat, uptime and
-  incident events; SSE fallback endpoint for restrictive proxies.
+- **One image, two roles**: the Dockerfile entrypoint (`node dist/main.js`, `CMD ["server"]`)
+  dispatches on argv — `docker run <image> agent` runs the agent role for remote vantage
+  points. Both images are built from the same repo; the agent image currently keeps the
+  web bundle (a stripped variant is a documented future optimization).
+- **Check execution**: the server schedules `http` monitors on `setTimeout` schedules with
+  jitter; push and group monitors run in their own engines (silence sweep / member
+  evaluation); the remaining probe types (tcp/dns/icmp/db/docker) execute via the
+  optional agent. I/O-bound checks never block the loop. CPU-bound work (none planned
+  in v1) would use worker threads.
+- **Live updates**: SSE hub (`GET /api/v1/events`, viewer auth) broadcasting heartbeat,
+  incident and maintenance events; `EventSource` reconnects natively.
 - **Vantage points**: server checks run from wherever the container runs (like
   Uptime-Kuma/Gatus). Agents (M5) allow remote regions; the server aggregates per
   vantage point like PulseMonitor.
@@ -70,20 +73,21 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
 | `icmp`                                               | host, timeout, packetCount                                                                  | reply within timeout                                                                        | Kuma/Pulse (needs `NET_RAW`)                                                                    |
 | `dns`                                                | host, resolver, port, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue                | resolver answers; if `expectedValue`, match                                                 | Kuma                                                                                            |
 | `push`                                               | token (path), graceSeconds, cron schedule (optional), `expectsBody`                         | heartbeat received within interval+grace; `/start`/`/fail` semantics                        | Healthchecks                                                                                    |
-| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (event-driven + poll fallback)                                  | Kuma/Beszel                                                                                     |
+| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (state query on the monitor interval, via the agent)            | Kuma/Beszel                                                                                     |
 | `postgres` / `mysql` / `mssql` / `mongodb` / `redis` | connection string, timeout, `query` (default `SELECT 1` / `PING`)                           | connection + query succeed                                                                  | PulseMonitor                                                                                    |
 | `snmp` (v2c/v3)                                      | host, community/version/creds, oid, expectedValue                                           | query within timeout                                                                        | PulseMonitor (phase 2)                                                                          |
 | `group`                                              | member monitor ids, strategy `any-up \| all-up \| percentage: N`                            | per strategy; **suppresses member notifications** when the group itself is down             | PulseMonitor groups                                                                             |
 
 Every monitor: `name`, `interval` (min 20 s), `retries`, `retryInterval` (while down),
 `resendNotificationInterval`, `maintenanceWindows[]`, `tags[]`, `notificationIds[]`,
-`parentMonitorId` (dependency: if the parent is down, child incidents are suppressed),
-`active`, `upsideDownMode` (invert semantics).
+`active`. Planned, not implemented (§14): `parentMonitorId` dependency suppression and
+`upsideDownMode` invert semantics. Group monitors suppress member notifications while
+the group itself is down.
 
 ### Push semantics (from Healthchecks)
 
 `GET/POST /api/v1/push/<token>` → success. `/start` marks a run started (duration
-tracking). `/fail` marks failure with optional `?body=` log capture (first 10 KB
+tracking). `/fail` marks failure with optional `?body=` log capture (first 1 KB
 stored). Missed interval+grace → down incident. Cron-scheduled pushes: `* * * * *`
 plus timezone.
 
@@ -104,14 +108,20 @@ notification_channels(id, type, config_enc AES-256-GCM, is_default, active)
 monitor_notifications(monitor_id, channel_id)
 heartbeats(id PK autoincrement, monitor_id, status up|down|pending|maintenance,
            latency_ms, response_snippet (first 1 KB), time)
-         -- SQLite: partitioned by day tables `heartbeats_YYYYMMDD`; hourly rollup
-         -- `heartbeats_hourly(monitor_id, hour_bucket, up_count, down_count, avg_ms, p95_ms)`
+         -- single table (SQLite, WAL); rollup tables kept fresh every 15 s:
+         -- heartbeats_hourly / heartbeats_daily(monitor_id, bucket, up, down, maintenance, total_ms, count)
 incidents(id, monitor_id, opened_at, resolved_at, title, body)
 maintenance_windows(id, monitor_scope (all|ids|tags), strategy single|recurring-interval|
          recurring-weekday|cron, start_at, end_at, cron_tz, active)
-status_pages(id, slug, title, logo, published, group_ids[], monitor_ids[], theme)
+status_pages(id, slug, title, logo, published, monitor_ids[], structure (component
+             groups JSON), footer_text, password_hash, theme)
+status_incidents(id, page_id, title, status investigating|identified|monitoring|resolved,
+             impact none|minor|major|critical, component_ids[], source auto|manual,
+             monitor_id, created_at, updated_at, resolved_at)
+status_incident_updates(id, incident_id, status, body, created_at)
+status_subscriptions(id, page_id, channel_id, component_ids[], events[], created_at)
 docker_hosts(id, name, uri, tls_ca_enc, tls_cert_enc, tls_key_enc)  -- for docker monitors
-settings(key, value)                                   -- instance-level (title, timezone, retention)
+settings(key, value)                                   -- instance-level (title, timezone)
 push_tokens(id, monitor_id UNIQUE, token_hash, created_at)
 ```
 
@@ -121,18 +131,23 @@ push_tokens(id, monitor_id UNIQUE, token_hash, created_at)
 ## 5. HTTP API (`/api/v1`, JSON; auth below)
 
 ```
-POST   /auth/login | /auth/logout | /auth/2fa | GET /auth/me
-CRUD   /monitors            (+ POST /monitors/:id/test  — dry-run a check now)
-GET    /monitors/:id/heartbeats?range=|cursor=
+POST   /auth/setup | /auth/login | /auth/logout · GET /auth/me
+POST   /auth/2fa/setup | /auth/2fa/verify | /auth/2fa/disable
+POST   /auth/api-keys · GET /auth/api-keys · DELETE /auth/api-keys/:id   (admin)
+CRUD   /monitors            (no per-check dry-run endpoint — §14)
+GET    /monitors/:id/heartbeats?limit=1..1000 (default 100, newest first)
 GET    /monitors/:id/uptime?hours=24|7|30|365
 GET    /api/v1/push/:token[/start|/fail]      (no auth — token IS the secret)
 CRUD   /notifications       (+ POST /notifications/:id/test)
-CRUD   /maintenance-windows | /status-pages | /api-keys | /docker-hosts | /tags
-GET    /incidents?active=1&monitor_id=
+CRUD   /maintenance-windows | /status-pages | /docker-hosts
+POST   /status-incidents/:id/updates · PATCH /status-incidents/:id
+CRUD   /status-pages/:id/subscriptions (admin) · POST /status-subscriptions/:id/test
+GET    /tags (read-only; tags are created implicitly via monitor `tags` names)
+GET    /incidents?active=1|0
 GET    /metrics              (Prometheus — no auth by default, IP/allowlist option)
 GET    /healthz              (liveness: process + db ping, no auth)
-POST   /config/export | /config/import   (TOML/JSON snapshot — Gatus-style, admin only)
-GET    /socket               (WebSocket hub; SSE at /api/v1/events as fallback)
+POST   /config/export | /config/import   (JSON snapshot — admin only)
+GET    /api/v1/events        (SSE hub — the live transport; viewer auth)
 ```
 
 Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD with an
@@ -140,15 +155,19 @@ Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD 
 
 ## 6. Scheduler & check engine (packages/core)
 
-- Each active monitor gets a scheduler entry; drift-corrected (`next = start + n*interval`),
-  ±10 % jitter to avoid thundering herds.
+- Each active **http** monitor gets a scheduler entry; drift-corrected (`next = start + n*interval`),
+  ±10 % jitter to avoid thundering herds. Other engine types are not probe-scheduled
+  server-side (§14): push runs in its silence sweep, group in its member evaluation,
+  tcp/dns/icmp/db/docker execute via the agent.
 - While down: probe at `retry_interval` (default 60 s) instead of `interval`; incident
   opens after `retries` consecutive failures; recovery closes it + sends notification.
 - Push monitors: no scheduler — token receiver + expiry sweep every 30 s.
-- Docker monitors: event stream (if reachable) + 60 s poll fallback.
+- Docker monitors: a single state query per probe, executed via the agent on the
+  monitor interval; no event stream.
 - All checks share a global concurrency cap (default 50) and per-host cap (5).
-- Time: monotonic for latency, wall-clock for records; heartbeats written through a
-  single-writer queue (SQLite WAL friendly), batched inserts (500 ms window).
+- Time: monotonic for latency, wall-clock for records; live checks write one
+  heartbeat row synchronously per result (imports can batch via
+  `insertHeartbeatsBatch`); rollup job runs every 15 s.
 
 ## 7. Notifications
 
@@ -166,8 +185,9 @@ generic Webhook (JSON template). Phase 2: PagerDuty Events v2, Opsgenie, SMS (Tw
   behind whatever TLS the user fronts (docs: NPM/Caddy/Traefik examples + compose labels).
 - API keys hashed (SHA-256), scoped, expirable; shown once.
 - Secrets (notification configs, docker TLS, DB URLs) encrypted at rest (ADR-0002).
-- Container: non-root UID 1001, `read_only: true` compatible (tmpfs `/tmp`), no shell in
-  final image, distroless-style node:24-alpine runtime stage.
+- Container: non-root UID 1001, `read_only: true` compatible (tmpfs `/tmp`), runtime
+  stage on `node:24-alpine` (busybox shell present — there is no shell entrypoint or
+  script in the image).
 - No outbound telemetry. Updates are manual (Watchtower is the user's choice).
 - CSRF: token-header pattern for cookie-authed mutations; API-key path is header-only.
 
@@ -176,10 +196,11 @@ generic Webhook (JSON template). Phase 2: PagerDuty Events v2, Opsgenie, SMS (Tw
 **No automatic import** (research: none of Kuma/Gatus/PulseMonitor/Healthchecks supports
 it). Instead:
 
-1. The Admin API makes generation trivial: `scripts/openapi-bootstrap.ts` (in-repo CLI)
-   reads an OpenAPI 3 document and creates one `http` monitor per `GET` path with
-   `acceptedStatus`, tagged `openapi:<title>`. Skips endpoints requiring auth unless a
-   header map is provided.
+1. The Admin API makes generation trivial: `scripts/openapi-bootstrap.mjs` (in-repo CLI,
+   zero-dependency) reads an **OpenAPI 3 JSON** document (convert YAML first) and creates
+   one `http` monitor per `GET` path with `acceptedStatus [200, 299]`, tagged
+   `openapi:<title>`. Skips endpoints requiring auth unless a header map is provided;
+   parameterised paths are skipped.
 2. Per-endpoint **contract validation stays in CI** (Schemathesis/Dredd) — an uptime tool
    answers "is it up", not "does it match the spec".
 
@@ -192,29 +213,66 @@ it). Instead:
   so it can compile from source. Non-root, static web assets baked in.
 - Same image, entrypoint subcommands: `server` (default) / `agent`.
 - `VOLUME /data`; `ENV DATA_DIR=/data PORT=3001`; `HEALTHCHECK` hits `/healthz`.
-- `docker-compose.yml`: service + volume + `env_file`; `docker-compose.agent.yml` example.
-- CI: lint (eslint+prettier), typecheck, unit (vitest), integration (SQLite migrations +
-  supertest), e2e (compose up → seeded probe → expect `/healthz` + a monitor flip),
-  buildx multi-arch on `v*` tags → GHCR (`latest` + semver).
+- `docker-compose.yml` (root: server role) and `deploy/docker-compose.yml` (DEV VM
+  variant); the agent role runs the same image with the `agent` subcommand — there is
+  no separate agent compose file.
+- CI: eslint, typecheck, vitest unit + integration (SQLite migrations + supertest),
+  75 % coverage gate, and a multi-arch **build-only** image job (no publish, no e2e).
+  Multi-arch buildx → GHCR runs on `v*` tags in `release.yml`.
 - Resource envelope target: idle < 256 MB RSS, 100 monitors/30 s ≈ < 5 % of one core.
 
 ## 11. Web UI (apps/web, Vue 3 + Vite)
 
-- Dashboard (Kuma-style cards: status color, latency sparkline, last check, tags filter).
+- Dashboard (Kuma-style cards: status color, latency, last check, tags filter).
 - Monitor detail: heartbeat strip (90 days), uptime % (24h/7d/30d/365d), response-time
-  chart, incidents, events; edit form driven by the type's JSON schema (same schema the
-  server validates — single source of truth in packages/core).
-- Status pages: public, slug-based, group sections, live updates, incident banner.
-- Settings: profile, 2FA, notification channels (+ test), api keys, appearance (light/
-  dark/auto), backups (download SQLite snapshot), retention.
+  chart, incidents, events; edit form is a hand-written per-type form whose fields mirror
+  the packages/core schemas — server-side zod validation is authoritative (single source
+  of truth in packages/core).
+- Status pages: public, slug-based, component groups, live-reloading admin views,
+  incident banner + archive, feeds + badge.
+- Settings: profile, security (2FA), api keys, status pages, status incidents,
+  subscriptions, maintenance windows, docker hosts, general (title/timezone).
+  Notifications live on their own page. Backup/restore/retention/export are admin
+  API endpoints (POST /backup, /restore, /retention/run, /config/export) without UI;
+  the password-change field is an honest disabled stub.
 
 ## 12. Roadmap
 
-See [PLAN.md](PLAN.md). M1 first slice of value: HTTP monitor + SQLite + dashboard
-read-only. M5 ships the agent image and multi-arch release.
+See [PLAN.md](PLAN.md). M1 (first slice of value: HTTP monitor + SQLite + dashboard
+read-only) through M6 are delivered — milestone records live in `tasks/`. Remaining
+scope is tracked in §14 below.
 
 ## 13. Explicitly deferred
 
 Multi-user RBAC beyond admin/editor/viewer, LDAP/OIDC SSO, HA/clustering, distributed
 TSDB backends, mobile push (via Ntfy/Telegram instead), k8s auto-discovery, synthetic
 browser checks (Playwright), SNMP get-walks.
+
+## 14. Deviations from the spec
+
+Implemented reality as of 2026-10-11 — where sections above describe the original
+design, this section is the contract:
+
+- **Transport**: SSE only (`GET /api/v1/events`, viewer auth). No WebSocket hub, no
+  `/socket` route.
+- **Storage**: SQLite only. The Postgres dialect (ADR-0002 `DATABASE_URL` switch) is
+  planned, not built.
+- **Scheduling**: the server probe-schedules `http` monitors only. Push monitors run in
+  their 30 s silence sweep, groups in member evaluation; tcp/dns/icmp/db/docker probes
+  execute via the agent role.
+- **Dependencies**: `parentId` is stored but has no runtime consumer and the API cannot
+  set it; incident suppression is group-membership based. `upsideDown` is stored without
+  semantics.
+- **API deltas**: no `POST /monitors/:id/test`; heartbeats paginate with `?limit=`
+  (no range/cursor); `GET /incidents` ignores `monitor_id`; config export/import is
+  JSON (no TOML); API keys live under `/api/v1/auth/api-keys` (POST/GET/DELETE);
+  push `/fail?body=` stores the first 1 KB.
+- **Heartbeat storage**: one table + `heartbeats_hourly`/`heartbeats_daily` rollups
+  (no day-partitioned tables); inserts are synchronous single-row writes (batching
+  exists only for imports); the rollup job runs every 15 s, not hourly.
+- **Packaging/CI**: entrypoint is `node dist/main.js` argv dispatch (no
+  docker-entrypoint.sh, no stripped agent image); CI lints with eslint only (prettier
+  is not enforced), and the image job builds without running (no compose e2e).
+- **UI**: hand-written per-type monitor form (no JSON-schema-driven generation); no
+  dashboard sparkline; no backup/retention/export UI (admin API only); password change
+  is a disabled stub.

@@ -9,7 +9,7 @@ Status: **waves 1–2 implemented** (2026-10-11) · Reviewed: 2026-10-10 · Refe
 > Wave 3 (per-region history, anomaly annotations, dependency providers, i18n, layout variants)
 > remains deferred. Coverage gates hold at ≥75% lines per package.
 
-## 1. What exists today (verified in the code)
+## 1. What existed at review time (2026-10-10 snapshot — superseded by waves 1–2 below)
 
 | Area | Current state |
 |---|---|
@@ -47,7 +47,7 @@ and embeddable status badges.
 
 ## 3. Gap analysis and verdicts
 
-| Feature | Reference | Ours | Verdict |
+| Feature | Reference | Ours (pre-implementation snapshot) | Verdict |
 |---|---|---|---|
 | Overall severity + banner | ✅ | binary banner only | **Adopt** (wave 1) |
 | Component model (groups, labels, descriptions, order) | ✅ | flat monitor_ids | **Adopt** (wave 1) |
@@ -89,7 +89,7 @@ and embeddable status badges.
 4. **Charts + reuse extraction**: extract `MonitorDetailView`'s SVG response chart + heartbeat strip into `components/charts/` and render them on the public page (per component, configurable per `structure.showChart`). No chart deps.
 5. **Feeds & badges**: `GET /status/:slug/rss.xml`, `/atom.xml`, `/status/:slug/badge.svg` (overall + `?component=`), `GET /api/v1/status/:slug` extended with severity/components/updates (JSON API stays unauthenticated but rate-limitable).
 6. **Subscriptions**: `status_subscriptions(id, page_id, type email|webhook, target, component_ids[], token, verified_at, created_at)`; double opt-in email link; notify on incident open/update/resolve + maintenance start/end via the existing notifier (new `page` routing mode); unsubscribe with signed token; per-component filtering.
-7. **Customization & access**: footer text + logo (URL), theme tokens (accent, mode — exist), **password-protected pages** (`password_hash` on the page, POST /status/:slug/unlock sets a short-lived cookie), OG meta + `/og/status/:slug.svg` render.
+7. **Customization & access**: footer text + logo (URL), theme tokens (accent, mode — exist), **password-protected pages** (`password_hash` on the page, POST /status/:slug/unlock sets a short-lived cookie), OG/Twitter meta injection server-side (no generated OG image).
 
 ### Wave 3 — differentiators (defer, listed for shape)
 8. Per-region history (needs `heartbeats.agent_id` + agent WS hub), latency-anomaly annotations from rollups, dependency-provider section, i18n.
@@ -102,7 +102,7 @@ and embeddable status badges.
 | W1b | status incidents + updates + auto-link + archive route | monitor goes down → status incident appears with timeline; resolve → archived with duration |
 | W1c | maintenance display + daily uptime bars + shared `<UptimeBars>` | active maintenance window shows on the page; bars match `getUptime` for known fixtures |
 | W2a | chart/strip extraction + public charts | monitor detail unchanged; public component shows 24 h chart |
-| W2b | feeds + badge + extended JSON | RSS valid (W3C validator in CI smoke), badge SVG renders |
+| W2b | feeds + badge + extended JSON | RSS/Atom render valid XML with escaped content (unit-tested; no W3C CI smoke), badge SVG renders |
 | W2c | subscriptions | email + webhook subscribers receive open/update/resolve; unsubscribe works |
 | W2d | customization + password pages | wrong password → 401; correct → cookie; OG tags present |
 

@@ -12,6 +12,11 @@ Use the `semantic-versioning` skill for version bumps, releases, and Git tags.
 
 ## Repository configuration
 
+> Current state (2026-10-11): no `v*` tags exist yet — only `dev-*` deploy tags; the
+> workspace packages are at `0.1.0` (the root `package.json` carries no version field).
+> `CHANGELOG.md` exists with an Unreleased section. The authoritative version source(s)
+> below are still to be decided before the first release.
+
 Before the first release, document:
 
 1. The authoritative version file or files.

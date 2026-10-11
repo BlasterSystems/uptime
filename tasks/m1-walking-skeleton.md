@@ -10,12 +10,12 @@ and a multi-stage Dockerfile + compose.
 
 ## Acceptance criteria
 
-- [ ] `docker compose up` builds and boots the server; `GET /healthz` returns ok.
-- [ ] A seeded `http` monitor executes on its interval; heartbeats land in SQLite (WAL).
-- [ ] Dashboard shows monitor cards with status/latency from the API.
-- [ ] `GET /metrics` exposes per-monitor status/uptime gauge.
-- [ ] Push receiver records an `up` heartbeat for a token-matched monitor (404 unknown).
-- [ ] Typecheck, unit + integration tests pass; `.agentic/bin/validate` + docs-check pass.
+- [x] `docker compose up` builds and boots the server; `GET /healthz` returns ok.
+- [x] A seeded `http` monitor executes on its interval; heartbeats land in SQLite (WAL).
+- [x] Dashboard shows monitor cards with status/latency from the API.
+- [x] `GET /metrics` exposes per-monitor status/uptime gauge.
+- [x] Push receiver records an `up` heartbeat for a token-matched monitor (404 unknown).
+- [x] Typecheck, unit + integration tests pass; `.agentic/bin/validate` + docs-check pass.
 
 ## Scope
 
@@ -45,11 +45,11 @@ and a multi-stage Dockerfile + compose.
 
 - [x] Understand: SPEC §2/§3/§4/§6/§10, ADRs 0001–0004, PLAN M1, DEVELOPMENT_PROCESS.md
 - [x] Confirm architecture impact
-- [ ] Implement smallest complete change per component
-- [ ] Add or update tests (db migration+repo on `:memory:`; core check against local
+- [x] Implement smallest complete change per component
+- [x] Add or update tests (db migration+repo on `:memory:`; core check against local
       HTTP server; server integration via supertest incl. push + 404 path)
-- [ ] Update documentation (README status)
-- [ ] Run validation
+- [x] Update documentation (README status)
+- [x] Run validation
 
 ## Architecture impact
 
@@ -84,7 +84,8 @@ and a multi-stage Dockerfile + compose.
   (node arg dispatch, no `*` route per Express 5).
 - Compatibility: Express 5 semantics verified (body parser explicit, terminator-middleware SPA
   fallback); pnpm 10 `deploy --legacy` required for image assembly (documented in Dockerfile).
-- Residual risks: single `heartbeats` table — day-partitioning/rollup model is an open decision
-  (review B3: adopt Kuma single-table + stat rollups, or amend SPEC §4/ADR-0002); Postgres
-  dialect undecided (review B2); heartbeat inserts synchronous (fine at M1 volume, batching queue
-  is SPEC §6 work for M3); mssql/Slack/Gotify milestone gaps (J1/J2) need plan edits.
+- Residual risks (status 2026-10-11): day-partitioning closed per review B3 — single
+  `heartbeats` table + `heartbeats_hourly`/`heartbeats_daily` rollups (job every 15 s);
+  mssql/Slack/Gotify milestone gaps shipped (M2–M4); heartbeat batching exists for
+  imports (`insertHeartbeatsBatch`), live inserts stay single-row. Still open: the
+  Postgres dialect (planned; SPEC §14).

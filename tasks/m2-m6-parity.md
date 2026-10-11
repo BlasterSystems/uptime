@@ -15,8 +15,11 @@ release engineering (M5), and lifecycle/interop (M6) — with a modern enterpris
       first-run setup, login rate limiting, CSRF token-header.
 - [x] Notifications: 7 providers + templating + test-send + incident routing + group-down
       suppression.
-- [x] All SPEC §3 monitor types with real probes (http, push, tcp, dns, icmp,
-      postgres, mysql, mssql, mongodb, redis, docker) + groups (any-up/all-up/percentage) + dependency suppression.
+- [x] All SPEC §3 monitor types with real probe implementations (http, push, tcp, dns,
+      icmp, postgres, mysql, mssql, mongodb, redis, docker) + groups
+      (any-up/all-up/percentage) + group-down notification suppression. Server-side
+      probe scheduling is http-only — the other types execute via the agent
+      (SPEC §14); `parent_id` dependency suppression is not implemented.
 - [x] Realtime (SSE primary, polling fallback), status pages (CRUD + public page),
       Prometheus full (histogram, cert expiry, maintenance, per-tag), maintenance
       windows (single/recurring-interval/recurring-weekday/cron+tz), uptime API from
@@ -70,4 +73,6 @@ Everything in SPEC v1 except explicitly deferred §13 items.
   middleware (bearer API-key or session).
 - Compatibility: Node 24, pnpm 10; Express 5 semantics respected throughout.
 - Residual risks: server-side WS agent hub pending (HTTP fallback is the working path);
-  password-change UI stubbed; Kuma import expects a converted JSON payload.
+  `parent_id` dependency suppression unimplemented (group-down suppression is what
+  ships — SPEC §14); password-change UI stubbed; Kuma import expects a converted JSON
+  payload.
