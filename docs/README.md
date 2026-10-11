@@ -9,6 +9,7 @@ Read only the document relevant to the current task.
 - [Development process](DEVELOPMENT_PROCESS.md) — implementation workflow and validation.
 - [Architecture](ARCHITECTURE.md) — components, boundaries, data, integrations, and operations.
 - [OSS research](research/oss-comparison.md) — comparison of the tools this project draws from.
+- [Status pages plan](STATUS_PAGES_PLAN.md) — review + proposed feature set (waves, decisions).
 - [Agent-guided maintenance](AGENT_GUIDED.md) — inspect, preview, human handoff, and trust boundaries.
 - [ADR index](adr/README.md) — decision catalog; read this before individual ADRs.
 
