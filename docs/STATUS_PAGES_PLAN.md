@@ -103,10 +103,18 @@ and embeddable status badges.
 Estimated: W1 ≈ 1 developer-week, W2 ≈ 1–1.5 weeks — mostly reusing existing engines
 (rollups, maintenance resolver, notifier, incident engine) and UI kit; no new dependencies.
 
-## 6. Open decisions
+## 6. Decisions (resolved 2026-10-10, product owner)
 
-1. **Auto-publish policy**: should every monitor incident on a page component appear publicly, or only incidents an admin promotes? (Proposal: auto-create as `investigating`, admin edits text — default on per page.)
-2. **Status incident vs monitor incident**: keep separate tables (proposal — monitor incidents keep raw telemetry, status incidents carry public communication) or unify?
-3. **Severity inputs**: latency-derived `degraded` needs a threshold source — per-monitor `maxResponseMs` (may be unset) vs page-level default. (Proposal: page-level `degradedLatencyMs` with per-component override.)
-4. **Password pages**: single password per page enough for v1, or per-audience pages?
-5. **Subscriptions transport**: email via the existing SMTP channel config, or a dedicated page-level SMTP setting?
+1. **Auto-publish**: ON — every monitor incident on a page component is published automatically
+   (the instance is internal-use; `structure.autoPublish` can still be flipped off per page).
+2. **Severity inputs**: page-level `structure.degradedLatencyMs` with per-component
+   `degradedLatencyMs` override; components aggregate MULTIPLE monitors (async processes —
+   SQS/cron workers — share one tracked unit; their success pulses ride the existing `push`
+   monitor type: ping `/api/v1/push/<token>` on success, `/fail?body=` on error, silence past
+   interval+grace = down).
+3. **Password pages**: optional, off by default (`status_pages.password_hash`).
+4. **Subscriptions**: channel-based — reuse `notification_channels`, so Slack, Telegram,
+   email, ntfy, gotify and webhooks are all supported; admin-managed per page with
+   per-component + per-event filters (no public self-serve signup).
+
+Waves 1–2 are the implementation scope; wave 3 stays deferred.

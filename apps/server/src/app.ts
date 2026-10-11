@@ -1,22 +1,44 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MIN_INTERVAL_S, MONITOR_TYPES, parseMonitorConfig } from '@uptime/core'
 import type { MonitorType, ScheduledMonitor } from '@uptime/core'
 import { parseChannelConfig, type ChannelType } from '@uptime/notify'
 import { metricsAllowlistMiddleware } from './metrics-auth.js'
-import type { Database, MonitorRow, NewMonitor, TagRow } from '@uptime/db'
+import type {
+  Database,
+  MonitorRow,
+  NewMaintenanceWindow,
+  NewMonitor,
+  StatusIncidentRow,
+  StatusPageRow,
+  TagRow,
+} from '@uptime/db'
 import type { SecretBox } from '@uptime/db'
-import type { NewMaintenanceWindow } from '@uptime/db'
 import type { Notifier } from '@uptime/notify'
 import type { Metrics } from './metrics.js'
 import type { AuthModule } from './auth/index.js'
 import type { IncidentEngine } from './incidents.js'
 import type { EventHub } from './events.js'
-import type { MaintenanceEngine } from './maintenance.js'
+import { MaintenanceEngine } from './maintenance.js'
 import { parseGroupConfig } from './groups.js'
 import { createAgentRouter } from './agent/index.js'
 import { createLifecycleRouter } from './lifecycle/index.js'
+import {
+  buildAtomFeed,
+  buildBadgeSvg,
+  buildRssFeed,
+  buildStatusPagePayload,
+  dispatchStatusEvent,
+  incidentView,
+  STATUS_EVENTS,
+  injectOgMeta,
+  type StatusDispatchDeps,
+  type StatusEvent,
+} from './status-pages.js'
+import { hash as argon2Hash, verify as argon2Verify } from '@node-rs/argon2'
+import type { Algorithm } from '@node-rs/argon2'
+import { parseStatusPageStructure } from '@uptime/core'
 
 export interface SchedulerLike {
   upsert(monitor: ScheduledMonitor): void
@@ -440,15 +462,43 @@ export function createApp(opts: AppOptions): Express {
   })
 
   // ---- Status pages ----
-  const statusPageApi = (row: {
-    id: number
-    slug: string
-    title: string
-    logo: string | null
-    published: boolean
-    monitorIds: number[]
-    theme: Record<string, unknown> | null
-  }) => ({
+  const maintenanceEngine =
+    opts.maintenance ?? new MaintenanceEngine({ db, tagIdsOf: (id) => db.listMonitorTagIds(id) })
+  const statusDispatch: StatusDispatchDeps = { db, secrets, notifier }
+  const STATUS_PAGE_ARGON2 = {
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+    algorithm: 2 as Algorithm,
+  }
+
+  const readCookie = (req: Request, name: string): string | null => {
+    const header = req.headers.cookie
+    if (!header) return null
+    for (const part of header.split(';')) {
+      const trimmed = part.trim()
+      const eq = trimmed.indexOf('=')
+      if (eq === -1) continue
+      if (trimmed.slice(0, eq) === name) return decodeURIComponent(trimmed.slice(eq + 1))
+    }
+    return null
+  }
+
+  const unlocked = (
+    req: Request,
+    page: { slug: string; hasPassword: boolean },
+  ): boolean => {
+    if (!page.hasPassword) return true
+    const raw = readCookie(req, `sp_${page.slug}`)
+    if (raw === null) return false
+    try {
+      return secrets.decrypt(raw) === page.slug
+    } catch {
+      return false
+    }
+  }
+
+  const statusPageApi = (row: StatusPageRow) => ({
     id: row.id,
     slug: row.slug,
     title: row.title,
@@ -456,13 +506,27 @@ export function createApp(opts: AppOptions): Express {
     published: row.published,
     monitorIds: row.monitorIds,
     theme: row.theme,
+    structure: row.structure,
+    footerText: row.footerText,
+    hasPassword: row.hasPassword,
   })
+
+  /** Validates an incoming structure blob and stores the normalized form. */
+  const normalizeStructure = (
+    raw: unknown,
+  ): { ok: true; value: string } | { ok: false; error: string } => {
+    try {
+      return { ok: true, value: JSON.stringify(parseStatusPageStructure(raw)) }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'invalid structure' }
+    }
+  }
 
   app.get('/api/v1/status-pages', auth.requireAuth('admin'), (_req, res) => {
     res.json({ statusPages: db.listStatusPages().map(statusPageApi) })
   })
 
-  app.post('/api/v1/status-pages', auth.requireAuth('admin'), (req, res) => {
+  app.post('/api/v1/status-pages', auth.requireAuth('admin'), async (req, res) => {
     const b = req.body as Record<string, unknown>
     if (typeof b.slug !== 'string' || !/^[a-z0-9-]{1,100}$/.test(b.slug)) {
       return res.status(400).json({ error: 'slug must be lowercase letters, digits and dashes' })
@@ -470,6 +534,16 @@ export function createApp(opts: AppOptions): Express {
     if (typeof b.title !== 'string' || b.title.trim().length === 0) {
       return res.status(400).json({ error: 'title must be a non-empty string' })
     }
+    let structure: string | undefined
+    if (b.structure !== undefined) {
+      const normalized = normalizeStructure(b.structure)
+      if (!normalized.ok) return res.status(400).json({ error: normalized.error })
+      structure = normalized.value
+    }
+    const passwordHash =
+      typeof b.password === 'string' && b.password.length > 0
+        ? await argon2Hash(b.password, STATUS_PAGE_ARGON2)
+        : undefined
     try {
       const row = db.createStatusPage({
         slug: b.slug,
@@ -478,6 +552,9 @@ export function createApp(opts: AppOptions): Express {
         published: b.published === true,
         monitorIds: Array.isArray(b.monitorIds) ? (b.monitorIds as number[]) : [],
         theme: (b.theme ?? undefined) as Record<string, unknown> | undefined,
+        structure,
+        footerText: typeof b.footerText === 'string' ? b.footerText : undefined,
+        passwordHash,
       })
       res.status(201).json({ statusPage: statusPageApi(row) })
     } catch (err) {
@@ -487,13 +564,25 @@ export function createApp(opts: AppOptions): Express {
     }
   })
 
-  app.patch('/api/v1/status-pages/:id', auth.requireAuth('admin'), (req, res) => {
+  app.patch('/api/v1/status-pages/:id', auth.requireAuth('admin'), async (req, res) => {
     const id = monitorId(req)
     if (id === null) return res.status(400).json({ error: 'invalid status page id' })
     const b = req.body as Record<string, unknown>
     const patch: Record<string, unknown> = {}
     for (const key of ['slug', 'title', 'logo', 'published', 'monitorIds', 'theme'] as const) {
       if (b[key] !== undefined) patch[key] = b[key]
+    }
+    if (b.footerText !== undefined) patch.footerText = typeof b.footerText === 'string' ? b.footerText : null
+    if (b.structure !== undefined) {
+      const normalized = normalizeStructure(b.structure)
+      if (!normalized.ok) return res.status(400).json({ error: normalized.error })
+      patch.structure = normalized.value
+    }
+    if (b.password !== undefined) {
+      patch.passwordHash =
+        typeof b.password === 'string' && b.password.length > 0
+          ? await argon2Hash(b.password, STATUS_PAGE_ARGON2)
+          : null
     }
     const updated = db.updateStatusPage(id, patch)
     if (!updated) return res.status(404).json({ error: 'status page not found' })
@@ -507,49 +596,255 @@ export function createApp(opts: AppOptions): Express {
     res.status(204).send()
   })
 
-  // Public status page payload (SPEC §5).
+  // ---- Status incidents (admin) ----
+  const incidentApi = (incident: StatusIncidentRow) =>
+    incidentView(incident, db.getStatusIncident(incident.id)?.updates ?? [])
+
+  app.get('/api/v1/status-pages/:id/incidents', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    if (!db.getStatusPage(id)) return res.status(404).json({ error: 'status page not found' })
+    res.json({ incidents: db.listStatusIncidents({ pageId: id, limit: 100 }).map(incidentApi) })
+  })
+
+  app.post('/api/v1/status-pages/:id/incidents', auth.requireAuth('admin'), async (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    const page = db.getStatusPage(id)
+    if (!page) return res.status(404).json({ error: 'status page not found' })
+    const b = req.body as Record<string, unknown>
+    if (typeof b.title !== 'string' || b.title.trim().length === 0 || b.title.length > 200) {
+      return res.status(400).json({ error: 'title must be a non-empty string of at most 200 characters' })
+    }
+    const impact = ['none', 'minor', 'major', 'critical'].includes(String(b.impact))
+      ? (b.impact as StatusIncidentRow['impact'])
+      : 'major'
+    const componentIds = Array.isArray(b.componentIds)
+      ? (b.componentIds as unknown[]).filter((c): c is string => typeof c === 'string')
+      : []
+    const row = db.createStatusIncident({
+      pageId: id,
+      title: b.title,
+      impact,
+      componentIds,
+      source: 'manual',
+    })
+    const body = typeof b.body === 'string' && b.body.length > 0 ? b.body : b.title
+    if (body !== row.title) db.addStatusIncidentUpdate(row.id, { status: row.status, body })
+    await dispatchStatusEvent(statusDispatch, page, 'incident_open', {
+      title: `${page.title}: ${row.title}`,
+      body,
+      componentIds,
+      status: 'down',
+    })
+    res.status(201).json({ incident: incidentApi(row) })
+  })
+
+  app.patch('/api/v1/status-incidents/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid incident id' })
+    const b = req.body as Record<string, unknown>
+    const patch: Record<string, unknown> = {}
+    if (typeof b.title === 'string' && b.title.trim().length > 0) patch.title = b.title
+    if (['none', 'minor', 'major', 'critical'].includes(String(b.impact))) patch.impact = b.impact
+    if (Array.isArray(b.componentIds)) {
+      patch.componentIds = (b.componentIds as unknown[]).filter((c): c is string => typeof c === 'string')
+    }
+    const updated = db.updateStatusIncident(id, patch)
+    if (!updated) return res.status(404).json({ error: 'incident not found' })
+    res.json({ incident: incidentApi(updated) })
+  })
+
+  app.post('/api/v1/status-incidents/:id/updates', auth.requireAuth('admin'), async (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid incident id' })
+    const b = req.body as Record<string, unknown>
+    const status = String(b.status)
+    if (!['investigating', 'identified', 'monitoring', 'resolved'].includes(status)) {
+      return res.status(400).json({ error: 'status must be investigating, identified, monitoring or resolved' })
+    }
+    if (typeof b.body !== 'string' || b.body.trim().length === 0) {
+      return res.status(400).json({ error: 'body must be a non-empty string' })
+    }
+    const updated = db.addStatusIncidentUpdate(id, {
+      status: status as StatusIncidentRow['status'],
+      body: b.body,
+    })
+    if (!updated) return res.status(404).json({ error: 'incident not found' })
+    const page = db.getStatusPage(updated.pageId)
+    if (page) {
+      await dispatchStatusEvent(
+        statusDispatch,
+        page,
+        status === 'resolved' ? 'incident_resolved' : 'incident_update',
+        {
+          title: `${page.title}: ${updated.title}`,
+          body: b.body,
+          componentIds: updated.componentIds,
+          status: status === 'resolved' ? 'up' : 'down',
+        },
+      )
+    }
+    res.json({ incident: incidentApi(updated) })
+  })
+
+  // ---- Status subscriptions (admin) ----
+  app.get('/api/v1/status-pages/:id/subscriptions', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    if (!db.getStatusPage(id)) return res.status(404).json({ error: 'status page not found' })
+    res.json({
+      subscriptions: db.listStatusSubscriptions(id).map((sub) => {
+        const channel = db.getChannel(sub.channelId)
+        return {
+          id: sub.id,
+          pageId: sub.pageId,
+          channelId: sub.channelId,
+          channelName: channel?.name ?? null,
+          channelType: channel?.type ?? null,
+          componentIds: sub.componentIds,
+          events: sub.events,
+          createdAt: sub.createdAt,
+        }
+      }),
+    })
+  })
+
+  app.post('/api/v1/status-pages/:id/subscriptions', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid status page id' })
+    if (!db.getStatusPage(id)) return res.status(404).json({ error: 'status page not found' })
+    const b = req.body as Record<string, unknown>
+    const channelId = Number(b.channelId)
+    if (!Number.isInteger(channelId) || channelId <= 0) {
+      return res.status(400).json({ error: 'channelId must be a positive integer' })
+    }
+    if (!db.getChannel(channelId)) return res.status(400).json({ error: 'channel not found' })
+    const events = Array.isArray(b.events)
+      ? (b.events as unknown[]).filter((e): e is StatusEvent =>
+          (STATUS_EVENTS as readonly string[]).includes(String(e)),
+        )
+      : [...STATUS_EVENTS]
+    const componentIds = Array.isArray(b.componentIds)
+      ? (b.componentIds as unknown[]).filter((c): c is string => typeof c === 'string')
+      : []
+    try {
+      const row = db.createStatusSubscription({ pageId: id, channelId, componentIds, events })
+      res.status(201).json({ subscription: row })
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'could not subscribe' })
+    }
+  })
+
+  app.delete('/api/v1/status-subscriptions/:id', auth.requireAuth('admin'), (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid subscription id' })
+    if (!db.deleteStatusSubscription(id)) return res.status(404).json({ error: 'subscription not found' })
+    res.status(204).send()
+  })
+
+  app.post('/api/v1/status-subscriptions/:id/test', auth.requireAuth('admin'), async (req, res) => {
+    const id = monitorId(req)
+    if (id === null) return res.status(400).json({ error: 'invalid subscription id' })
+    const sub = db.getStatusSubscription(id)
+    if (!sub) return res.status(404).json({ error: 'subscription not found' })
+    const channel = db.getChannel(sub.channelId)
+    if (!channel) return res.status(404).json({ error: 'channel not found' })
+    try {
+      const config = secrets.decryptJson<Record<string, unknown>>(channel.configEnc)
+      await notifier.sendTo(
+        { id: channel.id, type: channel.type as ChannelType, name: channel.name, config, active: channel.active },
+        {
+          title: 'Status page subscription test',
+          body: `Test delivery for status subscription #${sub.id}`,
+          monitorName: db.getStatusPage(sub.pageId)?.title ?? 'Status page',
+          status: 'up',
+          latencyMs: null,
+          downtimeMs: null,
+          tags: ['status-page', 'test'],
+        },
+      )
+      res.status(204).send()
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'test failed' })
+    }
+  })
+
+  // ---- Public status page (SPEC §5) ----
+  const originOf = (req: Request): string => `${req.protocol}://${req.get('host') ?? 'localhost'}`
+
   app.get('/api/v1/status/:slug', (req, res) => {
     const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
     if (!page) return res.status(404).json({ error: 'status page not found' })
-    const monitors = page.monitorIds.flatMap((id) => {
-      const row = db.getMonitor(id)
-      if (!row) return []
-      const [latest] = db.listHeartbeats(id, { limit: 1 })
-      const uptime = db.getUptime(id, 24)
-      const tagById = tagMap()
-      const monitorTagIds = db.listMonitorTagIds(id)
-      return [
-        {
-          id: row.id,
-          name: row.name,
-          status: latest?.status ?? 'pending',
-          latencyMs: latest?.latencyMs ?? null,
-          uptimePct: uptime.uptimePct,
-          tags: monitorTagIds.flatMap((tid) => {
-            const t = tagById.get(tid)
-            return t ? [{ id: t.id, name: t.name, color: t.color }] : []
-          }),
-        },
-      ]
+    if (!unlocked(req, page)) return res.status(401).json({ error: 'password_required' })
+    res.json(buildStatusPagePayload(db, page, maintenanceEngine))
+  })
+
+  app.post('/api/v1/status/:slug/unlock', async (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page) return res.status(404).json({ error: 'status page not found' })
+    if (!page.hasPassword) return res.status(204).send()
+    const b = req.body as Record<string, unknown>
+    if (typeof b.password !== 'string' || b.password.length === 0) {
+      return res.status(400).json({ error: 'password is required' })
+    }
+    const hash = page.passwordHash
+    const ok = hash === null ? false : await argon2Verify(hash, b.password).catch(() => false)
+    if (!ok) return res.status(401).json({ error: 'invalid_password' })
+    res.cookie(`sp_${page.slug}`, secrets.encrypt(page.slug), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: req.secure,
+      maxAge: 7 * 24 * 3600_000,
+      path: '/',
     })
-    const openIncidents = db
-      .listIncidents({ active: true })
-      .filter((i) => page.monitorIds.includes(i.monitorId))
+    res.status(204).send()
+  })
+
+  app.get('/api/v1/status/:slug/incidents', (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page) return res.status(404).json({ error: 'status page not found' })
+    if (!unlocked(req, page)) return res.status(401).json({ error: 'password_required' })
     res.json({
-      slug: page.slug,
-      title: page.title,
-      logo: page.logo,
-      theme: page.theme,
-      monitors,
-      incidents: openIncidents.map((i) => ({
-        id: i.id,
-        monitorId: i.monitorId,
-        monitorName: db.getMonitor(i.monitorId)?.name ?? null,
-        openedAt: i.openedAt.toISOString(),
-        title: i.title,
-        body: i.body,
-      })),
+      incidents: db
+        .listStatusIncidents({ pageId: page.id, limit: 100 })
+        .map((incident) => incidentView(incident, db.getStatusIncident(incident.id)?.updates ?? [])),
     })
+  })
+
+  // Feeds + badge (public; password pages are hidden without an unlock cookie).
+  app.get('/status/:slug/rss.xml', (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page || !unlocked(req, page)) return res.status(404).end()
+    const incidents = db
+      .listStatusIncidents({ pageId: page.id, limit: 50 })
+      .map((incident) => incidentView(incident, db.getStatusIncident(incident.id)?.updates ?? []))
+    res.type('application/rss+xml').send(buildRssFeed(page, incidents, originOf(req)))
+  })
+
+  app.get('/status/:slug/atom.xml', (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page || !unlocked(req, page)) return res.status(404).end()
+    const incidents = db
+      .listStatusIncidents({ pageId: page.id, limit: 50 })
+      .map((incident) => incidentView(incident, db.getStatusIncident(incident.id)?.updates ?? []))
+    res.type('application/atom+xml').send(buildAtomFeed(page, incidents, originOf(req)))
+  })
+
+  app.get('/status/:slug/badge.svg', (req, res) => {
+    const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+    if (!page || !unlocked(req, page)) return res.status(404).end()
+    const payload = buildStatusPagePayload(db, page, maintenanceEngine)
+    const componentId = typeof req.query.component === 'string' ? req.query.component : null
+    const component = componentId
+      ? payload.groups.flatMap((g) => g.components).find((c) => c.id === componentId)
+      : null
+    const label = component ? component.label : page.title
+    const status = component ? component.status : payload.overall
+    res
+      .type('image/svg+xml')
+      .set('Cache-Control', 'no-cache')
+      .send(buildBadgeSvg(label, status))
   })
 
   // ---- Maintenance windows ----
@@ -885,11 +1180,31 @@ export function createApp(opts: AppOptions): Express {
   const webDist = opts.webDist
   if (webDist && existsSync(join(webDist, 'index.html'))) {
     app.use(express.static(webDist))
+    // Crawler-friendly shell for status pages: OG meta injected server-side.
+    const indexFile = join(webDist, 'index.html')
+    app.get('/status/:slug', (req, res) => {
+      const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
+      if (!page || !unlocked(req, page)) return res.sendFile(indexFile)
+      try {
+        const html = readFileSync(indexFile, 'utf8')
+        res
+          .type('text/html')
+          .send(
+            injectOgMeta(html, {
+              title: `${page.title} — status`,
+              description: `Real-time status and incident updates for ${page.title}.`,
+              url: `${req.protocol}://${req.get('host') ?? 'localhost'}/status/${page.slug}`,
+            }),
+          )
+      } catch {
+        res.sendFile(indexFile)
+      }
+    })
     app.use((req: Request, res: Response, next: NextFunction) => {
       if (req.method !== 'GET') return next()
       if (req.path.startsWith('/api') || req.path === '/metrics' || req.path === '/healthz')
         return next()
-      res.sendFile(join(webDist, 'index.html'))
+      res.sendFile(indexFile)
     })
   }
 

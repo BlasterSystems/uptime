@@ -18,6 +18,20 @@ export type { PushMonitorConfig } from './config-push.js'
 export { runHttpCheck } from './http.js'
 export type { RunHttpCheckOptions } from './http.js'
 export { Scheduler } from './scheduler.js'
+export {
+  componentStatus,
+  overallStatus,
+  parseStatusPageStructure,
+  statusPageStructureSchema,
+} from './status-page.js'
+export type {
+  ComponentMonitorState,
+  ComponentStatus,
+  OverallStatus,
+  StatusPageComponent,
+  StatusPageGroup,
+  StatusPageStructure,
+} from './status-page.js'
 export type {
   CheckResult,
   HeartbeatStatus,

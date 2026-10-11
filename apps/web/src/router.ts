@@ -8,6 +8,7 @@ import MonitorDetailView from './views/MonitorDetailView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import SettingsView from './views/SettingsView.vue'
 import SetupView from './views/SetupView.vue'
+import StatusPageIncidentsView from './views/StatusPageIncidentsView.vue'
 import StatusPageView from './views/StatusPageView.vue'
 
 declare module 'vue-router' {
@@ -69,6 +70,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Status', public: true },
   },
   {
+    path: '/status/:slug/incidents',
+    name: 'status-incidents',
+    component: StatusPageIncidentsView,
+    meta: { title: 'Incident history', public: true },
+  },
+  {
     path: '/setup',
     name: 'setup',
     component: SetupView,
@@ -87,7 +94,9 @@ router.beforeEach(async (to) => {
   if (!authState.ready) await bootstrapAuth()
 
   if (authState.setupRequired) {
-    return to.name === 'setup' || to.name === 'status-page' ? true : { name: 'setup' }
+    return to.name === 'setup' || to.name === 'status-page' || to.name === 'status-incidents'
+      ? true
+      : { name: 'setup' }
   }
 
   if (to.name === 'setup') {

@@ -1,4 +1,4 @@
-import { index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core'
 
 /** Heartbeat statuses, shared by schema, rows and the API boundary. */
@@ -194,7 +194,9 @@ export type MaintenanceStrategy = (typeof MAINTENANCE_STRATEGIES)[number]
 /**
  * `status_pages` — public pages addressed by `slug` (SPEC §4/§11). `monitorIds`
  * is a JSON array; `theme` is a JSON object `{ accent?, dark? }`, `null` for
- * the default theme.
+ * the default theme; `structure` is the component/group tree as JSON (shape
+ * validated by `@uptime/core`); `password_hash` is the argon2 hash when the
+ * page is password-protected, `null` otherwise.
  */
 export const statusPages = sqliteTable('status_pages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -204,9 +206,108 @@ export const statusPages = sqliteTable('status_pages', {
   published: integer('published', { mode: 'boolean' }).notNull().default(false),
   monitorIds: text('monitor_ids').notNull().default('[]'),
   theme: text('theme'),
+  structure: text('structure').notNull().default('{}'),
+  footerText: text('footer_text'),
+  passwordHash: text('password_hash'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
 })
+
+/** Incident lifecycle, shared with the API boundary (statuspage.io semantics). */
+export const STATUS_INCIDENT_STATUSES = [
+  'investigating',
+  'identified',
+  'monitoring',
+  'resolved',
+] as const
+export type StatusIncidentStatus = (typeof STATUS_INCIDENT_STATUSES)[number]
+
+/** Incident impact levels, worst last. */
+export const STATUS_INCIDENT_IMPACTS = ['none', 'minor', 'major', 'critical'] as const
+export type StatusIncidentImpact = (typeof STATUS_INCIDENT_IMPACTS)[number]
+
+/** `auto` incidents are monitor-linked; `manual` ones are typed by an admin. */
+export const STATUS_INCIDENT_SOURCES = ['auto', 'manual'] as const
+export type StatusIncidentSource = (typeof STATUS_INCIDENT_SOURCES)[number]
+
+/**
+ * `status_incidents` — public incident communication for a status page
+ * (STATUS_PAGES_PLAN §4). `componentIds` is a JSON array of component ids;
+ * `monitor_id` links auto-created incidents to the monitor that triggered them
+ * and is intentionally not a foreign key, so history outlives the monitor.
+ */
+export const statusIncidents = sqliteTable(
+  'status_incidents',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    pageId: integer('page_id')
+      .notNull()
+      .references(() => statusPages.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    status: text('status', { enum: STATUS_INCIDENT_STATUSES }).notNull().default('investigating'),
+    impact: text('impact', { enum: STATUS_INCIDENT_IMPACTS }).notNull().default('major'),
+    componentIds: text('component_ids').notNull().default('[]'),
+    source: text('source', { enum: STATUS_INCIDENT_SOURCES }).notNull().default('manual'),
+    monitorId: integer('monitor_id'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+    resolvedAt: integer('resolved_at', { mode: 'timestamp_ms' }),
+  },
+  (table) => [
+    index('status_incidents_page_monitor_idx').on(table.pageId, table.monitorId),
+    index('status_incidents_page_resolved_idx').on(table.pageId, table.resolvedAt),
+  ],
+)
+
+/** `status_incident_updates` — the public timeline of an incident, oldest first. */
+export const statusIncidentUpdates = sqliteTable(
+  'status_incident_updates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    incidentId: integer('incident_id')
+      .notNull()
+      .references(() => statusIncidents.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: STATUS_INCIDENT_STATUSES }).notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('status_incident_updates_incident_idx').on(table.incidentId)],
+)
+
+/** Events a status-page subscriber can opt into (STATUS_PAGES_PLAN §4/§6). */
+export const STATUS_SUBSCRIPTION_EVENTS = [
+  'incident_open',
+  'incident_update',
+  'incident_resolved',
+  'maintenance_start',
+  'maintenance_end',
+] as const
+export type StatusSubscriptionEvent = (typeof STATUS_SUBSCRIPTION_EVENTS)[number]
+
+/**
+ * `status_subscriptions` — a page's subscribers, one per notification channel
+ * (Slack/Telegram/email/webhook/ntfy/gotify). `componentIds` is a JSON array of
+ * component ids (`[]` = the whole page); `events` is a JSON array of
+ * {@link STATUS_SUBSCRIPTION_EVENTS}. Delivery settings live on the channel.
+ */
+export const statusSubscriptions = sqliteTable(
+  'status_subscriptions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    pageId: integer('page_id')
+      .notNull()
+      .references(() => statusPages.id, { onDelete: 'cascade' }),
+    channelId: integer('channel_id')
+      .notNull()
+      .references(() => notificationChannels.id, { onDelete: 'cascade' }),
+    componentIds: text('component_ids').notNull().default('[]'),
+    events: text('events').notNull().default('[]'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('status_subscriptions_page_channel_idx').on(table.pageId, table.channelId),
+  ],
+)
 
 /**
  * `maintenance_windows` — suppression windows (SPEC §4/§5). `monitorIds`,

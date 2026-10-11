@@ -1,24 +1,30 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { CSSProperties } from 'vue'
-import { useRoute } from 'vue-router'
-import { ApiError, errorMessage, fetchPublicStatus } from '../api.js'
-import type { HeartbeatStatus, PublicStatusPage } from '../api.js'
+import { RouterLink, useRoute } from 'vue-router'
+import { ApiError, errorMessage, fetchPublicStatus, unlockStatusPage } from '../api.js'
+import type {
+  PublicStatusComponent,
+  PublicStatusDaily,
+  PublicStatusPage,
+  PublicStatusSeriesPoint,
+  StatusIncident,
+} from '../api.js'
+import {
+  HEARTBEAT_META,
+  IMPACT_META,
+  INCIDENT_STATUS_META,
+  SEVERITY_META,
+} from '../statusDisplay.js'
+import { formatDateTime, formatLatency, relativeTime } from '../format.js'
+import HeartbeatStrip from '../components/charts/HeartbeatStrip.vue'
+import ResponseChart from '../components/charts/ResponseChart.vue'
+import type { ChartMarker, LatencyPoint, StripCell, StripTone } from '../components/charts/types.js'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
+import Input from '../components/ui/Input.vue'
 import Spinner from '../components/ui/Spinner.vue'
-import { formatDateTime, formatLatency, relativeTime } from '../format.js'
-
-const STATUS_META: Record<
-  HeartbeatStatus,
-  { label: string; variant: 'success' | 'error' | 'warning' | 'neutral' }
-> = {
-  up: { label: 'Up', variant: 'success' },
-  down: { label: 'Down', variant: 'error' },
-  pending: { label: 'Pending', variant: 'neutral' },
-  maintenance: { label: 'Maintenance', variant: 'warning' },
-}
 
 const DARK_ACCENT_FG = '#06111f'
 const WHITE = '#ffffff'
@@ -26,13 +32,21 @@ const WHITE = '#ffffff'
 const DARK_ACCENT_RGB: [number, number, number] = [6, 17, 31]
 const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
 
+/** Cadence of the "N ago" labels. */
+const CLOCK_MS = 30_000
+
 const route = useRoute()
 
 const slug = computed(() => String(route.params.slug ?? ''))
 const page = ref<PublicStatusPage | null>(null)
 const loading = ref(true)
 const notFound = ref(false)
+const locked = ref(false)
 const loadError = ref<string | null>(null)
+const unlockPassword = ref('')
+const unlockError = ref<string | null>(null)
+const unlocking = ref(false)
+const now = ref(Date.now())
 
 const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
 const systemDark = ref(darkQuery.matches)
@@ -101,17 +115,96 @@ function formatUptime(uptimePct: number): string {
   return uptimePct === 100 ? '100%' : `${uptimePct.toFixed(2)}%`
 }
 
-const incidentSummary = computed(() => {
-  const count = page.value?.incidents.length ?? 0
-  return count === 1 ? '1 open incident' : `${count} open incidents`
-})
-
 const mark = computed(() => {
   const title = page.value?.title.trim() ?? ''
   return title === '' ? 'U' : title.charAt(0).toUpperCase()
 })
 
+/** Groups that contain at least one component; empty groups are not rendered. */
+const visibleGroups = computed(
+  () => page.value?.groups.filter((group) => group.components.length > 0) ?? [],
+)
+
+const hasComponents = computed(() => visibleGroups.value.length > 0)
+
+const maintenanceWindows = computed(() => {
+  const maintenance = page.value?.maintenance
+  if (maintenance === undefined) return []
+  return maintenance.active.length + maintenance.upcoming.length
+})
+
+const componentLabels = computed<Map<string, string>>(() => {
+  const labels = new Map<string, string>()
+  for (const group of page.value?.groups ?? []) {
+    for (const component of group.components) labels.set(component.id, component.label)
+  }
+  return labels
+})
+
+/** Component labels an incident is attached to, or null when it has none. */
+function componentSummary(incident: StatusIncident): string | null {
+  const labels = incident.componentIds
+    .map((id) => componentLabels.value.get(id))
+    .filter((label): label is string => label !== undefined)
+  return labels.length === 0 ? null : labels.join(', ')
+}
+
+function parseDay(date: string): Date {
+  return new Date(`${date}T00:00:00`)
+}
+
+function dayTitle(day: PublicStatusDaily): string {
+  const label = parseDay(day.date).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  if (day.total === 0) return `${label} — no data`
+  const parts = [`${formatUptime(day.uptimePct)} uptime`]
+  if (day.down > 0) parts.push(`${day.down} down`)
+  if (day.maintenance > 0) parts.push(`${day.maintenance} maintenance`)
+  parts.push(`${day.total} checks`)
+  return `${label} — ${parts.join(', ')}`
+}
+
+function dayTone(day: PublicStatusDaily): StripTone {
+  if (day.total === 0) return 'empty'
+  if (day.down > 0) return 'down'
+  if (day.maintenance > 0 && day.maintenance === day.total) return 'maintenance'
+  if (day.uptimePct < 100) return 'down'
+  return 'up'
+}
+
+function stripCells(component: PublicStatusComponent): StripCell[] {
+  return component.daily.map((day) => ({
+    key: day.date,
+    tone: dayTone(day),
+    title: dayTitle(day),
+  }))
+}
+
+function seriesOf(component: PublicStatusComponent): readonly PublicStatusSeriesPoint[] {
+  return component.series ?? []
+}
+
+function chartPoints(component: PublicStatusComponent): LatencyPoint[] {
+  const points: LatencyPoint[] = []
+  for (const point of seriesOf(component)) {
+    const time = Date.parse(point.t)
+    if (Number.isNaN(time) || point.latencyMs === null) continue
+    points.push({ time, latencyMs: point.latencyMs })
+  }
+  return points
+}
+
+function chartMarkers(component: PublicStatusComponent): ChartMarker[] {
+  const markers: ChartMarker[] = []
+  for (const point of seriesOf(component)) {
+    const time = Date.parse(point.t)
+    if (Number.isNaN(time) || point.latencyMs !== null) continue
+    markers.push({ time, status: 'down', title: `${formatDateTime(point.t)} — down` })
+  }
+  return markers
+}
+
 let loadSeq = 0
+let clockTimer: number | null = null
 
 async function load(): Promise<void> {
   const seq = ++loadSeq
@@ -122,12 +215,20 @@ async function load(): Promise<void> {
     const loaded = await fetchPublicStatus(slug.value)
     if (seq !== loadSeq) return
     page.value = loaded
+    locked.value = false
     document.title = `${loaded.title} · Status`
   } catch (error) {
     if (seq !== loadSeq) return
     page.value = null
     if (error instanceof ApiError && error.status === 404) {
       notFound.value = true
+    } else if (
+      error instanceof ApiError &&
+      error.status === 401 &&
+      error.code === 'password_required'
+    ) {
+      locked.value = true
+      document.title = 'Status'
     } else {
       loadError.value = errorMessage(
         error,
@@ -139,16 +240,47 @@ async function load(): Promise<void> {
   }
 }
 
+async function unlock(): Promise<void> {
+  if (unlocking.value) return
+  unlocking.value = true
+  unlockError.value = null
+  try {
+    await unlockStatusPage(slug.value, unlockPassword.value)
+    unlockPassword.value = ''
+    locked.value = false
+    await load()
+  } catch (error) {
+    unlockError.value =
+      error instanceof ApiError && error.status === 401
+        ? 'Incorrect password. Try again.'
+        : errorMessage(error, 'Could not unlock the page.')
+  } finally {
+    unlocking.value = false
+  }
+}
+
 onMounted(() => {
   darkQuery.addEventListener('change', onSystemThemeChange)
+  clockTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, CLOCK_MS)
   void load()
 })
 
 onUnmounted(() => {
   darkQuery.removeEventListener('change', onSystemThemeChange)
+  if (clockTimer !== null) {
+    window.clearInterval(clockTimer)
+    clockTimer = null
+  }
 })
 
-watch(slug, () => void load())
+watch(slug, () => {
+  locked.value = false
+  unlockPassword.value = ''
+  unlockError.value = null
+  void load()
+})
 </script>
 
 <template>
@@ -164,6 +296,28 @@ watch(slug, () => void load())
         <p class="state-text">
           This status page does not exist or the operator has unpublished it.
         </p>
+      </section>
+
+      <section v-else-if="locked" class="panel state" aria-labelledby="status-locked-title">
+        <h1 id="status-locked-title" class="state-title">Password required</h1>
+        <p class="state-text">This status page is private. Enter the password to view it.</p>
+        <form class="unlock-form" novalidate @submit.prevent="unlock">
+          <Input
+            v-model="unlockPassword"
+            label="Password"
+            type="password"
+            autocomplete="current-password"
+            :error="unlockError"
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            :loading="unlocking"
+            :disabled="unlockPassword === ''"
+          >
+            Unlock
+          </Button>
+        </form>
       </section>
 
       <section
@@ -186,56 +340,81 @@ watch(slug, () => void load())
           </div>
         </header>
 
-        <div
-          class="overall-banner"
-          :class="page.incidents.length > 0 ? 'is-incident' : 'is-ok'"
-          role="status"
-        >
+        <div class="overall-banner" :class="`is-${page.overall}`" role="status">
           <span class="banner-dot" aria-hidden="true" />
-          <span v-if="page.incidents.length > 0">Incident in progress — {{ incidentSummary }}</span>
-          <span v-else>All systems operational</span>
+          <span>{{ SEVERITY_META[page.overall].banner }}</span>
         </div>
 
-        <div v-if="page.monitors.length === 0" class="panel">
+        <div v-if="!hasComponents" class="panel">
           <EmptyState
-            title="No monitors on this page"
-            description="The operator has not published any monitors yet."
+            title="No components on this page"
+            description="The operator has not published any components yet."
           />
         </div>
 
-        <section v-else aria-label="Monitors">
-          <ul class="monitor-list">
-            <li v-for="monitor in page.monitors" :key="monitor.id" class="monitor-row">
-              <div class="monitor-identity">
-                <span class="monitor-name">{{ monitor.name }}</span>
-                <span v-if="monitor.tags.length > 0" class="monitor-tags">
-                  <span v-for="tag in monitor.tags" :key="tag.id" class="tag-chip">
-                    <span
-                      class="tag-dot"
-                      :style="{ backgroundColor: tag.color }"
-                      aria-hidden="true"
-                    />
-                    {{ tag.name }}
-                  </span>
-                </span>
-              </div>
-              <div class="monitor-metrics">
-                <dl class="monitor-facts">
-                  <div class="metric">
-                    <dt>Latency</dt>
-                    <dd>{{ formatLatency(monitor.latencyMs) }}</dd>
-                  </div>
-                  <div class="metric">
-                    <dt>Uptime 24h</dt>
-                    <dd>{{ formatUptime(monitor.uptimePct) }}</dd>
-                  </div>
-                </dl>
-                <Badge :variant="STATUS_META[monitor.status].variant" dot>
-                  {{ STATUS_META[monitor.status].label }}
+        <section
+          v-for="group in visibleGroups"
+          :key="group.name"
+          class="group"
+          :aria-label="group.name"
+        >
+          <h2 v-if="group.name !== ''" class="group-title">{{ group.name }}</h2>
+          <div class="component-list">
+            <article v-for="component in group.components" :key="component.id" class="component">
+              <header class="component-head">
+                <div class="component-identity">
+                  <h3 class="component-label">{{ component.label }}</h3>
+                  <p v-if="component.description !== null" class="component-description">
+                    {{ component.description }}
+                  </p>
+                </div>
+                <Badge :variant="SEVERITY_META[component.status].variant" dot>
+                  {{ SEVERITY_META[component.status].label }}
                 </Badge>
+              </header>
+
+              <ul v-if="component.monitors.length > 0" class="monitor-chips" aria-label="Monitors">
+                <li v-for="monitor in component.monitors" :key="monitor.id" class="monitor-chip">
+                  <span class="chip-dot" :class="`is-${monitor.status}`" aria-hidden="true" />
+                  <span class="chip-name">{{ monitor.name }}</span>
+                  <Badge :variant="HEARTBEAT_META[monitor.status].variant">
+                    {{ HEARTBEAT_META[monitor.status].label }}
+                  </Badge>
+                  <span class="chip-metric">{{ formatLatency(monitor.latencyMs) }}</span>
+                  <span v-if="monitor.type === 'push'" class="chip-metric">
+                    {{
+                      monitor.lastBeatAt === null
+                        ? 'no signal yet'
+                        : `last signal ${relativeTime(monitor.lastBeatAt, now)}`
+                    }}
+                  </span>
+                </li>
+              </ul>
+
+              <div v-if="component.showUptime" class="component-uptime">
+                <div class="uptime-head">
+                  <span class="block-caption">Uptime · 90 days</span>
+                  <strong class="uptime-value">{{ formatUptime(component.uptimePct) }}</strong>
+                </div>
+                <HeartbeatStrip
+                  :cells="stripCells(component)"
+                  :aria-label="`90-day uptime for ${component.label}`"
+                />
               </div>
-            </li>
-          </ul>
+
+              <div v-if="component.showChart" class="component-chart">
+                <span class="block-caption">Response time · 24 h</span>
+                <template v-if="seriesOf(component).length > 0">
+                  <ResponseChart
+                    :points="chartPoints(component)"
+                    :markers="chartMarkers(component)"
+                    :aria-label="`Response time over the last 24 hours for ${component.label}`"
+                  />
+                </template>
+                <p v-else class="chart-empty">No data in the last 24 h.</p>
+              </div>
+            </article>
+          </div>
         </section>
 
         <section
@@ -243,21 +422,84 @@ watch(slug, () => void load())
           class="incidents"
           aria-labelledby="open-incidents-title"
         >
-          <h2 id="open-incidents-title" class="incidents-title">Open incidents</h2>
+          <h2 id="open-incidents-title" class="section-heading">Active incidents</h2>
           <ul class="incident-list">
             <li v-for="incident in page.incidents" :key="incident.id" class="incident">
-              <h3 class="incident-title">{{ incident.title }}</h3>
+              <div class="incident-head">
+                <h3 class="incident-title">{{ incident.title }}</h3>
+                <Badge :variant="INCIDENT_STATUS_META[incident.status].variant" dot>
+                  {{ INCIDENT_STATUS_META[incident.status].label }}
+                </Badge>
+              </div>
               <p class="incident-meta">
-                <span>{{ incident.monitorName }}</span>
-                <span>Opened {{ formatDateTime(incident.openedAt) }}</span>
-                <span>{{ relativeTime(incident.openedAt) }}</span>
+                <span>Impact: {{ IMPACT_META[incident.impact].label }}</span>
+                <span v-if="componentSummary(incident) !== null">
+                  {{ componentSummary(incident) }}
+                </span>
+                <span>Opened {{ formatDateTime(incident.createdAt) }}</span>
+                <span>{{ relativeTime(incident.createdAt, now) }}</span>
               </p>
-              <p v-if="incident.body !== null" class="incident-body">{{ incident.body }}</p>
+              <ol v-if="incident.updates.length > 0" class="timeline">
+                <li v-for="update in incident.updates" :key="update.id" class="timeline-entry">
+                  <div class="timeline-head">
+                    <span class="timeline-status">
+                      {{ INCIDENT_STATUS_META[update.status].label }}
+                    </span>
+                    <span class="timeline-time">{{ formatDateTime(update.createdAt) }}</span>
+                  </div>
+                  <p class="timeline-body">{{ update.body }}</p>
+                </li>
+              </ol>
             </li>
           </ul>
         </section>
 
-        <footer class="status-footer">Powered by Uptime</footer>
+        <section
+          v-if="maintenanceWindows > 0"
+          class="maintenance"
+          aria-labelledby="maintenance-title"
+        >
+          <h2 id="maintenance-title" class="section-heading">Scheduled maintenance</h2>
+          <ul class="maintenance-list">
+            <li v-for="window in page.maintenance.active" :key="window.id" class="maintenance-item">
+              <Badge variant="warning" dot>In progress</Badge>
+              <span class="maintenance-name">{{ window.name }}</span>
+              <span class="maintenance-time">
+                <template v-if="window.startAt !== null">
+                  since {{ formatDateTime(window.startAt) }}
+                </template>
+                <template v-if="window.endAt !== null">
+                  · until {{ formatDateTime(window.endAt) }}
+                </template>
+              </span>
+            </li>
+            <li
+              v-for="window in page.maintenance.upcoming"
+              :key="window.id"
+              class="maintenance-item"
+            >
+              <Badge variant="neutral" dot>Upcoming</Badge>
+              <span class="maintenance-name">{{ window.name }}</span>
+              <span class="maintenance-time">
+                <template v-if="window.startAt !== null">
+                  starts {{ formatDateTime(window.startAt) }}
+                </template>
+                <template v-else>no start time announced</template>
+              </span>
+            </li>
+          </ul>
+        </section>
+
+        <footer class="status-footer">
+          <p v-if="page.footerText !== null" class="footer-text">{{ page.footerText }}</p>
+          <p class="footer-line">
+            <RouterLink :to="{ name: 'status-incidents', params: { slug } }">
+              Incident history
+            </RouterLink>
+            <span aria-hidden="true">·</span>
+            <span>Powered by Uptime</span>
+          </p>
+        </footer>
       </template>
     </main>
   </div>
@@ -375,6 +617,15 @@ watch(slug, () => void load())
   font-size: 13.5px;
 }
 
+.unlock-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 320px;
+  text-align: left;
+}
+
 .status-header {
   display: flex;
   align-items: center;
@@ -434,16 +685,30 @@ watch(slug, () => void load())
   font-weight: 550;
 }
 
-.overall-banner.is-ok {
+.overall-banner.is-operational {
   background-color: var(--success-soft);
   border-color: var(--success);
   color: var(--success);
 }
 
-.overall-banner.is-incident {
+.overall-banner.is-degraded,
+.overall-banner.is-maintenance {
+  background-color: var(--warning-soft);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.overall-banner.is-partial_outage,
+.overall-banner.is-major_outage {
   background-color: var(--error-soft);
   border-color: var(--error);
   color: var(--error);
+}
+
+.overall-banner.is-unknown {
+  background-color: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--muted);
 }
 
 .banner-dot {
@@ -454,110 +719,160 @@ watch(slug, () => void load())
   border-radius: 50%;
 }
 
-.monitor-list {
+.group {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
-.monitor-row {
+.group-title {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.component-list {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2) var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.component {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 
-.monitor-identity {
+.component-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.component-identity {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
 }
 
-.monitor-name {
+.component-label {
   font-size: 14px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-.monitor-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
+.component-description {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
 }
 
-.tag-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.monitor-metrics {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.monitor-facts {
-  display: flex;
-  gap: var(--space-4);
-  margin: 0;
-}
-
-.metric {
+.monitor-chips {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 1px;
-}
-
-.metric dt {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.metric dd {
+  gap: 5px;
   margin: 0;
-  font-size: 13px;
+  padding: 0;
+  list-style: none;
+}
+
+.monitor-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.chip-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--muted);
+}
+
+.chip-dot.is-up {
+  background-color: var(--success);
+}
+
+.chip-dot.is-down {
+  background-color: var(--error);
+}
+
+.chip-dot.is-maintenance {
+  background-color: var(--warning);
+}
+
+.chip-name {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.chip-metric {
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.incidents {
+.component-uptime,
+.component-chart {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.incidents-title {
+.block-caption {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.uptime-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.uptime-value {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-empty {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.incidents,
+.maintenance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.section-heading {
   font-size: 15px;
   font-weight: 650;
 }
 
-.incident-list {
+.incident-list,
+.maintenance-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -566,7 +881,8 @@ watch(slug, () => void load())
   list-style: none;
 }
 
-.incident {
+.incident,
+.maintenance-item {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -577,7 +893,21 @@ watch(slug, () => void load())
   box-shadow: var(--shadow);
 }
 
-.incident-title {
+.maintenance-item {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.incident-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.incident-title,
+.maintenance-name {
   font-size: 14px;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -591,23 +921,74 @@ watch(slug, () => void load())
   font-size: 12px;
 }
 
-.incident-body {
+.maintenance-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+
+.timeline-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.timeline-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.timeline-status {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeline-time {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.timeline-body {
   font-size: 13px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
 .status-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   padding-top: var(--space-2);
   color: var(--muted);
   font-size: 12px;
   text-align: center;
 }
 
-@media (max-width: 560px) {
-  .monitor-metrics {
-    width: 100%;
-    justify-content: space-between;
-  }
+.footer-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.footer-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.footer-line a {
+  color: inherit;
 }
 </style>

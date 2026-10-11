@@ -106,4 +106,10 @@ export class Notifier {
       tags: [],
     })
   }
+
+  /** Send an arbitrary payload through one channel (status-page subscriptions). Throws on failure. */
+  async sendTo(channel: ChannelLike, payload: NotifyPayload): Promise<void> {
+    await this.send(channel.type, channel.config, payload)
+  }
 }
+

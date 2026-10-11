@@ -20,6 +20,9 @@ import {
 import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
 import { realtimeState, subscribeRealtime } from '../realtime.js'
 import type { RealtimeEvent } from '../realtime.js'
+import ResponseChart from '../components/charts/ResponseChart.vue'
+import HeartbeatStrip from '../components/charts/HeartbeatStrip.vue'
+import type { ChartMarker, LatencyPoint, StripCell, StripTone } from '../components/charts/types.js'
 import MonitorForm from '../components/MonitorForm.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
@@ -47,16 +50,6 @@ const UPTIME_RANGES = [
 
 type UptimeRange = (typeof UPTIME_RANGES)[number]
 
-/** Chart geometry shared by the template and the scale helpers. */
-const CHART_WIDTH = 720
-const CHART_HEIGHT = 200
-const CHART_PAD_X = 14
-const CHART_PAD_TOP = 16
-const CHART_PAD_BOTTOM = 34
-const CHART_PLOT_WIDTH = CHART_WIDTH - CHART_PAD_X * 2
-const CHART_PLOT_HEIGHT = CHART_HEIGHT - CHART_PAD_TOP - CHART_PAD_BOTTOM
-const CHART_PLOT_BOTTOM = CHART_HEIGHT - CHART_PAD_BOTTOM
-
 const STATUS_META: Record<
   HeartbeatStatus,
   { label: string; variant: 'success' | 'error' | 'warning' | 'neutral' }
@@ -67,8 +60,6 @@ const STATUS_META: Record<
   maintenance: { label: 'Maintenance', variant: 'warning' },
 }
 
-type StripTone = 'up' | 'down' | 'pending' | 'maintenance' | 'empty'
-
 interface DayBucket {
   date: string
   label: string
@@ -77,22 +68,6 @@ interface DayBucket {
   pending: number
   maintenance: number
   total: number
-}
-
-interface StripCell extends DayBucket {
-  tone: StripTone
-  title: string
-}
-
-interface ChartMarker {
-  x: number
-  status: 'down' | 'maintenance'
-  title: string
-}
-
-interface LatencyPoint {
-  time: number
-  latencyMs: number
 }
 
 const route = useRoute()
@@ -174,44 +149,24 @@ const latencyPoints = computed<LatencyPoint[]>(() =>
     .map((heartbeat) => ({ time: Date.parse(heartbeat.time), latencyMs: heartbeat.latencyMs })),
 )
 
-const chart = computed(() => {
-  const beats = recentHeartbeats.value
-  const times = beats.map((heartbeat) => Date.parse(heartbeat.time))
-  const minTime = times.length === 0 ? null : Math.min(...times)
-  const maxTime = times.length === 0 ? null : Math.max(...times)
-
-  const points = latencyPoints.value
-  const peakLatency =
-    points.length === 0 ? null : Math.max(...points.map((point) => point.latencyMs))
-  // ~10% headroom above the slowest successful check.
-  const yMax = peakLatency === null ? 1 : Math.max(1, peakLatency * 1.1)
-
-  const xAt = (time: number): number => {
-    if (minTime === null || maxTime === null || maxTime === minTime) {
-      return CHART_PAD_X + CHART_PLOT_WIDTH / 2
-    }
-    return CHART_PAD_X + ((time - minTime) / (maxTime - minTime)) * CHART_PLOT_WIDTH
-  }
-
-  const yAt = (latencyMs: number): number =>
-    CHART_PAD_TOP + (1 - latencyMs / yMax) * CHART_PLOT_HEIGHT
-
-  const polyline = points
-    .map((point) => `${xAt(point.time).toFixed(1)},${yAt(point.latencyMs).toFixed(1)}`)
-    .join(' ')
-
-  const markers: ChartMarker[] = beats
+const chartMarkers = computed<ChartMarker[]>(() =>
+  recentHeartbeats.value
     .filter(
       (heartbeat): heartbeat is Heartbeat & { status: 'down' | 'maintenance' } =>
         heartbeat.status === 'down' || heartbeat.status === 'maintenance',
     )
     .map((heartbeat) => ({
-      x: xAt(Date.parse(heartbeat.time)),
+      time: Date.parse(heartbeat.time),
       status: heartbeat.status,
       title: `${formatDateTime(heartbeat.time)} — ${heartbeat.status}`,
-    }))
+    })),
+)
 
-  return { polyline, markers, peakLatency, hasLatency: points.length > 0 }
+/** Domain spans every beat of the window, so pending beats still stretch the axis. */
+const chartDomain = computed<{ min: number; max: number } | null>(() => {
+  const times = recentHeartbeats.value.map((heartbeat) => Date.parse(heartbeat.time))
+  if (times.length === 0) return null
+  return { min: Math.min(...times), max: Math.max(...times) }
 })
 
 /* 90-day heartbeat strip, one cell per local calendar day, oldest first. */
@@ -273,7 +228,7 @@ const dayCells = computed<StripCell[]>(() => {
     else if (bucket.pending > 0) tone = 'pending'
     else if (bucket.maintenance > 0 && bucket.up === 0) tone = 'maintenance'
     else if (bucket.total > 0) tone = 'up'
-    return { ...bucket, tone, title: dayTitle(bucket) }
+    return { key: bucket.date, tone, title: dayTitle(bucket) }
   })
 })
 
@@ -575,44 +530,12 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div class="chart-block">
-            <svg
-              class="chart"
-              :viewBox="`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`"
-              role="img"
-              aria-label="Response time over the last 24 hours"
-            >
-              <line
-                class="chart-baseline"
-                :x1="CHART_PAD_X"
-                :y1="CHART_PLOT_BOTTOM"
-                :x2="CHART_WIDTH - CHART_PAD_X"
-                :y2="CHART_PLOT_BOTTOM"
-              />
-              <polyline v-if="chart.polyline !== ''" class="chart-line" :points="chart.polyline" />
-              <g v-for="(marker, index) in chart.markers" :key="index">
-                <line
-                  class="chart-marker"
-                  :class="`marker-${marker.status}`"
-                  :x1="marker.x"
-                  :y1="CHART_PLOT_BOTTOM"
-                  :x2="marker.x"
-                  :y2="CHART_PLOT_BOTTOM + 10"
-                >
-                  <title>{{ marker.title }}</title>
-                </line>
-              </g>
-            </svg>
-            <div class="chart-caption">
-              <span>Max {{ formatLatency(chart.peakLatency) }}</span>
-              <span>24h ago</span>
-              <span>now</span>
-            </div>
-          </div>
-
-          <p v-if="!chart.hasLatency" class="chart-note">
-            No successful checks in the last 24 hours.
-          </p>
+          <ResponseChart
+            :points="latencyPoints"
+            :markers="chartMarkers"
+            :domain="chartDomain"
+            aria-label="Response time over the last 24 hours"
+          />
         </section>
 
         <section class="panel section" aria-label="Heartbeat history">
@@ -620,19 +543,7 @@ onUnmounted(() => {
             <h2 class="section-title">Heartbeat history</h2>
             <span class="section-note">Last 90 days</span>
           </div>
-          <div class="strip" role="img" aria-label="90-day heartbeat history">
-            <span
-              v-for="cell in dayCells"
-              :key="cell.date"
-              class="strip-cell"
-              :class="`tone-${cell.tone}`"
-              :title="cell.title"
-            />
-          </div>
-          <div class="strip-caption">
-            <span>90 days ago</span>
-            <span>Today</span>
-          </div>
+          <HeartbeatStrip :cells="dayCells" aria-label="90-day heartbeat history" />
         </section>
 
         <section class="panel" aria-label="Incidents">
@@ -933,99 +844,6 @@ onUnmounted(() => {
 .range-chip strong {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-.chart-block {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.chart {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.chart-baseline {
-  stroke: var(--border);
-  stroke-width: 1;
-}
-
-.chart-line {
-  fill: none;
-  stroke: var(--accent);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.5;
-}
-
-.chart-marker {
-  stroke-linecap: round;
-  stroke-width: 2;
-}
-
-.marker-down {
-  stroke: var(--error);
-}
-
-.marker-maintenance {
-  stroke: var(--muted);
-}
-
-.chart-caption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.chart-note {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
-.strip {
-  display: flex;
-  gap: 2px;
-}
-
-.strip-cell {
-  flex: 1;
-  height: 26px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
-.tone-up {
-  background-color: var(--success);
-  border-color: transparent;
-}
-
-.tone-down {
-  background-color: var(--error);
-  border-color: transparent;
-}
-
-.tone-pending {
-  background-color: var(--warning);
-  border-color: transparent;
-}
-
-.tone-maintenance {
-  background-color: var(--muted);
-  border-color: transparent;
-}
-
-.strip-caption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .cell-stack {

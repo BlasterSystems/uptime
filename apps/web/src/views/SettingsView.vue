@@ -38,6 +38,8 @@ import { formatDateTime } from '../format.js'
 import DockerHostForm from '../components/DockerHostForm.vue'
 import MaintenanceWindowForm from '../components/MaintenanceWindowForm.vue'
 import StatusPageForm from '../components/StatusPageForm.vue'
+import StatusIncidentsPanel from '../components/StatusIncidentsPanel.vue'
+import StatusSubscriptionsPanel from '../components/StatusSubscriptionsPanel.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import Card from '../components/ui/Card.vue'
@@ -66,6 +68,8 @@ const TABS = [
   { id: 'security', label: 'Security' },
   { id: 'api-keys', label: 'API keys' },
   { id: 'status-pages', label: 'Status pages' },
+  { id: 'status-incidents', label: 'Status incidents' },
+  { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'maintenance', label: 'Maintenance' },
   { id: 'docker-hosts', label: 'Docker hosts' },
   { id: 'general', label: 'General' },
@@ -818,6 +822,30 @@ onMounted(() => {
             </template>
           </Table>
         </Card>
+      </template>
+
+      <template #tab-status-incidents>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can manage status incidents."
+        >
+          <template #icon><Icon name="settings" :size="18" /></template>
+        </EmptyState>
+
+        <StatusIncidentsPanel v-else />
+      </template>
+
+      <template #tab-subscriptions>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can manage status page subscriptions."
+        >
+          <template #icon><Icon name="settings" :size="18" /></template>
+        </EmptyState>
+
+        <StatusSubscriptionsPanel v-else />
       </template>
 
       <template #tab-maintenance>

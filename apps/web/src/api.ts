@@ -116,6 +116,41 @@ export interface StatusPageTheme {
   dark?: StatusPageDark
 }
 
+/** How one component combines the statuses of its monitors. */
+export type StatusAggregation = 'worst' | 'any'
+
+/**
+ * One tracked unit on a status page. Its monitors are the asynchronous
+ * processes that share the unit (a web app and its worker, a push pulse, …).
+ * Shape validated by `parseStatusPageStructure` in `@uptime/core`.
+ */
+export interface StatusPageComponent {
+  /** Stable slug (`^[a-z0-9-]{1,60}$`), generated from the label; used by incidents. */
+  id: string
+  label: string
+  /** Omitted when empty; the API rejects an explicit `null`. */
+  description?: string
+  monitorIds: number[]
+  aggregation: StatusAggregation
+  /** Per-component degraded threshold; omit to fall back to the page value. */
+  degradedLatencyMs?: number
+  showUptime: boolean
+  showChart: boolean
+}
+
+export interface StatusPageGroup {
+  name: string
+  components: StatusPageComponent[]
+}
+
+/** The `structure` JSON of a status page; `null` for pages without components. */
+export interface StatusPageStructure {
+  groups: StatusPageGroup[]
+  /** Page-level degraded threshold; omitted when unset. */
+  degradedLatencyMs?: number
+  autoPublish?: boolean
+}
+
 export interface StatusPage {
   id: number
   slug: string
@@ -124,6 +159,11 @@ export interface StatusPage {
   published: boolean
   monitorIds: number[]
   theme: StatusPageTheme | null
+  /** Normalized structure; `{}`-equivalent (no groups) for pages never given one. */
+  structure: StatusPageStructure | null
+  footerText: string | null
+  /** Whether a public password is set; the hash itself never leaves the server. */
+  hasPassword: boolean
 }
 
 /** Body of `POST /status-pages` / `PATCH /status-pages/:id`. */
@@ -134,25 +174,102 @@ export interface StatusPageInput {
   published?: boolean
   monitorIds?: number[]
   theme?: StatusPageTheme | null
+  /** Carries the page threshold and auto-publish flag inside the structure. */
+  structure?: StatusPageStructure | null
+  footerText?: string | null
+  /** Plain password to set (`null` clears it); the server stores a hash. */
+  password?: string | null
+}
+
+/** Overall and per-component severity, worst first. */
+export type StatusSeverity =
+  'operational' | 'degraded' | 'partial_outage' | 'major_outage' | 'maintenance' | 'unknown'
+
+export type StatusIncidentStatus = 'investigating' | 'identified' | 'monitoring' | 'resolved'
+export type StatusIncidentImpact = 'none' | 'minor' | 'major' | 'critical'
+export type StatusIncidentSource = 'auto' | 'manual'
+
+export interface StatusIncidentUpdate {
+  id: number
+  status: StatusIncidentStatus
+  body: string
+  createdAt: string
+}
+
+/**
+ * A status incident as served by both the admin endpoints and the public page
+ * (`GET /status-pages/:id/incidents`, `GET /status/:slug`, `…/incidents`).
+ */
+export interface StatusIncident {
+  id: number
+  title: string
+  status: StatusIncidentStatus
+  impact: StatusIncidentImpact
+  /** Component ids within the page structure. */
+  componentIds: string[]
+  source: StatusIncidentSource
+  createdAt: string
+  resolvedAt: string | null
+  /** Oldest first. */
+  updates: StatusIncidentUpdate[]
 }
 
 /** Shape served by the unauthenticated `GET /status/:slug`. */
 export interface PublicStatusMonitor {
   id: number
   name: string
+  type: MonitorType
   status: HeartbeatStatus
   latencyMs: number | null
-  uptimePct: number
-  tags: Tag[]
+  lastBeatAt: string | null
 }
 
-export interface PublicStatusIncident {
+/** One heartbeat of a charted component; `latencyMs === null` marks a down beat. */
+export interface PublicStatusSeriesPoint {
+  /** ISO timestamp. */
+  t: string
+  latencyMs: number | null
+}
+
+export interface PublicStatusDaily {
+  date: string
+  uptimePct: number
+  total: number
+  down: number
+  maintenance: number
+}
+
+export interface PublicStatusComponent {
+  id: string
+  label: string
+  description: string | null
+  status: StatusSeverity
+  showUptime: boolean
+  showChart: boolean
+  monitors: PublicStatusMonitor[]
+  uptimePct: number
+  /** Oldest first, one entry per local calendar day. */
+  daily: PublicStatusDaily[]
+  /** Present only for `showChart` components: heartbeats of the last 24 h. */
+  series?: PublicStatusSeriesPoint[]
+}
+
+export interface PublicStatusGroup {
+  name: string
+  components: PublicStatusComponent[]
+}
+
+/** A maintenance window of a page's components, as shown publicly. */
+export interface PublicStatusMaintenanceWindow {
   id: number
-  monitorId: number
-  monitorName: string
-  openedAt: string
-  title: string
-  body: string | null
+  name: string
+  startAt: string | null
+  endAt: string | null
+}
+
+export interface PublicStatusMaintenance {
+  active: PublicStatusMaintenanceWindow[]
+  upcoming: PublicStatusMaintenanceWindow[]
 }
 
 export interface PublicStatusPage {
@@ -160,8 +277,64 @@ export interface PublicStatusPage {
   title: string
   logo: string | null
   theme: StatusPageTheme | null
-  monitors: PublicStatusMonitor[]
-  incidents: PublicStatusIncident[]
+  footerText: string | null
+  overall: StatusSeverity
+  degradedLatencyMs: number | null
+  groups: PublicStatusGroup[]
+  /** Active incidents only. */
+  incidents: StatusIncident[]
+  maintenance: PublicStatusMaintenance
+  passwordRequired: boolean
+}
+
+/** Body of `POST /status-pages/:id/incidents` (manual incident + first update). */
+export interface StatusIncidentInput {
+  title: string
+  impact: StatusIncidentImpact
+  componentIds: string[]
+  /** Becomes the incident's first update; defaults to the title when omitted. */
+  body?: string
+}
+
+/** Body of `POST /status-incidents/:id/updates`; `resolved` closes the incident. */
+export interface StatusIncidentUpdateInput {
+  status: StatusIncidentStatus
+  body: string
+}
+
+/** Body of `PATCH /status-incidents/:id` (field edits; narrative goes in updates). */
+export interface StatusIncidentPatch {
+  title?: string
+  impact?: StatusIncidentImpact
+  componentIds?: string[]
+}
+
+export type StatusSubscriptionEvent =
+  | 'incident_open'
+  | 'incident_update'
+  | 'incident_resolved'
+  | 'maintenance_start'
+  | 'maintenance_end'
+
+/** A notification channel subscribed to a page's incidents and maintenance. */
+export interface StatusSubscription {
+  id: number
+  pageId: number
+  channelId: number
+  /** Channel name/type as resolved by the server; null when the channel is gone. */
+  channelName: string | null
+  channelType: ChannelType | null
+  /** Empty means the whole page. */
+  componentIds: string[]
+  events: StatusSubscriptionEvent[]
+  createdAt: string
+}
+
+/** Body of `POST /status-pages/:id/subscriptions`. */
+export interface StatusSubscriptionInput {
+  channelId: number
+  componentIds: string[]
+  events: StatusSubscriptionEvent[]
 }
 
 export type MaintenanceScope = 'all' | 'ids' | 'tags'
@@ -743,6 +916,95 @@ export function fetchPublicStatus(slug: string): Promise<PublicStatusPage> {
       allowUnauthenticated: true,
     },
   )
+}
+
+/** Exchanges the page password for the unlock cookie; rejects with 401 when wrong. */
+export function unlockStatusPage(slug: string, password: string): Promise<void> {
+  return request(
+    `/status/${encodeURIComponent(slug)}/unlock`,
+    { method: 'POST', body: JSON.stringify({ password }) },
+    { allowUnauthenticated: true },
+  )
+}
+
+/** Incident archive for a page: newest first, resolved incidents included. */
+export async function fetchPublicStatusIncidents(slug: string): Promise<StatusIncident[]> {
+  const body = await request<{ incidents?: StatusIncident[] }>(
+    `/status/${encodeURIComponent(slug)}/incidents`,
+    {},
+    { allowUnauthenticated: true },
+  )
+  return body.incidents ?? []
+}
+
+/* Status incidents (admin) */
+
+export async function fetchStatusIncidents(pageId: number): Promise<StatusIncident[]> {
+  const body = await request<{ incidents?: StatusIncident[] }>(
+    `/status-pages/${encodeURIComponent(String(pageId))}/incidents`,
+  )
+  return body.incidents ?? []
+}
+
+/** Opens a manual incident; `body` becomes its first update. */
+export async function createStatusIncident(
+  pageId: number,
+  input: StatusIncidentInput,
+): Promise<void> {
+  await request(`/status-pages/${encodeURIComponent(String(pageId))}/incidents`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function addStatusIncidentUpdate(
+  incidentId: number,
+  input: StatusIncidentUpdateInput,
+): Promise<void> {
+  await request(`/status-incidents/${encodeURIComponent(String(incidentId))}/updates`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function updateStatusIncident(
+  incidentId: number,
+  input: StatusIncidentPatch,
+): Promise<void> {
+  await request(`/status-incidents/${encodeURIComponent(String(incidentId))}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+/* Status subscriptions (admin) */
+
+export async function fetchStatusSubscriptions(pageId: number): Promise<StatusSubscription[]> {
+  const body = await request<{ subscriptions?: StatusSubscription[] }>(
+    `/status-pages/${encodeURIComponent(String(pageId))}/subscriptions`,
+  )
+  return body.subscriptions ?? []
+}
+
+export async function createStatusSubscription(
+  pageId: number,
+  input: StatusSubscriptionInput,
+): Promise<void> {
+  await request(`/status-pages/${encodeURIComponent(String(pageId))}/subscriptions`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteStatusSubscription(id: number): Promise<void> {
+  return request(`/status-subscriptions/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+}
+
+/** Sends a test notification through the subscription's channel. */
+export function testStatusSubscription(id: number): Promise<void> {
+  return request(`/status-subscriptions/${encodeURIComponent(String(id))}/test`, {
+    method: 'POST',
+  })
 }
 
 /* Maintenance windows (admin) */

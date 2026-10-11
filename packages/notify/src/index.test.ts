@@ -216,3 +216,32 @@ describe('Notifier.testChannel', () => {
     await expect(failing.testChannel(makeChannel(5))).rejects.toThrow('channel rejected the test')
   })
 })
+
+describe('Notifier.sendTo', () => {
+  it('delivers the given payload to exactly one channel and propagates failures', async () => {
+    const { calls, send } = makeRecorder()
+    const notifier = new Notifier(makeOptions({ send }))
+    const payload = {
+      title: 'Acme: API unavailable',
+      body: 'monitor down',
+      monitorName: 'Acme Status',
+      status: 'down' as const,
+      latencyMs: null,
+      downtimeMs: null,
+      tags: ['status-page', 'incident_open'],
+    }
+    await notifier.sendTo(makeChannel(9, { type: 'slack', name: 'war room' }), payload)
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.type).toBe('slack')
+    expect(calls[0]?.payload).toEqual(payload)
+
+    const failing = new Notifier(
+      makeOptions({
+        send: async () => {
+          throw new Error('webhook 500')
+        },
+      }),
+    )
+    await expect(failing.sendTo(makeChannel(9), payload)).rejects.toThrow('webhook 500')
+  })
+})

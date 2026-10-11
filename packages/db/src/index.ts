@@ -41,12 +41,18 @@ import {
   pushTokens,
   sessions,
   settings,
+  statusIncidentUpdates,
+  statusIncidents,
   statusPages,
+  statusSubscriptions,
   tags,
   users,
   type HeartbeatStatus,
   type MaintenanceScope,
   type MaintenanceStrategy,
+  type StatusIncidentImpact,
+  type StatusIncidentSource,
+  type StatusIncidentStatus,
   type UserRole,
 } from './schema.js'
 
@@ -155,6 +161,13 @@ export interface TagRow {
   createdAt: Date
 }
 
+/**
+ * `status_pages.structure` as carried by the repo: on writes, either the JSON
+ * text the API layer validated or a plain object; on reads, the parsed tree.
+ * The shape is validated by `@uptime/core`, so it stays `unknown` here.
+ */
+export type StatusPageStructureRaw = unknown
+
 export interface StatusPageRow {
   id: number
   slug: string
@@ -163,6 +176,15 @@ export interface StatusPageRow {
   published: boolean
   monitorIds: number[]
   theme: Record<string, unknown> | null
+  structure: StatusPageStructureRaw
+  footerText: string | null
+  /** Whether an unlock password is set. */
+  hasPassword: boolean
+  /**
+   * The stored argon2 hash — internal only, for the unlock route's verification;
+   * the API layer omits it (and {@link hasPassword}) from client payloads.
+   */
+  passwordHash: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -174,6 +196,68 @@ export interface NewStatusPage {
   published?: boolean
   monitorIds?: number[]
   theme?: Record<string, unknown> | null
+  /** Component tree — validated JSON text or a plain object; stored as text. */
+  structure?: StatusPageStructureRaw
+  footerText?: string | null
+  passwordHash?: string | null
+}
+
+export interface StatusIncidentRow {
+  id: number
+  pageId: number
+  title: string
+  status: StatusIncidentStatus
+  impact: StatusIncidentImpact
+  /** Component ids the incident affects, `[]` for the whole page. */
+  componentIds: string[]
+  source: StatusIncidentSource
+  /** The monitor whose incident auto-opened this one; `null` for manual entries. */
+  monitorId: number | null
+  createdAt: Date
+  updatedAt: Date
+  /** Set when `status` became `'resolved'`; `null` while the incident is open. */
+  resolvedAt: Date | null
+}
+
+export interface StatusIncidentUpdateRow {
+  id: number
+  incidentId: number
+  status: StatusIncidentStatus
+  body: string
+  createdAt: Date
+}
+
+/** An incident with its public timeline, oldest update first. */
+export interface StatusIncidentDetail extends StatusIncidentRow {
+  updates: StatusIncidentUpdateRow[]
+}
+
+export interface StatusSubscriptionRow {
+  id: number
+  pageId: number
+  channelId: number
+  /** Component ids this subscriber follows; `[]` means the whole page. */
+  componentIds: string[]
+  /** Subscribed event names — a subset of `STATUS_SUBSCRIPTION_EVENTS`. */
+  events: string[]
+  createdAt: Date
+}
+
+/** A subscription row plus the notification channel that delivers it. */
+export interface StatusSubscriptionWithChannel extends StatusSubscriptionRow {
+  channel: ChannelRow
+}
+
+/** One UTC day of availability as rendered by the uptime bars. */
+export interface DailyUptime {
+  /** `YYYY-MM-DD`, UTC. */
+  date: string
+  /** `up / (up + down)` in percent; maintenance is excluded, 100 with nothing decisive. */
+  uptimePct: number
+  /** Every beat of the day (`pending` included); 0 for days with no data. */
+  total: number
+  down: number
+  maintenance: number
 }
 
 export interface MaintenanceWindowRow {
@@ -282,6 +366,8 @@ function toDockerHostRow(row: DockerHostSelect): DockerHostRow {
 
 type ApiKeySelect = typeof apiKeys.$inferSelect
 type StatusPageSelect = typeof statusPages.$inferSelect
+type StatusIncidentSelect = typeof statusIncidents.$inferSelect
+type StatusSubscriptionSelect = typeof statusSubscriptions.$inferSelect
 type MaintenanceWindowSelect = typeof maintenanceWindows.$inferSelect
 
 /** `scopes` is stored as a JSON array and parsed back at the boundary. */
@@ -308,12 +394,47 @@ function toMonitorRow(row: MonitorSelect): MonitorRow {
   }
 }
 
-/** JSON id arrays are stored as text and parsed back at the boundary. */
+/**
+ * JSON fields are stored as text and parsed back at the boundary. The password
+ * hash is returned alongside its derived `hasPassword` flag — the API layer,
+ * not this mapper, decides what leaves the server.
+ */
 function toStatusPageRow(row: StatusPageSelect): StatusPageRow {
   return {
-    ...row,
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    logo: row.logo,
+    published: row.published,
     monitorIds: JSON.parse(row.monitorIds) as number[],
     theme: row.theme === null ? null : (JSON.parse(row.theme) as Record<string, unknown>),
+    structure: JSON.parse(row.structure) as StatusPageStructureRaw,
+    footerText: row.footerText,
+    hasPassword: row.passwordHash !== null,
+    passwordHash: row.passwordHash,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
+
+/**
+ * `structure` reaches the repo either as the JSON text the API layer validated
+ * or as a plain object; it is stored as JSON text either way.
+ */
+function structureJson(value: StatusPageStructureRaw): string {
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
+/** `component_ids` is a JSON array of component ids, parsed back at the boundary. */
+function toStatusIncidentRow(row: StatusIncidentSelect): StatusIncidentRow {
+  return { ...row, componentIds: JSON.parse(row.componentIds) as string[] }
+}
+
+function toStatusSubscriptionRow(row: StatusSubscriptionSelect): StatusSubscriptionRow {
+  return {
+    ...row,
+    componentIds: JSON.parse(row.componentIds) as string[],
+    events: JSON.parse(row.events) as string[],
   }
 }
 
@@ -453,7 +574,7 @@ export class Database {
   insertHeartbeat(input: {
     monitorId: number
     status: HeartbeatStatus
-    latencyMs?: number
+    latencyMs?: number | null
     responseSnippet?: string
     time?: Date
   }): HeartbeatRow {
@@ -1016,6 +1137,12 @@ export class Database {
         monitorIds: JSON.stringify(input.monitorIds ?? []),
         theme:
           input.theme === undefined || input.theme === null ? null : JSON.stringify(input.theme),
+        structure:
+          input.structure === undefined || input.structure === null
+            ? '{}'
+            : structureJson(input.structure),
+        footerText: input.footerText ?? null,
+        passwordHash: input.passwordHash ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -1046,7 +1173,12 @@ export class Database {
     return row === undefined ? null : toStatusPageRow(row)
   }
 
-  /** `null` and `undefined` clear `logo`/`theme`; the other patches replace wholesale. */
+  /**
+   * Patches replace wholesale and `null` clears the optional fields: `logo`,
+   * `theme`, `footerText` and `passwordHash` go to `null`, `structure` back to
+   * `{}`. The password hash is stored exactly as given — hashing is the
+   * caller's job.
+   */
   updateStatusPage(id: number, patch: Partial<NewStatusPage>): StatusPageRow | null {
     const values: Partial<typeof statusPages.$inferInsert> = { updatedAt: new Date() }
     if (patch.slug !== undefined) values.slug = patch.slug
@@ -1057,6 +1189,11 @@ export class Database {
     if (patch.theme !== undefined) {
       values.theme = patch.theme === null ? null : JSON.stringify(patch.theme)
     }
+    if (patch.structure !== undefined) {
+      values.structure = patch.structure === null ? '{}' : structureJson(patch.structure)
+    }
+    if (patch.footerText !== undefined) values.footerText = patch.footerText
+    if (patch.passwordHash !== undefined) values.passwordHash = patch.passwordHash
 
     const row = this.#db
       .update(statusPages)
@@ -1069,6 +1206,262 @@ export class Database {
 
   deleteStatusPage(id: number): boolean {
     return this.#db.delete(statusPages).where(eq(statusPages.id, id)).run().changes > 0
+  }
+
+  // Status incidents
+
+  /**
+   * Creates the incident and its first timeline entry (`status`, body = title)
+   * in one transaction. Auto-linked incidents pass `source: 'auto'` plus the
+   * triggering `monitorId`; manual ones default to `investigating`/`major`.
+   */
+  createStatusIncident(input: {
+    pageId: number
+    title: string
+    status?: StatusIncidentStatus
+    impact?: StatusIncidentImpact
+    componentIds?: string[]
+    source?: StatusIncidentSource
+    monitorId?: number | null
+  }): StatusIncidentRow {
+    const now = new Date()
+    return this.#db.transaction((tx) => {
+      const row = tx
+        .insert(statusIncidents)
+        .values({
+          pageId: input.pageId,
+          title: input.title,
+          status: input.status ?? 'investigating',
+          impact: input.impact ?? 'major',
+          componentIds: JSON.stringify(input.componentIds ?? []),
+          source: input.source ?? 'manual',
+          monitorId: input.monitorId ?? null,
+          createdAt: now,
+          updatedAt: now,
+          resolvedAt: null,
+        })
+        .returning()
+        .all()[0]
+      if (row === undefined) {
+        throw new Error('createStatusIncident: insert returned no row')
+      }
+      tx.insert(statusIncidentUpdates)
+        .values({ incidentId: row.id, status: row.status, body: row.title, createdAt: now })
+        .run()
+      return toStatusIncidentRow(row)
+    })
+  }
+
+  /**
+   * Appends a timeline entry and moves the incident to `status` in one
+   * transaction: `resolved` stamps `resolvedAt`, any other status clears it.
+   * Unknown incidents return `null` without writing anything.
+   */
+  addStatusIncidentUpdate(
+    incidentId: number,
+    update: { status: StatusIncidentStatus; body: string },
+  ): StatusIncidentDetail | null {
+    const now = new Date()
+    const found = this.#db.transaction((tx) => {
+      const existing = tx
+        .select({ id: statusIncidents.id })
+        .from(statusIncidents)
+        .where(eq(statusIncidents.id, incidentId))
+        .get()
+      if (existing === undefined) return false
+      tx.update(statusIncidents)
+        .set({
+          status: update.status,
+          updatedAt: now,
+          resolvedAt: update.status === 'resolved' ? now : null,
+        })
+        .where(eq(statusIncidents.id, incidentId))
+        .run()
+      tx.insert(statusIncidentUpdates)
+        .values({ incidentId, status: update.status, body: update.body, createdAt: now })
+        .run()
+      return true
+    })
+    return found ? this.getStatusIncident(incidentId) : null
+  }
+
+  /** The incident plus its timeline (oldest first); `null` when it does not exist. */
+  getStatusIncident(id: number): StatusIncidentDetail | null {
+    const row = this.#db.select().from(statusIncidents).where(eq(statusIncidents.id, id)).get()
+    if (row === undefined) return null
+    const updates: StatusIncidentUpdateRow[] = this.#db
+      .select()
+      .from(statusIncidentUpdates)
+      .where(eq(statusIncidentUpdates.incidentId, id))
+      .orderBy(asc(statusIncidentUpdates.createdAt), asc(statusIncidentUpdates.id))
+      .all()
+    return { ...toStatusIncidentRow(row), updates }
+  }
+
+  /** Newest first; `active` narrows to open (`true`) or resolved (`false`) incidents. */
+  listStatusIncidents(
+    opts: { pageId?: number; active?: boolean; limit?: number } = {},
+  ): StatusIncidentRow[] {
+    return this.#db
+      .select()
+      .from(statusIncidents)
+      .where(
+        and(
+          opts.pageId !== undefined ? eq(statusIncidents.pageId, opts.pageId) : undefined,
+          opts.active === true ? isNull(statusIncidents.resolvedAt) : undefined,
+          opts.active === false ? isNotNull(statusIncidents.resolvedAt) : undefined,
+        ),
+      )
+      .orderBy(desc(statusIncidents.createdAt), desc(statusIncidents.id))
+      .limit(opts.limit ?? 50)
+      .all()
+      .map(toStatusIncidentRow)
+  }
+
+  /**
+   * Field-only edit — title, impact and component ids plus `updatedAt`; it
+   * never writes a timeline entry (use {@link addStatusIncidentUpdate} for
+   * narrative changes).
+   */
+  updateStatusIncident(
+    id: number,
+    patch: Partial<{ title: string; impact: StatusIncidentImpact; componentIds: string[] }>,
+  ): StatusIncidentRow | null {
+    const values: Partial<typeof statusIncidents.$inferInsert> = { updatedAt: new Date() }
+    if (patch.title !== undefined) values.title = patch.title
+    if (patch.impact !== undefined) values.impact = patch.impact
+    if (patch.componentIds !== undefined) values.componentIds = JSON.stringify(patch.componentIds)
+
+    const row = this.#db
+      .update(statusIncidents)
+      .set(values)
+      .where(eq(statusIncidents.id, id))
+      .returning()
+      .all()[0]
+    return row === undefined ? null : toStatusIncidentRow(row)
+  }
+
+  /** The monitor's open auto incident on a page, newest first when duplicated. */
+  getOpenStatusIncidentForMonitor(pageId: number, monitorId: number): StatusIncidentRow | null {
+    const row = this.#db
+      .select()
+      .from(statusIncidents)
+      .where(
+        and(
+          eq(statusIncidents.pageId, pageId),
+          eq(statusIncidents.monitorId, monitorId),
+          eq(statusIncidents.source, 'auto'),
+          isNull(statusIncidents.resolvedAt),
+        ),
+      )
+      .orderBy(desc(statusIncidents.createdAt), desc(statusIncidents.id))
+      .get()
+    return row === undefined ? null : toStatusIncidentRow(row)
+  }
+
+  /**
+   * Closes every open auto incident of a monitor with a `resolved` timeline
+   * entry carrying `body` — the monitor recovered. Returns how many incidents
+   * were resolved; manual incidents and other monitors are left untouched.
+   */
+  resolveOpenStatusIncidentsForMonitor(pageId: number, monitorId: number, body: string): number {
+    const now = new Date()
+    return this.#db.transaction((tx) => {
+      const open = tx
+        .select({ id: statusIncidents.id })
+        .from(statusIncidents)
+        .where(
+          and(
+            eq(statusIncidents.pageId, pageId),
+            eq(statusIncidents.monitorId, monitorId),
+            eq(statusIncidents.source, 'auto'),
+            isNull(statusIncidents.resolvedAt),
+          ),
+        )
+        .all()
+      for (const { id } of open) {
+        tx.update(statusIncidents)
+          .set({ status: 'resolved', updatedAt: now, resolvedAt: now })
+          .where(eq(statusIncidents.id, id))
+          .run()
+        tx.insert(statusIncidentUpdates)
+          .values({ incidentId: id, status: 'resolved', body, createdAt: now })
+          .run()
+      }
+      return open.length
+    })
+  }
+
+  // Status-page subscriptions
+
+  /** A duplicate `(pageId, channelId)` pair throws (unique index). */
+  createStatusSubscription(input: {
+    pageId: number
+    channelId: number
+    componentIds?: string[]
+    events?: string[]
+  }): StatusSubscriptionRow {
+    const row = this.#db
+      .insert(statusSubscriptions)
+      .values({
+        pageId: input.pageId,
+        channelId: input.channelId,
+        componentIds: JSON.stringify(input.componentIds ?? []),
+        events: JSON.stringify(input.events ?? []),
+        createdAt: new Date(),
+      })
+      .returning()
+      .all()[0]
+    if (row === undefined) {
+      throw new Error('createStatusSubscription: insert returned no row')
+    }
+    return toStatusSubscriptionRow(row)
+  }
+
+  /** The page's subscribers, oldest first — the admin list. */
+  listStatusSubscriptions(pageId: number): StatusSubscriptionRow[] {
+    return this.#db
+      .select()
+      .from(statusSubscriptions)
+      .where(eq(statusSubscriptions.pageId, pageId))
+      .orderBy(asc(statusSubscriptions.id))
+      .all()
+      .map(toStatusSubscriptionRow)
+  }
+
+  /**
+   * The admin list joined with each subscriber's notification channel — what a
+   * notifier iterates when an incident or maintenance event fires, without a
+   * per-row `getChannel`. Subscriptions whose channel vanished are gone with it
+   * (cascade); disabled channels still appear, flagged by `channel.active`.
+   */
+  listSubscriptionsForPage(pageId: number): StatusSubscriptionWithChannel[] {
+    return this.#db
+      .select({ subscription: statusSubscriptions, channel: notificationChannels })
+      .from(statusSubscriptions)
+      .innerJoin(notificationChannels, eq(notificationChannels.id, statusSubscriptions.channelId))
+      .where(eq(statusSubscriptions.pageId, pageId))
+      .orderBy(asc(statusSubscriptions.id))
+      .all()
+      .map((row) => ({
+        ...toStatusSubscriptionRow(row.subscription),
+        channel: row.channel,
+      }))
+  }
+
+  getStatusSubscription(id: number): StatusSubscriptionRow | null {
+    const row = this.#db
+      .select()
+      .from(statusSubscriptions)
+      .where(eq(statusSubscriptions.id, id))
+      .get()
+    return row === undefined ? null : toStatusSubscriptionRow(row)
+  }
+
+  deleteStatusSubscription(id: number): boolean {
+    return (
+      this.#db.delete(statusSubscriptions).where(eq(statusSubscriptions.id, id)).run().changes > 0
+    )
   }
 
   // Maintenance windows
@@ -1311,6 +1704,75 @@ export class Database {
       maintenance: Number(counters?.maintenance ?? 0),
       uptimePct: decisive === 0 ? 100 : (up / decisive) * 100,
     }
+  }
+
+  /**
+   * Per-day availability for the trailing `days` UTC days, oldest first and
+   * always `days` entries long. Days that are over come from the
+   * `heartbeats_daily` rollups; the current (partial) day is counted from raw
+   * heartbeats, which the rollups have yet to aggregate — reading both would
+   * double-count. Days without data read as 100 % over 0 beats, and `uptimePct`
+   * is `up / (up + down)`, so maintenance never lowers it.
+   */
+  getDailyUptime(monitorId: number, days = 90): DailyUptime[] {
+    if (days <= 0) return []
+    const dayMs = 86_400_000
+    const todayStart = Math.floor(Date.now() / dayMs) * dayMs
+    const firstDay = todayStart - (days - 1) * dayMs
+
+    const rollups = new Map(
+      this.#db
+        .select()
+        .from(heartbeatsDaily)
+        .where(
+          and(
+            eq(heartbeatsDaily.monitorId, monitorId),
+            gte(heartbeatsDaily.dayBucket, firstDay),
+            lt(heartbeatsDaily.dayBucket, todayStart),
+          ),
+        )
+        .all()
+        .map((row) => [row.dayBucket, row]),
+    )
+    const today = this.#db
+      .select({
+        up: sql<number>`sum(case when ${heartbeats.status} = 'up' then 1 else 0 end)`,
+        down: sql<number>`sum(case when ${heartbeats.status} = 'down' then 1 else 0 end)`,
+        maintenance: sql<number>`sum(case when ${heartbeats.status} = 'maintenance' then 1 else 0 end)`,
+        total: count(),
+      })
+      .from(heartbeats)
+      .where(and(eq(heartbeats.monitorId, monitorId), gte(heartbeats.time, new Date(todayStart))))
+      .get()
+
+    const series: DailyUptime[] = []
+    for (let index = 0; index < days; index += 1) {
+      const bucket = firstDay + index * dayMs
+      const rollup = rollups.get(bucket)
+      const counters =
+        bucket === todayStart
+          ? {
+              up: Number(today?.up ?? 0),
+              down: Number(today?.down ?? 0),
+              maintenance: Number(today?.maintenance ?? 0),
+              total: Number(today?.total ?? 0),
+            }
+          : {
+              up: rollup?.up ?? 0,
+              down: rollup?.down ?? 0,
+              maintenance: rollup?.maintenance ?? 0,
+              total: rollup?.count ?? 0,
+            }
+      const decisive = counters.up + counters.down
+      series.push({
+        date: new Date(bucket).toISOString().slice(0, 10),
+        uptimePct: decisive === 0 ? 100 : (counters.up / decisive) * 100,
+        total: counters.total,
+        down: counters.down,
+        maintenance: counters.maintenance,
+      })
+    }
+    return series
   }
 
   /** Oldest first; `since` is inclusive and `limit` caps the batch for streaming reads. */

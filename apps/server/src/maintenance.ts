@@ -27,6 +27,11 @@ function inTimeSpan(nowMs: number, start: string, end: string): boolean {
   return s <= e ? t >= s && t < e : t >= s || t < e
 }
 
+export interface MaintenanceListing {
+  active: MaintenanceWindowRow[]
+  upcoming: MaintenanceWindowRow[]
+}
+
 /**
  * Evaluates maintenance windows (SPEC §4/§11). All comparisons are UTC unless a
  * cron window specifies cron_tz (Croner evaluates those in-zone).
@@ -38,11 +43,74 @@ export class MaintenanceEngine {
     const tagIds = new Set(this.deps.tagIdsOf(monitorId))
     for (const w of this.deps.db.listMaintenanceWindows()) {
       if (!w.active) continue
-      if (w.scope === 'ids' && !w.monitorIds.includes(monitorId)) continue
-      if (w.scope === 'tags' && !w.tagIds.some((t) => tagIds.has(t))) continue
+      if (!this.matches(w, [monitorId], tagIds)) continue
       if (this.applies(w, now)) return true
     }
     return false
+  }
+
+  /** True when the window is scoped to at least one of `monitorIds` (scope all/ids/tags). */
+  matches(w: MaintenanceWindowRow, monitorIds: number[], tagIds?: Set<number>): boolean {
+    if (w.scope === 'all') return true
+    if (w.scope === 'ids') return w.monitorIds.some((id) => monitorIds.includes(id))
+    const tags = tagIds ?? new Set(monitorIds.flatMap((id) => this.deps.tagIdsOf(id)))
+    return w.tagIds.some((t) => tags.has(t))
+  }
+
+  /**
+   * Active + upcoming (within `horizonMs`, default 7 days) windows scoped to
+   * `monitorIds` — the public status-page maintenance section.
+   */
+  listFor(monitorIds: number[], now: Date = new Date(), horizonMs = 7 * 24 * 3600_000): MaintenanceListing {
+    const tagIds = new Set(monitorIds.flatMap((id) => this.deps.tagIdsOf(id)))
+    const active: MaintenanceWindowRow[] = []
+    const upcoming: Array<{ w: MaintenanceWindowRow; start: number }> = []
+    for (const w of this.deps.db.listMaintenanceWindows()) {
+      if (!w.active) continue
+      if (!this.matches(w, monitorIds, tagIds)) continue
+      if (this.applies(w, now)) {
+        active.push(w)
+        continue
+      }
+      const next = this.nextStart(w, now)
+      if (next !== null && next - now.getTime() <= horizonMs) upcoming.push({ w, start: next })
+    }
+    upcoming.sort((a, b) => a.start - b.start)
+    return { active, upcoming: upcoming.map((u) => u.w) }
+  }
+
+  /** Epoch ms of the next opening for the window, or null when it never opens again. */
+  private nextStart(w: MaintenanceWindowRow, now: Date): number | null {
+    const t = now.getTime()
+    switch (w.strategy) {
+      case 'single':
+        return w.startAt && w.endAt && w.startAt.getTime() > t ? w.startAt.getTime() : null
+      case 'recurring-interval': {
+        if (!w.startAt || !w.intervalS) return null
+        const cycle = w.intervalS * 1000
+        if (w.startAt.getTime() > t) return w.startAt.getTime()
+        const phase = (t - w.startAt.getTime()) % cycle
+        return t + (cycle - phase)
+      }
+      case 'recurring-weekday': {
+        if (!w.weekdays || w.weekdays.length === 0 || !w.startTime) return null
+        const startMs = timeOfDayMs(w.startTime)
+        for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+          const day = new Date(t + dayOffset * 24 * 3600_000)
+          if (!w.weekdays.includes(day.getUTCDay())) continue
+          const candidate = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate()) + startMs
+          if (candidate > t) return candidate
+        }
+        return null
+      }
+      case 'cron': {
+        if (!w.cronExpr) return null
+        const next = new Cron(w.cronExpr, { timezone: w.cronTz ?? 'UTC' }).nextRun()
+        return next ? next.getTime() : null
+      }
+      default:
+        return null
+    }
   }
 
   private applies(w: MaintenanceWindowRow, now: Date): boolean {

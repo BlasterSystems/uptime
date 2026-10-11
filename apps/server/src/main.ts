@@ -13,6 +13,15 @@ import { MaintenanceEngine } from './maintenance.js'
 import { Metrics } from './metrics.js'
 import { PushEngine } from './push.js'
 import { seedIfEmpty } from './seed.js'
+import {
+  autoPublishIncident,
+  autoResolveIncidents,
+  componentForMonitor,
+  dispatchStatusEvent,
+  type StatusDispatchDeps,
+  type StatusEvent,
+} from './status-pages.js'
+import { parseStatusPageStructure } from '@uptime/core'
 
 const ROLE = process.argv[2] ?? 'server'
 
@@ -60,6 +69,8 @@ const notifier = new Notifier({
       .map((c) => c.id),
 })
 
+const statusPageDeps: StatusDispatchDeps = { db, secrets, notifier }
+
 const incidentEngine = new IncidentEngine({
   db,
   notifier,
@@ -81,8 +92,53 @@ const incidentEngine = new IncidentEngine({
     }
     return false
   },
-  onEvent: (event) => hub.broadcast(event),
+  onEvent: (event) => {
+    hub.broadcast(event)
+    // Auto-publish monitor incidents on status pages (product decision: internal use, ON).
+    const name = db.getMonitor(event.monitorId)?.name ?? `monitor ${event.monitorId}`
+    if (event.state === 'open') {
+      void autoPublishIncident({ db, dispatch: dispatchFor }, event.monitorId, {
+        title: event.title,
+        body: `${name}: ${event.title}`,
+      }).catch(() => {})
+    } else {
+      void autoResolveIncidents({ db, dispatch: dispatchFor }, event.monitorId, `${name} recovered`).catch(
+        () => {},
+      )
+    }
+  },
 })
+
+function dispatchFor(
+  page: Parameters<typeof dispatchStatusEvent>[1],
+  event: StatusEvent,
+  opts: Parameters<typeof dispatchStatusEvent>[3],
+): Promise<void> {
+  return dispatchStatusEvent(statusPageDeps, page, event, opts)
+}
+
+/** Publishes maintenance start/end transitions to status page subscribers. */
+function publishMaintenance(event: StatusEvent, monitorId: number, under: boolean): void {
+  for (const page of db.listStatusPages()) {
+    if (!page.published) continue
+    const component = componentForMonitor(parseStatusPageStructure(page.structure), monitorId)
+    if (!component) continue
+    void dispatchFor(page, event, {
+      title: `${page.title}: maintenance ${under ? 'started' : 'ended'} for ${component.label}`,
+      body: `Scheduled maintenance ${under ? 'is in progress' : 'has completed'} for ${component.label}.`,
+      componentIds: [component.id],
+      status: under ? 'down' : 'up',
+    }).catch(() => {})
+  }
+}
+
+const maintenanceState = new Map<number, boolean>()
+function maintenanceTransition(monitorId: number, under: boolean): void {
+  const previous = maintenanceState.get(monitorId)
+  maintenanceState.set(monitorId, under)
+  if (previous === undefined || previous === under) return
+  publishMaintenance(under ? 'maintenance_start' : 'maintenance_end', monitorId, under)
+}
 
 const groupEngine = new GroupEngine({
   db,
@@ -109,6 +165,7 @@ const scheduler = new Scheduler({
   },
   onResult: (m, result, time) => {
     const under = maintenance.isUnder(m.id, time)
+    maintenanceTransition(m.id, under)
     const status = under ? 'maintenance' : result.status
     db.insertHeartbeat({
       monitorId: m.id,
