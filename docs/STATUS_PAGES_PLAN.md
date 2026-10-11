@@ -1,7 +1,13 @@
 # Status pages — review and proposed feature set
 
-Status: **proposal** · Reviewed: 2026-10-10 · Reference: [status.statuspage.me](https://status.statuspage.me)
+Status: **waves 1–2 implemented** (2026-10-11) · Reviewed: 2026-10-10 · Reference: [status.statuspage.me](https://status.statuspage.me)
 · Related: SPEC §5/§11, PLAN M3, `docs/research/oss-comparison.md` (Kuma status pages)
+
+> Implementation note: waves 1–2 shipped in `feat: status pages v2` (components + severity,
+> managed incidents with auto-publish, maintenance display, 90-day bars, extracted response
+> charts, RSS/Atom + SVG badge + OG meta, channel-based subscriptions, optional page password).
+> Wave 3 (per-region history, anomaly annotations, dependency providers, i18n, layout variants)
+> remains deferred. Coverage gates hold at ≥75% lines per package.
 
 ## 1. What exists today (verified in the code)
 
