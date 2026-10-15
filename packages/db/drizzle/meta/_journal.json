@@ -36,6 +36,13 @@
       "when": 1791716548022,
       "tag": "0004_minor_saracen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1792073041697,
+      "tag": "0005_crazy_jazinda",
+      "breakpoints": true
     }
   ]
 }

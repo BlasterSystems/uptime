@@ -54,6 +54,7 @@ const failureSnippet = computed(() =>
       </h3>
       <Badge :variant="status.variant" dot>{{ status.label }}</Badge>
       <Badge variant="accent" mono>{{ MONITOR_TYPE_LABELS[monitor.type] }}</Badge>
+      <Badge v-if="monitor.isPublic" variant="accent">public</Badge>
       <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
     </header>
 

@@ -20,6 +20,8 @@ export const monitors = sqliteTable('monitors', {
   retryIntervalS: integer('retry_interval_s').notNull().default(60),
   resendNotificationS: integer('resend_notification_s').notNull().default(0),
   upsideDown: integer('upside_down', { mode: 'boolean' }).notNull().default(false),
+  /** Shown on the unauthenticated public status overview (`GET /api/v1/public/status`). */
+  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(false),
   parentId: integer('parent_id').references((): AnySQLiteColumn => monitors.id, {
     onDelete: 'set null',
   }),

@@ -478,6 +478,7 @@ interface MonitorBase {
   id: number
   name: string
   active: boolean
+  isPublic: boolean
   intervalS: number
   retries: number
   retryIntervalS: number
@@ -500,6 +501,8 @@ export interface MonitorInput {
   retryIntervalS?: number
   type?: MonitorType
   config?: Record<string, unknown>
+  /** Shown by name on the unauthenticated public status overview. */
+  isPublic?: boolean
   /** Either existing tag ids or names (the server maps names onto tags). */
   tagIds?: number[]
   tags?: string[]
@@ -935,6 +938,46 @@ export async function fetchPublicStatusIncidents(slug: string): Promise<StatusIn
     { allowUnauthenticated: true },
   )
   return body.incidents ?? []
+}
+
+/* Public status overview */
+
+export type PublicOverviewOverall = 'operational' | 'outage' | 'maintenance' | 'unknown'
+
+/** One service on the public status overview (`GET /public/status`). */
+export interface PublicOverviewService {
+  id: number
+  name: string
+  type: string
+  status: HeartbeatStatus
+  paused: boolean
+  inMaintenance: boolean
+  latencyMs: number | null
+  lastBeatAt: string | null
+  uptimePct: number
+}
+
+export interface PublicOverviewMaintenanceWindow {
+  id: number
+  name: string
+  startAt: string | null
+  endAt: string | null
+}
+
+/** Shape served by the unauthenticated `GET /public/status`. */
+export interface PublicOverview {
+  title: string
+  overall: PublicOverviewOverall
+  services: PublicOverviewService[]
+  maintenance: {
+    active: PublicOverviewMaintenanceWindow[]
+    upcoming: PublicOverviewMaintenanceWindow[]
+  }
+}
+
+/** Unauthenticated status overview for every monitor flagged public. */
+export function fetchPublicOverview(): Promise<PublicOverview> {
+  return request('/public/status', {}, { allowUnauthenticated: true })
 }
 
 /* Status incidents (admin) */

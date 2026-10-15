@@ -1015,3 +1015,43 @@ describe('listHeartbeatsSince', () => {
     expect(db.listHeartbeatsSince(other.id, new Date(base))).toHaveLength(1)
   })
 })
+
+describe('monitor isPublic', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('defaults to private and persists an explicit public flag', () => {
+    const implicit = createPushMonitor(db, 'implicit')
+    expect(implicit.isPublic).toBe(false)
+
+    const explicit = db.createMonitor({
+      type: 'push',
+      name: 'explicit',
+      intervalS: 60,
+      retries: 1,
+      retryIntervalS: 60,
+      isPublic: true,
+      config: {},
+    })
+    expect(explicit.isPublic).toBe(true)
+    expect(db.getMonitor(explicit.id)?.isPublic).toBe(true)
+  })
+
+  it('toggles isPublic through updateMonitor without touching other fields', () => {
+    const monitor = createPushMonitor(db, 'toggle')
+    expect(monitor.isPublic).toBe(false)
+
+    const published = db.updateMonitor(monitor.id, { isPublic: true })
+    expect(published).toMatchObject({ id: monitor.id, name: 'toggle', isPublic: true })
+
+    const withdrawn = db.updateMonitor(monitor.id, { isPublic: false })
+    expect(withdrawn).toMatchObject({ id: monitor.id, isPublic: false })
+  })
+})

@@ -556,6 +556,15 @@ const limitsRows: { limit: string; value: string }[] = [
       <CodeBlock label="HTML embed" :code="badgeHtmlSnippet" />
       <CodeBlock label="Markdown embed" :code="badgeMarkdownSnippet" />
       <CodeBlock label="Feeds & password pages" :code="statusFeedsSnippet" />
+      <h3>Public status overview</h3>
+      <p>
+        For a lightweight alternative, flag individual monitors as public in
+        the monitor form. The unauthenticated page at <code>/status</code> and
+        <code>GET /api/v1/public/status</code> then list each public service by
+        name with its heartbeat status, latency, trailing-24-hour uptime and
+        active maintenance windows. Target URLs and check configuration are
+        never included. Full status pages stay independent of the flag.
+      </p>
     </section>
 
     <!-- Automation -->
