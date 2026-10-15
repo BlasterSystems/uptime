@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- BlasterSystems favicon tile: ink ground, paper mark, thread line (light-theme tokens, per DS). -->
+  <rect width="64" height="64" fill="#22272d"/>
+  <circle cx="18.5" cy="32" r="6.5" fill="none" stroke="#f2f4f6" stroke-width="2"/>
+  <rect x="25" y="31" width="14" height="2" fill="#dc4f37"/>
+  <rect x="39" y="25.5" width="13" height="13" fill="#f2f4f6"/>
+</svg>

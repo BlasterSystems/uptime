@@ -44,16 +44,17 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
   justify-content: center;
   gap: var(--space-2);
   min-width: 0;
-  background-color: var(--surface);
-  border: 1px solid var(--border-strong);
+  background-color: transparent;
+  border: 0;
   border-radius: var(--radius-sm);
-  color: var(--fg);
-  font-weight: 550;
+  box-shadow: inset 0 0 0 1px var(--rule-2);
+  color: var(--ink);
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition:
     background-color 120ms ease,
-    border-color 120ms ease,
+    box-shadow 120ms ease,
     color 120ms ease,
     opacity 120ms ease;
 }
@@ -78,7 +79,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
 }
 
 .btn:hover:not(:disabled) {
-  background-color: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--ink);
 }
 
 .btn:disabled {
@@ -87,35 +88,33 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
 }
 
 .btn-primary {
-  background-color: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-fg);
+  background-color: var(--ink);
+  box-shadow: none;
+  color: var(--paper);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--accent) 88%, var(--fg) 12%);
-  border-color: color-mix(in srgb, var(--accent) 88%, var(--fg) 12%);
+  background-color: var(--ink-2);
 }
 
+/* The thread is never a fill: danger is an outlined vermilion action. */
 .btn-danger {
-  background-color: var(--error);
-  border-color: var(--error);
-  color: #ffffff;
+  box-shadow: inset 0 0 0 1px var(--thread);
+  color: var(--thread-ink);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: color-mix(in srgb, var(--error) 85%, var(--fg) 15%);
-  border-color: color-mix(in srgb, var(--error) 85%, var(--fg) 15%);
+  background-color: var(--thread-wash);
+  box-shadow: inset 0 0 0 1px var(--thread);
 }
 
 .btn-ghost {
-  background-color: transparent;
-  border-color: transparent;
-  color: var(--muted);
+  box-shadow: none;
+  color: var(--ink-2);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  background-color: var(--paper-2);
+  color: var(--ink);
 }
 </style>

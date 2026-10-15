@@ -1306,7 +1306,7 @@ onMounted(() => {
 }
 
 .cell-strong {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .tabular {
@@ -1316,12 +1316,12 @@ onMounted(() => {
 .banner {
   padding: var(--space-3) var(--space-4);
   background-color: var(--error-soft);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 12.5px;
 }
 </style>

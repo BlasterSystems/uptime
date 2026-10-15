@@ -343,7 +343,7 @@ function textValue(key: string): string {
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 </style>

@@ -56,11 +56,12 @@ async function copy(): Promise<void> {
 }
 
 .code-label {
-  color: var(--muted);
-  font-size: 11.5px;
-  font-weight: 600;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
 }
 
 .code-body {

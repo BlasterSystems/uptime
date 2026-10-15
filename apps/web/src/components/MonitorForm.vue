@@ -1615,12 +1615,12 @@ async function copyPushUrl(): Promise<void> {
   border: 0;
   color: var(--fg);
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
 }
 
 .disclosure:hover {
-  color: var(--accent);
+  color: var(--thread-ink);
 }
 
 .picker {
@@ -1684,11 +1684,14 @@ async function copyPushUrl(): Promise<void> {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 12px;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     background-color 120ms ease,
@@ -1697,13 +1700,13 @@ async function copyPushUrl(): Promise<void> {
 }
 
 .chip:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .chip.is-active {
-  background-color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
+  background-color: transparent;
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .chip-dot {
@@ -1719,7 +1722,7 @@ async function copyPushUrl(): Promise<void> {
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 

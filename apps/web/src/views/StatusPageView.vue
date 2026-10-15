@@ -513,61 +513,85 @@ watch(slug, () => {
  */
 .status-shell {
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
 
   min-height: 100vh;
   background-color: var(--bg);
   color: var(--fg);
 }
 
+/* This page renders outside the app layout, so the shell re-declares the
+ * BlasterSystems palette: `src/style.css` tokens live on `:root` and the
+ * page's own light/dark preference must win regardless of the app theme.
+ * `--accent`/`--accent-fg` default to the thread; a page-level accent colour
+ * (set inline via `shellStyle`) overrides both. */
 .status-shell[data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f4f6f9;
-  --surface: #ffffff;
-  --surface-2: #eef1f6;
-  --surface-hover: #e7ebf2;
-  --border: #d9dfe9;
-  --border-strong: #c3cbd9;
-  --fg: #111721;
-  --muted: #57637a;
-  --accent: #2563eb;
+  --paper: #f2f4f6;
+  --paper-2: #e8ebee;
+  --card: #fbfcfd;
+  --ink: #22272d;
+  --ink-2: #4d5258;
+  --ink-3: #6a6e75;
+  --rule: #d4d7da;
+  --rule-2: #b8bbc0;
+  --thread: #dc4f37;
+  --thread-ink: #be3827;
+  --thread-wash: rgb(220 79 55 / 0.12);
+  --grid: rgb(34 39 45 / 0.05);
+
+  --bg: var(--paper);
+  --surface: var(--card);
+  --surface-2: var(--paper-2);
+  --surface-hover: var(--paper-2);
+  --border: var(--rule);
+  --border-strong: var(--rule-2);
+  --fg: var(--ink);
+  --muted: var(--ink-2);
+  --accent: var(--thread-ink);
   --accent-fg: #ffffff;
-  --success: #15803d;
-  --success-soft: rgb(21 128 61 / 0.12);
-  --warning: #a2570a;
-  --warning-soft: rgb(161 87 10 / 0.13);
-  --error: #cf2f2f;
-  --error-soft: rgb(207 47 47 / 0.11);
-  --overlay: rgb(15 21 33 / 0.45);
-  --shadow: 0 1px 2px rgb(17 23 33 / 0.05), 0 10px 24px -18px rgb(17 23 33 / 0.28);
-  --shadow-lg: 0 24px 60px -24px rgb(17 23 33 / 0.4);
+  --success: var(--ink);
+  --success-soft: var(--grid);
+  --warning: var(--ink-2);
+  --warning-soft: var(--paper-2);
+  --error: var(--thread);
+  --error-soft: var(--thread-wash);
+  --overlay: rgb(34 39 45 / 0.45);
 }
 
 .status-shell[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #0b0f14;
-  --surface: #121821;
-  --surface-2: #18202b;
-  --surface-hover: #1f2836;
-  --border: #232d3b;
-  --border-strong: #334052;
-  --fg: #e6edf3;
-  --muted: #97a3b6;
-  --accent: #60a5fa;
-  --accent-fg: #06111f;
-  --success: #4ade80;
-  --success-soft: rgb(74 222 128 / 0.14);
-  --warning: #fbbf24;
-  --warning-soft: rgb(251 191 36 / 0.14);
-  --error: #f87171;
-  --error-soft: rgb(248 113 113 / 0.14);
-  --overlay: rgb(3 6 10 / 0.62);
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 28px -20px rgb(0 0 0 / 0.7);
-  --shadow-lg: 0 28px 64px -28px rgb(0 0 0 / 0.8);
+  --paper: #1b1e23;
+  --paper-2: #21252a;
+  --card: #23282e;
+  --ink: #edeff2;
+  --ink-2: #bec2c6;
+  --ink-3: #94989e;
+  --rule: #373b41;
+  --rule-2: #4d5258;
+  --thread: #ef7253;
+  --thread-ink: #fa8c6a;
+  --thread-wash: rgb(239 114 83 / 0.16);
+  --grid: rgb(237 239 242 / 0.05);
+
+  --bg: var(--paper);
+  --surface: var(--card);
+  --surface-2: var(--paper-2);
+  --surface-hover: var(--paper-2);
+  --border: var(--rule);
+  --border-strong: var(--rule-2);
+  --fg: var(--ink);
+  --muted: var(--ink-2);
+  --accent: var(--thread-ink);
+  --accent-fg: #1b1e23;
+  --success: var(--ink);
+  --success-soft: var(--grid);
+  --warning: var(--ink-2);
+  --warning-soft: var(--paper-2);
+  --error: var(--thread);
+  --error-soft: var(--thread-wash);
+  --overlay: rgb(5 7 10 / 0.62);
 }
 
 .status-main {
@@ -608,7 +632,7 @@ watch(slug, () => {
 
 .state-title {
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .state-text {
@@ -648,10 +672,10 @@ watch(slug, () => {
   width: 30px;
   height: 30px;
   background-color: var(--accent);
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   color: var(--accent-fg);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .status-heading {
@@ -662,14 +686,15 @@ watch(slug, () => {
 
 .status-title {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .status-caption {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -682,7 +707,7 @@ watch(slug, () => {
   border: 1px solid;
   border-radius: var(--radius);
   font-size: 13.5px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .overall-banner.is-operational {
@@ -716,7 +741,22 @@ watch(slug, () => {
   width: 8px;
   height: 8px;
   background-color: currentColor;
+  border-radius: 0;
+}
+
+/* States are shapes first: ■ recorded, ○ pending, ◆ alarm. */
+.is-degraded .banner-dot,
+.is-maintenance .banner-dot {
+  background-color: transparent;
+  border: 1.5px solid currentColor;
   border-radius: 50%;
+}
+
+.is-partial_outage .banner-dot,
+.is-major_outage .banner-dot {
+  background-color: transparent;
+  border: 1.5px solid currentColor;
+  transform: rotate(45deg);
 }
 
 .group {
@@ -727,7 +767,7 @@ watch(slug, () => {
 
 .group-title {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
@@ -805,12 +845,16 @@ watch(slug, () => {
   background-color: var(--muted);
 }
 
+/* Shape-first states: ■ up, ◆ down, ○ maintenance. */
 .chip-dot.is-up {
   background-color: var(--success);
+  border-radius: 0;
 }
 
 .chip-dot.is-down {
   background-color: var(--error);
+  border-radius: 0;
+  transform: rotate(45deg);
 }
 
 .chip-dot.is-maintenance {
@@ -818,7 +862,7 @@ watch(slug, () => {
 }
 
 .chip-name {
-  font-weight: 550;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -868,7 +912,7 @@ watch(slug, () => {
 
 .section-heading {
   font-size: 15px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .incident-list,

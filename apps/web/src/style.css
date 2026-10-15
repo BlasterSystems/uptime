@@ -1,35 +1,166 @@
 /*
- * Design tokens. The light palette is the default; the dark palette is applied
- * either by the OS preference (`prefers-color-scheme`) or by an explicit
- * `data-theme` attribute written by `src/theme.ts` (persisted choice).
+ * BlasterSystems design system (v0.1) — palette, base elements and the
+ * shared control styles.
+ *
+ * Two layers:
+ *   1. DS palette tokens (`--paper`, `--ink`, `--rule`, `--thread`, …) — the
+ *      design system's own names, verbatim values.
+ *   2. Semantic role tokens (`--bg`, `--surface`, `--fg`, `--accent`, …) that
+ *      the components consume, mapped onto the palette.
+ *
+ * The light palette is the default; the dark palette is applied either by the
+ * OS preference (`prefers-color-scheme`) or by an explicit `data-theme`
+ * attribute written by `src/theme.ts` (persisted choice).
+ *
+ * DS ground rules reflected here: square corners (2px controls, 4px panels),
+ * hairlines instead of shadows, one accent only — the thread (vermilion) —
+ * used for the active path and alarms, never as decoration or button fill.
  */
+
+/* Fonts (self-hosted, latin subset). */
+@font-face {
+  font-family: 'Fira Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/fira-sans-latin-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Fira Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/fira-sans-latin-500.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Fira Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/fira-sans-latin-600.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/dm-mono-latin-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/dm-mono-latin-500.woff2') format('woff2');
+}
+
+/* --- 1. DS palette ------------------------------------------------------- */
+
 :root {
   color-scheme: light;
 
-  --bg: #f4f6f9;
-  --surface: #ffffff;
-  --surface-2: #eef1f6;
-  --surface-hover: #e7ebf2;
-  --border: #d9dfe9;
-  --border-strong: #c3cbd9;
-  --fg: #111721;
-  --muted: #57637a;
-  --accent: #2563eb;
-  --accent-fg: #ffffff;
-  --accent-soft: rgb(37 99 235 / 0.11);
-  --success: #15803d;
-  --success-soft: rgb(21 128 61 / 0.12);
-  --warning: #a2570a;
-  --warning-soft: rgb(161 87 10 / 0.13);
-  --error: #cf2f2f;
-  --error-soft: rgb(207 47 47 / 0.11);
-  --overlay: rgb(15 21 33 / 0.45);
+  --paper: #f2f4f6;
+  --paper-2: #e8ebee;
+  --card: #fbfcfd;
+  --ink: #22272d;
+  --ink-2: #4d5258;
+  --ink-3: #6a6e75;
+  --rule: #d4d7da;
+  --rule-2: #b8bbc0;
+  --thread: #dc4f37;
+  --thread-ink: #be3827;
+  --thread-wash: rgb(220 79 55 / 0.12);
+  --grid: rgb(34 39 45 / 0.05);
+}
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
-  --shadow: 0 1px 2px rgb(17 23 33 / 0.05), 0 10px 24px -18px rgb(17 23 33 / 0.28);
-  --shadow-lg: 0 24px 60px -24px rgb(17 23 33 / 0.4);
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --paper: #1b1e23;
+    --paper-2: #21252a;
+    --card: #23282e;
+    --ink: #edeff2;
+    --ink-2: #bec2c6;
+    --ink-3: #94989e;
+    --rule: #373b41;
+    --rule-2: #4d5258;
+    --thread: #ef7253;
+    --thread-ink: #fa8c6a;
+    --thread-wash: rgb(239 114 83 / 0.16);
+    --grid: rgb(237 239 242 / 0.05);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --paper: #1b1e23;
+  --paper-2: #21252a;
+  --card: #23282e;
+  --ink: #edeff2;
+  --ink-2: #bec2c6;
+  --ink-3: #94989e;
+  --rule: #373b41;
+  --rule-2: #4d5258;
+  --thread: #ef7253;
+  --thread-ink: #fa8c6a;
+  --thread-wash: rgb(239 114 83 / 0.16);
+  --grid: rgb(237 239 242 / 0.05);
+}
+
+/* --- 2. Semantic roles --------------------------------------------------- */
+
+:root {
+  --bg: var(--paper);
+  --surface: var(--card);
+  --surface-2: var(--paper-2);
+  --surface-hover: var(--paper-2);
+  --border: var(--rule);
+  --border-strong: var(--rule-2);
+  --fg: var(--ink);
+  --muted: var(--ink-2);
+
+  /* The primary action is ink; the thread is reserved for the active path
+   * and alarms. `--accent-soft` is the thread wash (selection, focus rings). */
+  --accent: var(--ink);
+  --accent-fg: var(--paper);
+  --accent-soft: var(--thread-wash);
+
+  /* States are shapes first, colour second: up = recorded ink, down = thread,
+   * pending/degraded = muted. */
+  --success: var(--ink);
+  --success-soft: var(--grid);
+  --warning: var(--ink-2);
+  --warning-soft: var(--paper-2);
+  --error: var(--thread);
+  --error-soft: var(--thread-wash);
+
+  --overlay: rgb(34 39 45 / 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --overlay: rgb(5 7 10 / 0.62);
+  }
+}
+
+:root[data-theme='dark'] {
+  --overlay: rgb(5 7 10 / 0.62);
+}
+
+/* --- 3. Geometry, depth, type -------------------------------------------- */
+
+:root {
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-lg: 4px;
+  --shadow: none;
+  --shadow-lg: none;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -39,68 +170,15 @@
   --space-6: 32px;
   --space-7: 48px;
 
-  --font-sans:
-    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  --font-sans: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
   --sidebar-width: 236px;
   --sidebar-width-collapsed: 68px;
   --topbar-height: 60px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
-
-    --bg: #0b0f14;
-    --surface: #121821;
-    --surface-2: #18202b;
-    --surface-hover: #1f2836;
-    --border: #232d3b;
-    --border-strong: #334052;
-    --fg: #e6edf3;
-    --muted: #97a3b6;
-    --accent: #60a5fa;
-    --accent-fg: #06111f;
-    --accent-soft: rgb(96 165 250 / 0.15);
-    --success: #4ade80;
-    --success-soft: rgb(74 222 128 / 0.14);
-    --warning: #fbbf24;
-    --warning-soft: rgb(251 191 36 / 0.14);
-    --error: #f87171;
-    --error-soft: rgb(248 113 113 / 0.14);
-    --overlay: rgb(3 6 10 / 0.62);
-
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 28px -20px rgb(0 0 0 / 0.7);
-    --shadow-lg: 0 28px 64px -28px rgb(0 0 0 / 0.8);
-  }
-}
-
-:root[data-theme='dark'] {
-  color-scheme: dark;
-
-  --bg: #0b0f14;
-  --surface: #121821;
-  --surface-2: #18202b;
-  --surface-hover: #1f2836;
-  --border: #232d3b;
-  --border-strong: #334052;
-  --fg: #e6edf3;
-  --muted: #97a3b6;
-  --accent: #60a5fa;
-  --accent-fg: #06111f;
-  --accent-soft: rgb(96 165 250 / 0.15);
-  --success: #4ade80;
-  --success-soft: rgb(74 222 128 / 0.14);
-  --warning: #fbbf24;
-  --warning-soft: rgb(251 191 36 / 0.14);
-  --error: #f87171;
-  --error-soft: rgb(248 113 113 / 0.14);
-  --overlay: rgb(3 6 10 / 0.62);
-
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 12px 28px -20px rgb(0 0 0 / 0.7);
-  --shadow-lg: 0 28px 64px -28px rgb(0 0 0 / 0.8);
-}
+/* --- 4. Base elements ----------------------------------------------------- */
 
 *,
 *::before,
@@ -114,18 +192,19 @@ body {
 }
 
 html {
-  background-color: var(--bg);
+  background-color: var(--paper);
 }
 
 body {
   margin: 0;
   min-height: 100%;
-  background-color: var(--bg);
-  color: var(--fg);
+  background-color: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 h1,
@@ -145,18 +224,21 @@ h1,
 h2,
 h3,
 h4 {
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: -0.01em;
   line-height: 1.3;
 }
 
 a {
-  color: var(--accent);
-  text-decoration: none;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-2);
+  text-underline-offset: 4px;
 }
 
 a:hover {
-  text-decoration: underline;
+  color: var(--thread-ink);
+  text-decoration-color: currentColor;
 }
 
 button {
@@ -164,12 +246,12 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: 2px solid var(--thread);
+  outline-offset: 3px;
 }
 
 ::selection {
-  background-color: var(--accent-soft);
+  background-color: var(--thread-wash);
 }
 
 .visually-hidden {
@@ -189,16 +271,16 @@ button {
   font-size: 12.5px;
 }
 
-/* Form controls shared by Input/Select/Textarea (styled via scoped component CSS hooks). */
+/* --- 5. Shared controls (Input / Select / Textarea) ----------------------- */
 
 .control {
   width: 100%;
   min-width: 0;
   padding: 8px 10px;
-  background-color: var(--surface);
-  border: 1px solid var(--border-strong);
+  background-color: var(--card);
+  border: 1px solid var(--rule-2);
   border-radius: var(--radius-sm);
-  color: var(--fg);
+  color: var(--ink);
   font: inherit;
   font-size: 14px;
   transition:
@@ -208,18 +290,18 @@ button {
 }
 
 .control::placeholder {
-  color: var(--muted);
-  opacity: 0.85;
+  color: var(--ink-3);
+  opacity: 1;
 }
 
 .control:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--border-strong) 70%, var(--fg) 30%);
+  border-color: var(--ink-3);
 }
 
 .control:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--thread);
+  box-shadow: 0 0 0 3px var(--thread-wash);
 }
 
 .control:disabled {
@@ -228,11 +310,11 @@ button {
 }
 
 .control.is-invalid {
-  border-color: var(--error);
+  border-color: var(--thread);
 }
 
 .control.is-invalid:focus {
-  box-shadow: 0 0 0 3px var(--error-soft);
+  box-shadow: 0 0 0 3px var(--thread-wash);
 }
 
 textarea.control {

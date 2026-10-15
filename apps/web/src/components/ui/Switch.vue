@@ -69,7 +69,7 @@ const describedBy = computed(() =>
   padding: 0;
   background: none;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -82,9 +82,9 @@ const describedBy = computed(() =>
   width: 38px;
   height: 22px;
   padding: 3px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  background-color: var(--paper-2);
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
   transition:
     background-color 140ms ease,
     border-color 140ms ease;
@@ -94,8 +94,8 @@ const describedBy = computed(() =>
   display: block;
   width: 14px;
   height: 14px;
-  background-color: var(--muted);
-  border-radius: 50%;
+  background-color: var(--ink-3);
+  border-radius: 1px;
   transition:
     transform 140ms ease,
     background-color 140ms ease;

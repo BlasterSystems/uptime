@@ -7,6 +7,16 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Adopted the BlasterSystems design system across the web UI: cool-grey paper /
+  blue-black ink palette with the vermilion thread as the single accent, Fira
+  Sans + DM Mono (self-hosted), square corners (2px controls, 4px panels),
+  hairlines instead of shadows, DS thread-mark branding, shape-first status
+  indicators (■ up / ◆ down / ○ pending, striped maintenance), mono uppercase
+  labels/chips, and a thread response-time chart. Public status pages keep
+  user-defined accent colours; all other chrome follows the design system.
+
 ### Added
 
 - Initial v1 implementation: http/push/group check engine, monitor CRUD, sessions

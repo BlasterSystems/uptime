@@ -277,7 +277,7 @@ onUnmounted(() => {
 }
 
 .cell-strong {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .cell-stack {
@@ -302,7 +302,7 @@ onUnmounted(() => {
   background-color: var(--error-soft);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 

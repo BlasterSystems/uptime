@@ -217,8 +217,12 @@ watch(slug, () => void load())
 }
 
 .state-link {
-  color: var(--accent);
+  color: var(--ink);
   font-size: 13px;
+}
+
+.state-link:hover {
+  color: var(--thread-ink);
 }
 
 .incident-list {

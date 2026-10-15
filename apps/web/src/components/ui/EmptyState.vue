@@ -39,10 +39,10 @@ withDefaults(
   width: 40px;
   height: 40px;
   margin-bottom: var(--space-1);
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  color: var(--muted);
+  background-color: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  color: var(--ink-3);
 }
 
 .empty-icon :deep(svg) {
@@ -52,7 +52,7 @@ withDefaults(
 
 .empty-title {
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .empty-description {

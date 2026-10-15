@@ -642,7 +642,7 @@ onMounted(() => void refresh())
 .banner {
   padding: var(--space-3) var(--space-4);
   background-color: var(--error-soft);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 
@@ -654,7 +654,7 @@ onMounted(() => void refresh())
 }
 
 .cell-strong {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .cell-muted {
@@ -707,7 +707,7 @@ onMounted(() => void refresh())
   padding: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .picker-list {
@@ -745,7 +745,7 @@ onMounted(() => void refresh())
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 12.5px;
 }
 </style>
