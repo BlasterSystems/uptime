@@ -42,36 +42,42 @@ withDefaults(
 .strip-cell {
   flex: 1;
   height: 26px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  background-color: var(--paper-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
 }
 
 .tone-up {
-  background-color: var(--success);
+  background-color: var(--ink);
   border-color: transparent;
 }
 
 .tone-down {
-  background-color: var(--error);
+  background-color: var(--thread);
   border-color: transparent;
 }
 
 .tone-pending {
-  background-color: var(--warning);
+  background-color: var(--rule-2);
   border-color: transparent;
 }
 
+/* Maintenance is the DS "placeholder" stripe: no state colour, just hatching. */
 .tone-maintenance {
-  background-color: var(--muted);
-  border-color: transparent;
+  background:
+    repeating-linear-gradient(135deg, var(--rule-2) 0 1px, transparent 1px 7px),
+    var(--paper-2);
+  border-color: var(--rule-2);
 }
 
 .strip-caption {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 </style>

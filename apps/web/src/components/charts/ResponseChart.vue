@@ -135,7 +135,7 @@ const chart = computed(() => {
 
 .chart-line {
   fill: none;
-  stroke: var(--accent);
+  stroke: var(--thread);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
@@ -151,7 +151,7 @@ const chart = computed(() => {
 }
 
 .marker-maintenance {
-  stroke: var(--muted);
+  stroke: var(--ink-3);
 }
 
 .chart-caption {
@@ -159,8 +159,11 @@ const chart = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .chart-note {

@@ -42,10 +42,9 @@ withDefaults(
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  background-color: var(--card);
+  border: 1px solid var(--rule);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
 .card-head {
@@ -65,11 +64,11 @@ withDefaults(
 
 .card-title {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .card-subtitle {
-  color: var(--muted);
+  color: var(--ink-3);
   font-size: 12.5px;
 }
 

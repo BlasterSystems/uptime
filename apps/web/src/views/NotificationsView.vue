@@ -215,7 +215,7 @@ onMounted(() => {
 }
 
 .cell-strong {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .badge-row {
@@ -236,7 +236,7 @@ onMounted(() => {
   padding: var(--space-3) var(--space-4);
   background-color: var(--error-soft);
   border-bottom: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 

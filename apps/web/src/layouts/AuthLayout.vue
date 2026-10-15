@@ -7,8 +7,15 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
   <div class="auth">
     <div class="auth-panel">
       <header class="auth-brand">
-        <span class="brand-mark" aria-hidden="true">U</span>
-        <span class="brand-name">Uptime Monitoring</span>
+        <span class="brand-mark" aria-hidden="true">
+          <span class="mark-node" />
+          <span class="mark-line" />
+          <span class="mark-square" />
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Uptime Monitoring</span>
+          <span class="brand-endorsement">A BlasterSystems product</span>
+        </span>
       </header>
 
       <section class="auth-card">
@@ -33,7 +40,7 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
   justify-content: center;
   min-height: 100vh;
   padding: var(--space-5) var(--space-4);
-  background: radial-gradient(circle at 20% 0%, var(--accent-soft), transparent 55%), var(--bg);
+  background-color: var(--paper);
 }
 
 .auth-panel {
@@ -48,26 +55,66 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
+  gap: 10px;
 }
 
+/* The DS thread mark: ○ transparency — vermilion thread — ■ on record. */
 .brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
+  flex: none;
   width: 30px;
-  height: 30px;
-  background-color: var(--accent);
-  border-radius: 9px;
-  color: var(--accent-fg);
-  font-size: 14px;
-  font-weight: 700;
+  height: 10px;
+  color: var(--ink);
+}
+
+.mark-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.mark-line {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 4.25px;
+  height: 1.5px;
+  background: var(--thread);
+}
+
+.mark-square {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .brand-name {
   font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1;
+}
+
+.brand-endorsement {
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .auth-card {
@@ -75,10 +122,9 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
   flex-direction: column;
   gap: var(--space-4);
   padding: var(--space-5);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
+  background-color: var(--card);
+  border: 1px solid var(--rule);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
 }
 
 .auth-heading {
@@ -89,16 +135,16 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
 
 .auth-title {
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .auth-subtitle {
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: 13px;
 }
 
 .auth-footer {
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: 13px;
   text-align: center;
 }

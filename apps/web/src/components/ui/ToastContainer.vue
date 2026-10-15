@@ -48,25 +48,20 @@ import { dismissToast, toasts } from './toast.js'
   align-items: flex-start;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-left: 3px solid var(--muted);
+  background-color: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--ink-2);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
   pointer-events: auto;
   animation: toast-in 160ms ease-out;
 }
 
 .toast-success {
-  border-left-color: var(--success);
+  border-left-color: var(--ink);
 }
 
 .toast-error {
-  border-left-color: var(--error);
-}
-
-.toast-info {
-  border-left-color: var(--accent);
+  border-left-color: var(--thread);
 }
 
 .toast-content {

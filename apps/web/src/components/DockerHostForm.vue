@@ -211,7 +211,7 @@ async function submit(): Promise<void> {
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 </style>

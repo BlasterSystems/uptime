@@ -18,59 +18,72 @@ withDefaults(
 </template>
 
 <style scoped>
+/* DS status chip: mono, uppercase, square, hairline. States are shapes first,
+ * colour second — the diamond in thread wash is the only vermilion chip. */
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   max-width: 100%;
   padding: 2px 8px;
   overflow: hidden;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 550;
-  letter-spacing: 0.02em;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .badge-mono {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0;
+  color: var(--ink);
 }
 
 .badge-dot {
   flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  background-color: currentColor;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
   border-radius: 50%;
 }
 
-.badge-accent {
-  background-color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent);
+.badge-success {
+  color: var(--ink);
 }
 
-.badge-success {
-  background-color: var(--success-soft);
-  border-color: color-mix(in srgb, var(--success) 35%, transparent);
-  color: var(--success);
+.badge-success .badge-dot {
+  border: 0;
+  border-radius: 0;
+  background-color: currentColor;
 }
 
 .badge-warning {
-  background-color: var(--warning-soft);
-  border-color: color-mix(in srgb, var(--warning) 35%, transparent);
-  color: var(--warning);
+  color: var(--ink-2);
 }
 
 .badge-error {
-  background-color: var(--error-soft);
-  border-color: color-mix(in srgb, var(--error) 35%, transparent);
-  color: var(--error);
+  border-color: var(--thread);
+  background-color: var(--thread-wash);
+  color: var(--thread-ink);
+}
+
+.badge-error .badge-dot {
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+.badge-accent {
+  color: var(--ink);
+}
+
+.badge-accent .badge-dot {
+  border: 0;
+  border-radius: 0;
+  background-color: currentColor;
 }
 </style>

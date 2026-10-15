@@ -546,7 +546,7 @@ async function submit(): Promise<void> {
   padding: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: 0.01em;
 }
 
@@ -603,7 +603,7 @@ async function submit(): Promise<void> {
   color: var(--muted);
   font: inherit;
   font-size: 12.5px;
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -612,13 +612,13 @@ async function submit(): Promise<void> {
 }
 
 .weekday.is-on {
-  background-color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
-  color: var(--accent);
+  background-color: transparent;
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 </style>

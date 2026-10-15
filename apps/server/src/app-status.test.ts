@@ -13,18 +13,6 @@ import { Metrics } from './metrics.js'
 
 const KEY = 'a'.repeat(64)
 
-const STRUCTURE = {
-  groups: [
-    {
-      name: 'Backend',
-      components: [
-        { id: 'api', label: 'API', monitorIds: [0] },
-        { id: 'worker', label: 'SQS worker', monitorIds: [0] },
-      ],
-    },
-  ],
-}
-
 function makeApp(webDist?: string) {
   const db = Database.open({ file: ':memory:' })
   const secrets = new SecretBox(KEY)

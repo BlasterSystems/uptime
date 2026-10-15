@@ -623,7 +623,7 @@ const limitsRows: { limit: string; value: string }[] = [
 .intro h1 {
   margin: 0 0 var(--space-2);
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .intro p {
@@ -656,17 +656,18 @@ const limitsRows: { limit: string; value: string }[] = [
 
 .toc a {
   padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
   font-size: 12.5px;
   text-decoration: none;
 }
 
 .toc a:hover {
-  color: var(--fg);
-  border-color: var(--border-strong);
-  background-color: var(--surface-hover);
+  color: var(--ink);
+  border-color: var(--ink-3);
+  background-color: transparent;
 }
 
 .doc-section {
@@ -684,13 +685,13 @@ const limitsRows: { limit: string; value: string }[] = [
 .doc-section h2 {
   margin: 0;
   font-size: 16px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .doc-section h3 {
   margin: var(--space-2) 0 0;
   font-size: 13.5px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .doc-section p {

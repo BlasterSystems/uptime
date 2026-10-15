@@ -650,7 +650,7 @@ onUnmounted(() => {
   background-color: var(--error-soft);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 
@@ -737,7 +737,7 @@ onUnmounted(() => {
 
 .head-name {
   font-size: 20px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .head-target {
@@ -778,18 +778,21 @@ onUnmounted(() => {
 .tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 2px 8px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 11px;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .tag-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
@@ -800,7 +803,7 @@ onUnmounted(() => {
   background-color: var(--error-soft);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-sm);
-  color: var(--error);
+  color: var(--thread-ink);
   font-family: var(--font-mono);
   font-size: 11.5px;
   white-space: pre-wrap;
@@ -819,11 +822,14 @@ onUnmounted(() => {
   align-items: baseline;
   gap: 6px;
   padding: 3px 10px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 12px;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     background-color 120ms ease,
@@ -832,17 +838,17 @@ onUnmounted(() => {
 }
 
 .range-chip:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .range-chip.is-active {
-  background-color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
+  background-color: transparent;
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .range-chip strong {
-  font-weight: 600;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 

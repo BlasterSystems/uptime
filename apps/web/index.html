@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Uptime Monitoring</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="preload"
+      href="/fonts/fira-sans-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/dm-mono-latin-400.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
     <script>
       // Applies the stored theme before the first paint to avoid a colour flash.
       ;(function () {
@@ -20,18 +35,18 @@
     <style>
       html {
         color-scheme: light;
-        background-color: #f4f6f9;
+        background-color: #f2f4f6;
       }
 
       html[data-theme='dark'] {
         color-scheme: dark;
-        background-color: #0b0f14;
+        background-color: #1b1e23;
       }
 
       @media (prefers-color-scheme: dark) {
         html:not([data-theme='light']) {
           color-scheme: dark;
-          background-color: #0b0f14;
+          background-color: #1b1e23;
         }
       }
     </style>

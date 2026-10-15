@@ -385,12 +385,16 @@ onUnmounted(() => {
   border-radius: 50%;
 }
 
+/* Shape-first states: ■ recorded, ◆ alarm, ○ pending. */
 .dot-success {
   background-color: var(--success);
+  border-radius: 0;
 }
 
 .dot-error {
-  background-color: var(--error);
+  background-color: var(--thread);
+  border-radius: 0;
+  transform: rotate(45deg);
 }
 
 .dot-warning {
@@ -424,11 +428,14 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 3px 10px;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 12px;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     background-color 120ms ease,
@@ -437,13 +444,13 @@ onUnmounted(() => {
 }
 
 .filter-chip:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .filter-chip.is-active {
-  background-color: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
+  background-color: transparent;
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .chip-dot {
@@ -457,7 +464,7 @@ onUnmounted(() => {
   background-color: var(--error-soft);
   border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
   border-radius: var(--radius);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 

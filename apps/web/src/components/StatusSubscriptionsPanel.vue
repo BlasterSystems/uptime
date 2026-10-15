@@ -430,7 +430,7 @@ onMounted(async () => {
 .banner {
   padding: var(--space-3) var(--space-4);
   background-color: var(--error-soft);
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 
@@ -443,7 +443,7 @@ onMounted(async () => {
 }
 
 .cell-strong {
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .cell-muted {
@@ -488,7 +488,7 @@ onMounted(async () => {
   padding: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .picker-hint {
@@ -546,7 +546,7 @@ onMounted(async () => {
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 12.5px;
 }
 </style>

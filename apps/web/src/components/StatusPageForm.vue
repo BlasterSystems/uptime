@@ -697,7 +697,7 @@ async function submit(): Promise<void> {
   padding: 0;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
   letter-spacing: 0.01em;
 }
 
@@ -707,7 +707,7 @@ async function submit(): Promise<void> {
 }
 
 .field-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 12.5px;
 }
 
@@ -825,7 +825,7 @@ async function submit(): Promise<void> {
 .swatch-caption {
   color: var(--muted);
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
 }
 
 .swatch {
@@ -839,7 +839,7 @@ async function submit(): Promise<void> {
 }
 
 .form-error {
-  color: var(--error);
+  color: var(--thread-ink);
   font-size: 13px;
 }
 </style>

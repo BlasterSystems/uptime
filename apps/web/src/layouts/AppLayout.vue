@@ -95,8 +95,15 @@ async function handleSignOut(): Promise<void> {
   <div class="shell" :class="{ 'is-collapsed': collapsed }">
     <aside class="sidebar" :class="{ 'is-open': mobileOpen }">
       <div class="brand">
-        <span class="brand-mark" aria-hidden="true">U</span>
-        <span class="brand-name">Uptime</span>
+        <span class="brand-mark" aria-hidden="true">
+          <span class="mark-node" />
+          <span class="mark-line" />
+          <span class="mark-square" />
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">Uptime</span>
+          <span class="brand-endorsement">A BlasterSystems product</span>
+        </span>
       </div>
 
       <nav class="nav" aria-label="Primary">
@@ -219,29 +226,71 @@ async function handleSignOut(): Promise<void> {
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 10px;
   padding: var(--space-1) var(--space-2) var(--space-5);
   overflow: hidden;
 }
 
+/* The DS thread mark: ○ transparency — vermilion thread — ■ on record. */
 .brand-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  position: relative;
+  flex: none;
   width: 30px;
-  height: 30px;
-  background-color: var(--accent);
-  border-radius: 9px;
-  color: var(--accent-fg);
-  font-size: 14px;
-  font-weight: 700;
+  height: 10px;
+  color: var(--ink);
+}
+
+.mark-node {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.mark-line {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  top: 4.25px;
+  height: 1.5px;
+  background: var(--thread);
+}
+
+.mark-square {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .brand-name {
   font-size: 15px;
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.brand-endorsement {
+  overflow: hidden;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -257,25 +306,29 @@ async function handleSignOut(): Promise<void> {
   align-items: center;
   gap: var(--space-3);
   padding: 8px 10px;
+  border-left: 1.5px solid transparent;
   border-radius: var(--radius-sm);
-  color: var(--muted);
+  color: var(--ink-2);
   font-size: 13.5px;
-  font-weight: 550;
+  font-weight: 500;
+  text-decoration: none;
   white-space: nowrap;
   transition:
     background-color 120ms ease,
+    border-color 120ms ease,
     color 120ms ease;
 }
 
 .nav-item:hover {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  background-color: var(--paper-2);
+  color: var(--ink);
   text-decoration: none;
 }
 
+/* The active path is the one vermilion line in the composition. */
 .nav-item.router-link-exact-active {
-  background-color: var(--accent-soft);
-  color: var(--accent);
+  border-left-color: var(--thread);
+  color: var(--ink);
 }
 
 .nav-label {
@@ -341,14 +394,14 @@ async function handleSignOut(): Promise<void> {
   gap: var(--space-3);
   height: var(--topbar-height);
   padding: 0 var(--space-5);
-  background-color: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
 }
 
 .page-title {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .topbar-actions {
@@ -393,8 +446,8 @@ async function handleSignOut(): Promise<void> {
   padding: 4px 8px 4px 4px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 999px;
-  color: var(--fg);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
   cursor: pointer;
 }
 
@@ -410,11 +463,13 @@ async function handleSignOut(): Promise<void> {
   flex-shrink: 0;
   width: 26px;
   height: 26px;
-  background-color: var(--accent-soft);
-  border-radius: 50%;
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 650;
+  background-color: var(--ink);
+  border-radius: var(--radius-sm);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
 }
 
 .user-email {
@@ -446,7 +501,7 @@ async function handleSignOut(): Promise<void> {
 .menu-email {
   overflow: hidden;
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -464,9 +519,10 @@ async function handleSignOut(): Promise<void> {
   background: none;
   border: 0;
   border-radius: var(--radius-sm);
-  color: var(--fg);
+  color: var(--ink);
   font-size: 13px;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -476,7 +532,7 @@ async function handleSignOut(): Promise<void> {
 }
 
 .menu-item.is-danger {
-  color: var(--error);
+  color: var(--thread-ink);
 }
 
 .menu-item:disabled {

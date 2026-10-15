@@ -72,38 +72,41 @@ function onKeydown(event: KeyboardEvent, index: number): void {
 .tablist {
   display: flex;
   gap: var(--space-1);
-  padding: 3px;
   overflow-x: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   align-self: flex-start;
   max-width: 100%;
 }
 
 .tab {
-  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  min-width: 40px;
+  justify-content: center;
+  padding: 0 12px;
   background: none;
   border: 0;
   border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 550;
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    background-color 120ms ease,
-    color 120ms ease;
+  transition: color 120ms ease;
 }
 
 .tab:hover {
-  color: var(--fg);
+  color: var(--ink);
 }
 
 .tab.is-active {
-  background-color: var(--surface);
-  box-shadow: var(--shadow);
-  color: var(--fg);
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
 }
 
 .tabpanel {

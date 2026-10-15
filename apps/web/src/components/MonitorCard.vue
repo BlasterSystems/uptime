@@ -140,12 +140,16 @@ const failureSnippet = computed(() =>
   border-radius: 50%;
 }
 
+/* Shape-first states: ■ recorded, ◆ alarm, ○ pending. */
 .dot-success {
   background-color: var(--success);
+  border-radius: 0;
 }
 
 .dot-error {
-  background-color: var(--error);
+  background-color: var(--thread);
+  border-radius: 0;
+  transform: rotate(45deg);
 }
 
 .dot-warning {
@@ -208,18 +212,21 @@ const failureSnippet = computed(() =>
 .tag-chip {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 2px 8px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 11px;
+  background-color: transparent;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .tag-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
 }
 
@@ -230,7 +237,7 @@ const failureSnippet = computed(() =>
   background-color: var(--error-soft);
   border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
   border-radius: var(--radius-sm);
-  color: var(--error);
+  color: var(--thread-ink);
   font-family: var(--font-mono);
   font-size: 11.5px;
   white-space: pre-wrap;
