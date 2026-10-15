@@ -261,7 +261,7 @@ export function buildStatusPagePayload(
   }
 }
 
-function maintenanceView(w: MaintenanceWindowRow): {
+export function maintenanceView(w: MaintenanceWindowRow): {
   id: number
   name: string
   startAt: string | null

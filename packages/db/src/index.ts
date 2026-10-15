@@ -73,6 +73,7 @@ export interface MonitorRow {
   retryIntervalS: number
   resendNotificationS: number
   upsideDown: boolean
+  isPublic: boolean
   parentMonitorId: number | null
   config: unknown
   createdAt: Date
@@ -88,6 +89,7 @@ export interface NewMonitor {
   retryIntervalS: number
   resendNotificationS?: number
   upsideDown?: boolean
+  isPublic?: boolean
   parentMonitorId?: number | null
   config: unknown
 }
@@ -387,6 +389,7 @@ function toMonitorRow(row: MonitorSelect): MonitorRow {
     retryIntervalS: row.retryIntervalS,
     resendNotificationS: row.resendNotificationS,
     upsideDown: row.upsideDown,
+    isPublic: row.isPublic,
     parentMonitorId: row.parentId,
     config: JSON.parse(row.configJson) as unknown,
     createdAt: row.createdAt,
@@ -529,6 +532,7 @@ export class Database {
         retryIntervalS: input.retryIntervalS,
         resendNotificationS: input.resendNotificationS ?? 0,
         upsideDown: input.upsideDown ?? false,
+        isPublic: input.isPublic ?? false,
         parentId: input.parentMonitorId ?? null,
         configJson: JSON.stringify(input.config ?? null),
         createdAt: now,
@@ -554,6 +558,7 @@ export class Database {
       values.resendNotificationS = patch.resendNotificationS
     }
     if (patch.upsideDown !== undefined) values.upsideDown = patch.upsideDown
+    if (patch.isPublic !== undefined) values.isPublic = patch.isPublic
     if (patch.parentMonitorId !== undefined) values.parentId = patch.parentMonitorId
     if (patch.config !== undefined) values.configJson = JSON.stringify(patch.config)
 

@@ -474,6 +474,7 @@ onUnmounted(() => {
             <h1 class="head-name">{{ monitor.name }}</h1>
             <Badge :variant="statusMeta.variant" dot>{{ statusMeta.label }}</Badge>
             <Badge variant="accent" mono>{{ MONITOR_TYPE_LABELS[monitor.type] }}</Badge>
+            <Badge v-if="monitor.isPublic" variant="accent">public</Badge>
             <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
           </div>
 

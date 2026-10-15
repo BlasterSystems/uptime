@@ -110,6 +110,7 @@ function defaultFormState() {
     intervalS: '60',
     retries: '0',
     tagText: '',
+    isPublic: false,
     httpUrl: '',
     httpMethod: 'GET' as HttpMethod,
     httpAcceptedMode: 'range' as 'range' | 'any',
@@ -679,6 +680,7 @@ function prefillFrom(monitor: Monitor): void {
   form.intervalS = String(monitor.intervalS)
   form.retries = String(monitor.retries)
   form.tagText = monitor.tags.map((tag) => tag.name).join(', ')
+  form.isPublic = monitor.isPublic
   selectedChannelIds.value = [...monitor.channelIds]
 
   switch (monitor.type) {
@@ -868,6 +870,7 @@ function buildPayload(): MonitorInput | null {
     config,
     intervalS: intervalS as number,
     retries: retries as number,
+    isPublic: form.isPublic,
     channelIds: selectedChannelIds.value,
     ...(names.length === 0 ? {} : { tags: names }),
   }
@@ -1546,6 +1549,15 @@ async function copyPushUrl(): Promise<void> {
           />
         </div>
         <p v-if="optionsError !== null" class="form-error" role="alert">{{ optionsError }}</p>
+      </div>
+
+      <div class="section">
+        <p class="section-title">Visibility</p>
+        <Switch
+          v-model="form.isPublic"
+          label="Show on the public status page"
+          hint="Lists this service by name on the public status overview (/status). Targets and check details stay private."
+        />
       </div>
 
       <p v-if="formError !== null" class="form-error" role="alert">{{ formError }}</p>

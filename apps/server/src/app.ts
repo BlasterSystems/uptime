@@ -22,6 +22,7 @@ import type { IncidentEngine } from './incidents.js'
 import type { EventHub } from './events.js'
 import { MaintenanceEngine } from './maintenance.js'
 import { parseGroupConfig } from './groups.js'
+import { buildPublicStatusPayload } from './public-status.js'
 import { createAgentRouter } from './agent/index.js'
 import { createLifecycleRouter } from './lifecycle/index.js'
 import {
@@ -98,6 +99,7 @@ export interface ApiMonitor {
   type: MonitorType
   name: string
   active: boolean
+  isPublic: boolean
   intervalS: number
   retries: number
   retryIntervalS: number
@@ -190,6 +192,14 @@ function parseMonitorBody(body: unknown, partial: boolean): ParsedInput {
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : 'invalid config' }
     }
+  }
+  if (b.isPublic !== undefined) {
+    if (typeof b.isPublic !== 'boolean') {
+      return { ok: false, error: 'isPublic must be a boolean' }
+    }
+    input.isPublic = b.isPublic
+  } else if (!partial) {
+    input.isPublic = false
   }
   let tagIds: number[] | undefined
   let tags: string[] | undefined
@@ -812,6 +822,11 @@ export function createApp(opts: AppOptions): Express {
     })
   })
 
+  // ---- Public status overview (no auth; only monitors flagged isPublic) ----
+  app.get('/api/v1/public/status', (_req, res) => {
+    res.json(buildPublicStatusPayload(db, maintenanceEngine))
+  })
+
   // Feeds + badge (public; password pages are hidden without an unlock cookie).
   app.get('/status/:slug/rss.xml', (req, res) => {
     const page = db.getPublicStatusPage(String(req.params.slug ?? ''))
@@ -1027,6 +1042,7 @@ export function createApp(opts: AppOptions): Express {
     type: row.type as MonitorType,
     name: row.name,
     active: row.active,
+    isPublic: row.isPublic,
     intervalS: row.intervalS,
     retries: row.retries,
     retryIntervalS: row.retryIntervalS,

@@ -7,6 +7,14 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- Per-monitor public visibility and a built-in public status overview: a monitor form
+  toggle ("Show on the public status page") publishes a service to the unauthenticated
+  `/status` page (`GET /api/v1/public/status`), which lists name, status, latency, 24 h
+  uptime and maintenance windows — never target URLs or check config. Documented in
+  ADR-0005. Status pages remain the tool for curated, branded pages.
+
 ### Changed
 
 - Adopted the BlasterSystems design system across the web UI: cool-grey paper /

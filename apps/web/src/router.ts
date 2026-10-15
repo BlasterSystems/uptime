@@ -7,6 +7,7 @@ import IncidentsView from './views/IncidentsView.vue'
 import LoginView from './views/LoginView.vue'
 import MonitorDetailView from './views/MonitorDetailView.vue'
 import NotificationsView from './views/NotificationsView.vue'
+import PublicStatusView from './views/PublicStatusView.vue'
 import SettingsView from './views/SettingsView.vue'
 import SetupView from './views/SetupView.vue'
 import StatusPageIncidentsView from './views/StatusPageIncidentsView.vue'
@@ -71,6 +72,12 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Sign in', public: true },
   },
   {
+    path: '/status',
+    name: 'public-status',
+    component: PublicStatusView,
+    meta: { title: 'Status', public: true },
+  },
+  {
     path: '/status/:slug',
     name: 'status-page',
     component: StatusPageView,
@@ -101,7 +108,10 @@ router.beforeEach(async (to) => {
   if (!authState.ready) await bootstrapAuth()
 
   if (authState.setupRequired) {
-    return to.name === 'setup' || to.name === 'status-page' || to.name === 'status-incidents'
+    return to.name === 'setup' ||
+      to.name === 'status-page' ||
+      to.name === 'status-incidents' ||
+      to.name === 'public-status'
       ? true
       : { name: 'setup' }
   }
