@@ -367,7 +367,8 @@ async function handleSignOut(): Promise<void> {
 }
 
 .is-collapsed .nav-label,
-.is-collapsed .brand-name {
+.is-collapsed .brand-name,
+.is-collapsed .brand-endorsement {
   opacity: 0;
   pointer-events: none;
 }
@@ -573,7 +574,8 @@ async function handleSignOut(): Promise<void> {
   }
 
   .is-collapsed .nav-label,
-  .is-collapsed .brand-name {
+  .is-collapsed .brand-name,
+  .is-collapsed .brand-endorsement {
     opacity: 1;
     pointer-events: auto;
   }
