@@ -24,6 +24,22 @@ jobs:
       - run: .agentic/bin/validate
       - run: .agentic/bin/docs-check
 
+  # End-to-end flows against the built app: fresh throwaway server per run,
+  # real Chromium. Kept out of `pnpm -r test` (no browsers in the check job).
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter @uptime/e2e exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
   # Plan review J4/B1: verify the image builds on both arches in M1 (no publish —
   # GHCR push + SBOM lands in M5).
   image:
