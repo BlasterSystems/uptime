@@ -377,4 +377,25 @@ describe('Kuma import', () => {
       .send({ monitors: 'nope', heartbeats: [] })
     expect(malformed.status).toBe(400)
   })
+
+  it('honors zero retries and falls back to defaults for out-of-range values', async () => {
+    const { app, db } = makeApp()
+    const { agent, csrf } = await authed(app)
+    const res = await agent.post('/api/v1/import/kuma').set('x-csrf-token', csrf).send({
+      kumaVersion: '1.23.2',
+      monitors: [
+        { type: 'http', name: 'zero', retries: 0, config: httpConfig },
+        { type: 'http', name: 'over', retries: 101, config: httpConfig },
+        { type: 'http', name: 'negative', retries: -1, config: httpConfig },
+      ],
+      heartbeats: [],
+    })
+    expect(res.status).toBe(200)
+    // Import is lenient: out-of-range retries fall back to the default 1.
+    expect(res.body).toEqual({ monitorsCreated: 3, heartbeatsImported: 0 })
+    const retriesByName = Object.fromEntries(
+      db.listMonitors().map((monitor) => [monitor.name, monitor.retries]),
+    )
+    expect(retriesByName).toEqual({ zero: 0, over: 1, negative: 1 })
+  })
 })

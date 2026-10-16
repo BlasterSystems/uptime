@@ -344,3 +344,76 @@ describe('static SPA fallback', () => {
     expect(apiMiss.body).toEqual({ error: 'not found' })
   })
 })
+
+describe('monitor retries bounds and uptime endpoint (authenticated)', () => {
+  let app: Express
+  let db: Database
+  let agent: Agent
+  let csrf: string
+
+  afterEach(() => {
+    db?.close()
+  })
+
+  beforeEach(async () => {
+    const ctx = makeApp()
+    app = ctx.app
+    db = ctx.db
+    const auth = await authed(app)
+    agent = auth.agent
+    csrf = auth.csrf
+  })
+
+  const post = (url: string, body: object) => agent.post(url).set('x-csrf-token', csrf).send(body)
+
+  it('accepts zero tolerated retries and rejects values outside [0, 100]', async () => {
+    // Regression: the UI default is retries 0 ("no failures tolerated"); a
+    // former [1, 100] bound made every such create fail with a 400.
+    const zero = await post('/api/v1/monitors', {
+      name: 'zero-tolerance',
+      intervalS: 60,
+      retries: 0,
+      config: httpConfig,
+    })
+    expect(zero.status).toBe(201)
+    expect(zero.body.monitor.retries).toBe(0)
+
+    const tooHigh = await post('/api/v1/monitors', {
+      name: 'too-many',
+      intervalS: 60,
+      retries: 101,
+      config: httpConfig,
+    })
+    expect(tooHigh.status).toBe(400)
+    expect(tooHigh.body.error).toBe('retries must be an integer in [0, 100]')
+
+    const negative = await post('/api/v1/monitors', {
+      name: 'negative',
+      intervalS: 60,
+      retries: -1,
+      config: httpConfig,
+    })
+    expect(negative.status).toBe(400)
+  })
+
+  it('serves uptime stats for the requested window', async () => {
+    const created = await post('/api/v1/monitors', { name: 'A', config: httpConfig })
+    expect(created.status).toBe(201)
+    const id = created.body.monitor.id as number
+    const beat = (status: 'up' | 'down') =>
+      db.insertHeartbeat({ monitorId: id, status, latencyMs: 15, time: new Date(Date.now() - 5000) })
+    beat('up')
+    beat('up')
+    beat('down')
+    // getUptime reads the hourly rollup, so aggregate before querying.
+    db.rollupHeartbeats(new Date())
+
+    const res = await agent.get(`/api/v1/monitors/${id}/uptime?hours=24`)
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ total: 3, up: 2, down: 1, maintenance: 0 })
+    expect(res.body.uptimePct).toBeCloseTo(200 / 3, 5)
+
+    const missing = await agent.get('/api/v1/monitors/999999/uptime')
+    expect(missing.status).toBe(404)
+  })
+})

@@ -49,6 +49,7 @@ Run applicable commands:
 .agentic/bin/validate
 pnpm build
 pnpm test
+pnpm test:e2e   # when UI flows changed; builds and drives a throwaway instance
 .agentic/bin/docs-check
 ```
 

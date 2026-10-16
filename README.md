@@ -50,13 +50,21 @@ Requires Node.js 24 and pnpm 10 (corepack).
 ```bash
 pnpm install
 pnpm build        # core → db → notify → agent → server, then web
-pnpm test         # vitest in every package
-pnpm coverage     # + 75% coverage gate
+pnpm test         # vitest in every package (server, packages and web unit tests)
+pnpm test:e2e     # Playwright: builds, boots a throwaway server, drives Chromium (e2e/)
+pnpm coverage     # + coverage gate (≥75% lines per package; web baseline gate)
 pnpm dev          # server on :3001 (SQLite in ./data)
 pnpm --filter @uptime/web dev   # Vite dev server with /api proxied to :3001
 UPTIME_AGENT_TOKEN=... node apps/server/dist/main.js agent   # agent role
 docker compose up --build       # full stack
 ```
+
+Test pyramid: unit tests live next to the sources (`*.test.ts`, web uses
+vitest + jsdom + `@vue/test-utils`), server API tests are in-process supertest
+suites, and `e2e/` runs Playwright flows (auth, monitor create incl. the
+retries/interval regression, push heartbeats, incidents, status pages,
+channels) against a fresh throwaway instance. CI runs the check job plus a
+separate `e2e` job that installs Chromium.
 
 The agent role connects to a running server (`UPTIME_SERVER_URL` +
 `UPTIME_AGENT_TOKEN`); see `docker-compose.yml` for the server and
