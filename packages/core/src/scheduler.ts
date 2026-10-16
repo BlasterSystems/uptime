@@ -111,9 +111,9 @@ export class Scheduler {
 
   /** Add or replace a monitor; while running this restarts its schedule and probes it now. */
   upsert(monitor: ScheduledMonitor): void {
-    // Only `http` monitors are probe-scheduled (SPEC §6): push is heartbeat-driven and
+    // `http` and `docker` are probe-scheduled (SPEC §6): push is heartbeat-driven and
     // the remaining types are not wired into the scheduler yet; drop a stale entry.
-    if (monitor.type !== 'http') {
+    if (monitor.type !== 'http' && monitor.type !== 'docker') {
       this.remove(monitor.id)
       return
     }

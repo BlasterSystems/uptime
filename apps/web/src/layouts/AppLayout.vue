@@ -94,7 +94,7 @@ async function handleSignOut(): Promise<void> {
 <template>
   <div class="shell" :class="{ 'is-collapsed': collapsed }">
     <aside class="sidebar" :class="{ 'is-open': mobileOpen }">
-      <div class="brand">
+      <RouterLink class="brand" :to="{ name: 'dashboard' }" aria-label="Uptime — dashboard">
         <span class="brand-mark" aria-hidden="true">
           <span class="mark-node" />
           <span class="mark-line" />
@@ -104,7 +104,7 @@ async function handleSignOut(): Promise<void> {
           <span class="brand-name">Uptime</span>
           <span class="brand-endorsement">A BlasterSystems product</span>
         </span>
-      </div>
+      </RouterLink>
 
       <nav class="nav" aria-label="Primary">
         <RouterLink
@@ -229,6 +229,13 @@ async function handleSignOut(): Promise<void> {
   gap: 10px;
   padding: var(--space-1) var(--space-2) var(--space-5);
   overflow: hidden;
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.brand:hover .brand-name {
+  color: var(--thread-ink);
 }
 
 /* The DS thread mark: ○ transparency — vermilion thread — ■ on record. */

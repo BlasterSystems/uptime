@@ -23,6 +23,7 @@ import type { EventHub } from './events.js'
 import { MaintenanceEngine } from './maintenance.js'
 import { parseGroupConfig } from './groups.js'
 import { buildPublicStatusPayload } from './public-status.js'
+import { createUsersRouter } from './auth/index.js'
 import { createAgentRouter } from './agent/index.js'
 import { createLifecycleRouter } from './lifecycle/index.js'
 import {
@@ -64,18 +65,18 @@ export interface AppOptions {
 }
 
 export function toScheduled(row: MonitorRow): ScheduledMonitor {
-  if (row.type !== 'http') {
+  if (row.type !== 'http' && row.type !== 'docker') {
     throw new Error(`unsupported monitor type: ${row.type}`)
   }
   return {
     id: row.id,
-    type: 'http',
+    type: row.type,
     name: row.name,
     active: row.active,
     intervalS: row.intervalS,
     retries: row.retries,
     retryIntervalS: row.retryIntervalS,
-    config: parseMonitorConfig('http', row.config),
+    config: parseMonitorConfig(row.type, row.config),
   }
 }
 
@@ -344,6 +345,9 @@ export function createApp(opts: AppOptions): Express {
 
   // ---- Auth ----
   app.use('/api/v1/auth', auth.router)
+
+  // ---- User management (admin) ----
+  app.use('/api/v1/users', createUsersRouter({ db, auth }))
 
   // ---- Agent hub (optional; disabled without a token) ----
   if (opts.agentToken) {
@@ -1115,7 +1119,9 @@ export function createApp(opts: AppOptions): Express {
     const tagIds = resolveTagIds(parsed.tagIds, parsed.tags)
     if (tagIds.length > 0) db.setMonitorTags(row.id, tagIds)
     if (parsed.channelIds) db.setMonitorChannels(row.id, parsed.channelIds)
-    if (row.type === 'http' && row.active) scheduler?.upsert(toScheduled(row))
+    if ((row.type === 'http' || row.type === 'docker') && row.active) {
+      scheduler?.upsert(toScheduled(row))
+    }
     const { tagById } = apiContextFor([row])
     res.status(201).json({
       monitor: toApiMonitor(row, {
@@ -1140,9 +1146,12 @@ export function createApp(opts: AppOptions): Express {
       db.setMonitorTags(id, resolveTagIds(parsed.tagIds, parsed.tags))
     }
     if (parsed.channelIds !== undefined) db.setMonitorChannels(id, parsed.channelIds)
-    if (updated.type === 'http') {
-      if (updated.active) scheduler?.upsert(toScheduled(updated))
-      else scheduler?.remove(id)
+    const schedulable = updated.type === 'http' || updated.type === 'docker'
+    if (schedulable && updated.active) {
+      scheduler?.upsert(toScheduled(updated))
+    } else if (!updated.active || existing.type !== updated.type) {
+      // Deactivated, or re-typed to a non-scheduled kind: drop the stale entry.
+      scheduler?.remove(id)
     }
     if (!updated.active) metrics?.removeMonitor(id)
     const { tagIdsBy, channelIdsBy, tagById } = apiContextFor([updated])

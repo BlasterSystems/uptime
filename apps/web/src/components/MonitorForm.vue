@@ -10,6 +10,7 @@ import {
   createMonitor,
   errorMessage,
   fetchChannels,
+  fetchDockerHosts,
   fetchMonitors,
   fetchTags,
   updateMonitor,
@@ -17,6 +18,7 @@ import {
 import type {
   Channel,
   DockerContainerState,
+  DockerHost,
   DnsRecordType,
   GroupStrategy,
   HttpMethod,
@@ -175,6 +177,15 @@ const optionsLoading = ref(false)
 const optionsError = ref<string | null>(null)
 const tags = ref<Tag[]>([])
 const channels = ref<Channel[]>([])
+const dockerHosts = ref<DockerHost[]>([])
+
+const dockerHostOptions = computed(() =>
+  dockerHosts.value.map((host) => ({ value: host.uri, label: host.name })),
+)
+
+function applyDockerHost(uri: string): void {
+  if (uri !== '') form.dockerHostUri = uri
+}
 const monitors = ref<Monitor[]>([])
 const selectedChannelIds = ref<number[]>([])
 const submitting = ref(false)
@@ -811,12 +822,14 @@ async function loadOptions(): Promise<void> {
   optionsLoading.value = true
   optionsError.value = null
   try {
-    const [loadedTags, loadedChannels, loadedMonitors] = await Promise.all([
+    const [loadedTags, loadedChannels, loadedMonitors, loadedDockerHosts] = await Promise.all([
       fetchTags(),
       fetchChannels(),
       fetchMonitors(),
+      fetchDockerHosts(),
     ])
     tags.value = loadedTags
+    dockerHosts.value = loadedDockerHosts
     channels.value = loadedChannels
     monitors.value = loadedMonitors
   } catch (error) {
@@ -1366,6 +1379,14 @@ async function copyPushUrl(): Promise<void> {
 
       <template v-else-if="form.type === 'docker'">
         <div class="form-grid">
+          <Select
+            v-if="dockerHosts.length > 0"
+            label="Registered Docker hosts"
+            :options="dockerHostOptions"
+            placeholder="Pick a saved host…"
+            hint="Fills the URI from a host saved under Settings → Docker hosts."
+            @update:model-value="applyDockerHost"
+          />
           <Input
             v-model="form.dockerHostUri"
             label="Docker host"

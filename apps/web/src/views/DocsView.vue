@@ -425,9 +425,9 @@ const limitsRows: { limit: string; value: string }[] = [
       </p>
       <CodeBlock label="Push monitor" :code="createPushSnippet" />
       <p>
-        Only <code>http</code> monitors are actively scheduled today; the other
-        engine types (tcp, dns, icmp, databases, docker) validate and store,
-        and are checked by their engines as they come online.
+        <code>http</code> and <code>docker</code> monitors are actively
+        scheduled; the other engine types (tcp, dns, icmp, databases) validate
+        and store, and are checked by their engines as they come online.
         <code>group</code> monitors derive their status from members:
       </p>
       <CodeBlock label="Group monitor" :code="createGroupSnippet" />

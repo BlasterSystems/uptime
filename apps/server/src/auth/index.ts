@@ -392,6 +392,38 @@ export function createAuthModule(deps: {
     res.json({ ok: true })
   })
 
+  router.post('/change-password', requireAuth('viewer'), async (req, res) => {
+    const auth = res.locals.auth as AuthContext
+    if (auth.via !== 'session') {
+      // API keys cannot present the current password, so they must not rotate it.
+      res.status(403).json({ error: 'session_required' })
+      return
+    }
+    const user = currentUser(res)
+    if (user === null) {
+      res.status(401).json({ error: 'unauthenticated' })
+      return
+    }
+    const body = bodyOf(req)
+    const currentPassword = stringField(body, 'currentPassword')
+    const nextPassword = stringField(body, 'nextPassword')
+    if (
+      currentPassword === undefined ||
+      !(await verifyPassword(user.passwordHash, currentPassword))
+    ) {
+      res.status(401).json({ error: 'invalid_credentials' })
+      return
+    }
+    if (nextPassword === undefined || nextPassword.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: 'invalid_password' })
+      return
+    }
+    db.updateUser(user.id, { passwordHash: await argon2Hash(nextPassword, ARGON2_OPTIONS) })
+    // Every other device signs out; the caller keeps this session.
+    db.deleteUserSessions(user.id, readCookie(req.headers.cookie, SESSION_COOKIE) ?? undefined)
+    res.status(204).send()
+  })
+
   router.post('/api-keys', requireAuth('admin'), (req, res) => {
     const auth = res.locals.auth as AuthContext
     const body = bodyOf(req)
@@ -456,4 +488,141 @@ export function createAuthModule(deps: {
   })
 
   return { router, requireAuth }
+}
+
+/** Roles accepted by the users API; mirrors `UserRole` without importing the schema. */
+const USER_ROLES: UserRole[] = ['admin', 'editor', 'viewer']
+
+function isUserRole(value: string): value is UserRole {
+  return (USER_ROLES as string[]).includes(value)
+}
+
+function countAdmins(db: Database): number {
+  return db.listUsers().filter((user) => user.role === 'admin').length
+}
+
+/**
+ * Admin user management (`/api/v1/users`): list, create, edit (role, password
+ * reset) and delete. Self-delete and last-admin guards are enforced here so
+ * an instance can never lock itself out. Hashing stays in this module.
+ */
+export function createUsersRouter(deps: { db: Database; auth: AuthModule }): Router {
+  const { db } = deps
+  const { requireAuth } = deps.auth
+  const router = Router()
+
+  const publicUser = (row: UserRow) => ({
+    id: row.id,
+    email: row.email,
+    role: row.role,
+    totpEnabled: row.totpEnabled,
+    createdAt: row.createdAt.toISOString(),
+  })
+
+  router.get('/', requireAuth('admin'), (_req, res) => {
+    res.json({ users: db.listUsers().map(publicUser) })
+  })
+
+  router.post('/', requireAuth('admin'), async (req, res) => {
+    const body = bodyOf(req)
+    const email = stringField(body, 'email')
+    const password = stringField(body, 'password')
+    const role = stringField(body, 'role') ?? 'viewer'
+    if (email === undefined || !EMAIL_PATTERN.test(email)) {
+      res.status(400).json({ error: 'invalid_email' })
+      return
+    }
+    if (password === undefined || password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: 'invalid_password' })
+      return
+    }
+    if (!isUserRole(role)) {
+      res.status(400).json({ error: 'invalid_role' })
+      return
+    }
+    if (db.getUserByEmail(email) !== null) {
+      res.status(409).json({ error: 'email_taken' })
+      return
+    }
+    const user = db.createUser({ email, passwordHash: await argon2Hash(password, ARGON2_OPTIONS), role })
+    res.status(201).json({ user: publicUser(user) })
+  })
+
+  router.patch('/:id', requireAuth('admin'), async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: 'invalid_id' })
+      return
+    }
+    const target = db.getUser(id)
+    if (target === null) {
+      res.status(404).json({ error: 'user_not_found' })
+      return
+    }
+    const body = bodyOf(req)
+    const patch: { passwordHash?: string; role?: UserRole } = {}
+    if (body.role !== undefined) {
+      if (typeof body.role !== 'string' || !isUserRole(body.role)) {
+        res.status(400).json({ error: 'invalid_role' })
+        return
+      }
+      if (
+        target.role === 'admin' &&
+        body.role !== 'admin' &&
+        countAdmins(db) === 1
+      ) {
+        res.status(409).json({ error: 'last_admin' })
+        return
+      }
+      patch.role = body.role
+    }
+    if (body.password !== undefined) {
+      if (typeof body.password !== 'string' || body.password.length < MIN_PASSWORD_LENGTH) {
+        res.status(400).json({ error: 'invalid_password' })
+        return
+      }
+      patch.passwordHash = await argon2Hash(body.password, ARGON2_OPTIONS)
+    }
+    if (Object.keys(patch).length === 0) {
+      res.status(400).json({ error: 'empty_patch' })
+      return
+    }
+    const updated = db.updateUser(id, patch)
+    if (updated === null) {
+      res.status(404).json({ error: 'user_not_found' })
+      return
+    }
+    if (patch.passwordHash !== undefined) db.deleteUserSessions(id)
+    res.json({ user: publicUser(updated) })
+  })
+
+  router.delete('/:id', requireAuth('admin'), (req, res) => {
+    const auth = res.locals.auth as AuthContext
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id) || id <= 0) {
+      res.status(400).json({ error: 'invalid_id' })
+      return
+    }
+    if (auth.userId === id) {
+      res.status(400).json({ error: 'cannot_delete_self' })
+      return
+    }
+    const target = db.getUser(id)
+    if (target === null) {
+      res.status(404).json({ error: 'user_not_found' })
+      return
+    }
+    if (target.role === 'admin' && countAdmins(db) === 1) {
+      res.status(409).json({ error: 'last_admin' })
+      return
+    }
+    if (!db.deleteUser(id)) {
+      res.status(404).json({ error: 'user_not_found' })
+      return
+    }
+    db.deleteUserSessions(id)
+    res.status(204).send()
+  })
+
+  return router
 }

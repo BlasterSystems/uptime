@@ -14,6 +14,14 @@ All notable, user-visible changes are recorded here. Format follows
   `/status` page (`GET /api/v1/public/status`), which lists name, status, latency, 24 h
   uptime and maintenance windows — never target URLs or check config. Documented in
   ADR-0005. Status pages remain the tool for curated, branded pages.
+- User management (Settings → Users, admin): create users, change roles, reset passwords
+  and delete access via `GET/POST/PATCH/DELETE /api/v1/users`, with self-delete and
+  last-admin guards; password resets sign the user out everywhere.
+- Password change (Settings → Profile): `POST /api/v1/auth/change-password` verifies the
+  current password and signs out every other session.
+- `docker` monitors are now actively scheduled (unix socket, tcp://, or TLS); the DEV
+  compose mounts the host Docker socket read-only for them (`DOCKER_GID` in
+  `deploy/.env`); the monitor form can pick a saved Docker host by name.
 
 ### Changed
 
