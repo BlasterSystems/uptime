@@ -33,8 +33,6 @@ const SESSION: AuthSession = {
 
 beforeEach(() => {
   clearSession()
-  authState.setupRequired = false
-  authState.ready = false
   vi.mocked(fetchMe).mockReset()
   vi.mocked(fetchAuthState).mockReset()
   vi.mocked(login).mockReset()
@@ -78,7 +76,12 @@ describe('session state', () => {
   })
 
   it('completeSetup applies the session and clears setupRequired', async () => {
-    authState.setupRequired = true
+    // Drive setupRequired through the real bootstrap path (the state field is
+    // readonly to consumers).
+    vi.mocked(fetchAuthState).mockResolvedValue({ setupRequired: true })
+    await bootstrapAuth()
+    expect(authState.setupRequired).toBe(true)
+
     vi.mocked(setupAdmin).mockResolvedValue(SESSION)
     await completeSetup('admin@example.com', 'password')
     expect(authState.setupRequired).toBe(false)
