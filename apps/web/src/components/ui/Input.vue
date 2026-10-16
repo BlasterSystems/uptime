@@ -4,6 +4,19 @@ import Field from './Field.vue'
 
 const model = defineModel<string>({ default: '' })
 
+/**
+ * Vue's `v-model` on a native `type="number"` input pipes the DOM value
+ * through `looseToNumber`, so editing a numeric field would store a `number`
+ * in the string-typed form state and crash the string validators (`.trim()`).
+ * Always keep the emitted value a string, whatever the input type.
+ */
+const text = computed<string>({
+  get: () => (model.value === null || model.value === undefined ? '' : String(model.value)),
+  set: (value) => {
+    model.value = typeof value === 'string' ? value : String(value)
+  },
+})
+
 const props = withDefaults(
   defineProps<{
     label?: string
@@ -52,7 +65,7 @@ const invalid = computed(() => props.error !== null && props.error !== '')
   >
     <input
       :id="inputId"
-      v-model="model"
+      v-model="text"
       class="control"
       :class="{ 'is-invalid': invalid, 'mono-control': mono }"
       :type="type"

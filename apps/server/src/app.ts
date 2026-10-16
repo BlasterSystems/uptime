@@ -172,8 +172,8 @@ function parseMonitorBody(body: unknown, partial: boolean): ParsedInput {
   }
   if (!partial || b.retries !== undefined) {
     const n = Number(b.retries ?? 1)
-    if (!Number.isInteger(n) || n < 1 || n > 100) {
-      return { ok: false, error: 'retries must be an integer in [1, 100]' }
+    if (!Number.isInteger(n) || n < 0 || n > 100) {
+      return { ok: false, error: 'retries must be an integer in [0, 100]' }
     }
     input.retries = n
   }

@@ -890,12 +890,12 @@ function buildPayload(): MonitorInput | null {
 }
 
 async function submit(): Promise<void> {
-  const payload = buildPayload()
-  if (payload === null) return
-
   submitting.value = true
   formError.value = null
   try {
+    const payload = buildPayload()
+    if (payload === null) return
+
     const editing = editingMonitor.value
     if (editing !== null) {
       const updated = await updateMonitor(editing.id, payload)
@@ -909,10 +909,9 @@ async function submit(): Promise<void> {
     emit('created', monitor)
     if (monitor.pushUrl === undefined) emit('close')
   } catch (error) {
-    formError.value = errorMessage(
-      error,
-      isEdit.value ? 'Could not save the monitor.' : 'Could not create the monitor.',
-    )
+    const fallback = isEdit.value ? 'Could not save the monitor.' : 'Could not create the monitor.'
+    formError.value = errorMessage(error, fallback)
+    toast.error(fallback, formError.value)
   } finally {
     submitting.value = false
   }
