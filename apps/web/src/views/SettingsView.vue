@@ -518,7 +518,10 @@ const userBusy = ref(false)
 const userEmail = ref('')
 const userPassword = ref('')
 const userRole = ref<UserRole>('viewer')
-const userFormErrors = reactive({ email: null, password: null })
+const userFormErrors = reactive<{ email: string | null; password: string | null }>({
+  email: null,
+  password: null,
+})
 const pendingUserDelete = ref<ManagedUser | null>(null)
 const deletingUser = ref(false)
 
