@@ -30,25 +30,30 @@ afterEach(() => {
 
 describe('request', () => {
   it('injects the CSRF token on mutations and JSON content type for bodies', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(200, { ok: true }))
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) => jsonResponse(200, { ok: true }),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await updateSettings({ title: 'x' } as never)
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    const headers = new Headers(init.headers)
+    const [, init] = fetchMock.mock.calls[0]!
+    const headers = new Headers(init?.headers)
     expect(headers.get('x-csrf-token')).toBe('csrf-1')
     expect(headers.get('content-type')).toBe('application/json')
   })
 
   it('omits the CSRF token from GET requests', async () => {
-    const fetchMock = vi.fn(async () => jsonResponse(200, { services: [] }))
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        jsonResponse(200, { services: [] }),
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     await fetchPublicOverview()
 
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(new Headers(init.headers).get('x-csrf-token')).toBeNull()
+    const [, init] = fetchMock.mock.calls[0]!
+    expect(new Headers(init?.headers).get('x-csrf-token')).toBeNull()
   })
 
   it('returns null for 204 and non-JSON success responses', async () => {
