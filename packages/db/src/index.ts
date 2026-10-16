@@ -2038,10 +2038,12 @@ export class Database {
       }
       // Kuma stores interval/retries; fall back to the SPEC §3 defaults when a
       // converted row omits them (mirrors the `monitors` column defaults).
+      // `retries` matches the API bound [0, 100] — 0 is a valid setting.
       const schedule = { intervalS: 60, retries: 1, retryIntervalS: 60 }
       for (const field of ['intervalS', 'retries', 'retryIntervalS'] as const) {
         const value = monitor[field]
-        if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+        if (typeof value !== 'number' || !Number.isInteger(value)) continue
+        if (field === 'retries' ? value >= 0 && value <= 100 : value > 0) {
           schedule[field] = value
         }
       }

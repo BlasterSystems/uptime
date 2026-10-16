@@ -104,7 +104,7 @@ function parseImportMonitor(raw: unknown): ImportMonitor | null {
   }
   if (body.retries !== undefined) {
     const value = Number(body.retries)
-    if (!Number.isInteger(value) || value < 1 || value > 100) return null
+    if (!Number.isInteger(value) || value < 0 || value > 100) return null
     monitor.retries = value
   }
   if (body.retryIntervalS !== undefined) {
