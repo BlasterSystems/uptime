@@ -735,6 +735,14 @@ export function logout(): Promise<void> {
   return request('/auth/logout', { method: 'POST' })
 }
 
+/** Rotates the signed-in user's password; other sessions are signed out. */
+export function changePassword(input: {
+  currentPassword: string
+  nextPassword: string
+}): Promise<void> {
+  return request('/auth/change-password', { method: 'POST', body: JSON.stringify(input) })
+}
+
 export async function fetchMe(): Promise<AuthSession | null> {
   try {
     return await request<AuthSession>('/auth/me', {}, { allowUnauthenticated: true })
@@ -775,6 +783,48 @@ export async function createApiKey(name: string, scopes: ApiKeyScope[]): Promise
 
 export function deleteApiKey(id: number): Promise<void> {
   return request(`/auth/api-keys/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+}
+
+/* Users (admin) */
+
+export interface ManagedUser {
+  id: number
+  email: string
+  role: UserRole
+  totpEnabled: boolean
+  createdAt: string
+}
+
+export async function fetchUsers(): Promise<ManagedUser[]> {
+  const body = await request<{ users?: ManagedUser[] }>('/users')
+  return body.users ?? []
+}
+
+export async function createUser(input: {
+  email: string
+  password: string
+  role: UserRole
+}): Promise<ManagedUser> {
+  const body = await request<{ user: ManagedUser }>('/users', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+  return body.user
+}
+
+export async function updateUser(
+  id: number,
+  input: { role?: UserRole; password?: string },
+): Promise<ManagedUser> {
+  const body = await request<{ user: ManagedUser }>(
+    `/users/${encodeURIComponent(String(id))}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  )
+  return body.user
+}
+
+export function deleteUser(id: number): Promise<void> {
+  return request(`/users/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
 }
 
 /* Monitors */

@@ -20,6 +20,12 @@ services:
       UPTIME_AGENT_TOKEN: ${UPTIME_AGENT_TOKEN:-}
     volumes:
       - uptime-data:/data
+      # Host Docker socket (read-only mount) so `docker` monitors can reach the
+      # local daemon. The socket GID differs per host — set DOCKER_GID in
+      # deploy/.env (`stat -c %g /var/run/docker.sock`).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      - '${DOCKER_GID:-999}'
     tmpfs:
       - /tmp
     read_only: true

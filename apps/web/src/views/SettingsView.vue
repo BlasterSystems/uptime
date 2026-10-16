@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   API_KEY_SCOPES,
   ApiError,
+  changePassword,
   createApiKey,
+  createUser,
   deleteApiKey,
   deleteDockerHost,
+  deleteUser,
   deleteMaintenanceWindow,
   deleteStatusPage,
   disableTotp,
@@ -17,8 +20,10 @@ import {
   fetchSettings,
   fetchStatusPages,
   fetchTags,
+  fetchUsers,
   startTotpSetup,
   updateSettings,
+  updateUser,
   verifyTotpSetup,
 } from '../api.js'
 import type {
@@ -28,9 +33,11 @@ import type {
   MaintenanceScope,
   MaintenanceStrategy,
   MaintenanceWindow,
+  ManagedUser,
   Monitor,
   StatusPage,
   Tag,
+  UserRole,
 } from '../api.js'
 import { useAuth } from '../auth.js'
 import { copyText } from '../clipboard.js'
@@ -48,6 +55,7 @@ import EmptyState from '../components/ui/EmptyState.vue'
 import Icon from '../components/ui/Icon.vue'
 import Input from '../components/ui/Input.vue'
 import Modal from '../components/ui/Modal.vue'
+import Select from '../components/ui/Select.vue'
 import Spinner from '../components/ui/Spinner.vue'
 import Switch from '../components/ui/Switch.vue'
 import Table from '../components/ui/Table.vue'
@@ -80,8 +88,48 @@ const toast = useToast()
 
 const tab = ref<string>('profile')
 
-/* Two-factor authentication */
+/** Admins additionally get user management. */
+const visibleTabs = computed(() =>
+  isAdmin.value ? [...TABS, { id: 'users', label: 'Users' }] : [...TABS],
+)
 
+/* Password change */
+
+const pwCurrent = ref('')
+const pwNext = ref('')
+const pwConfirm = ref('')
+const pwBusy = ref(false)
+const pwError = ref<string | null>(null)
+
+async function submitPasswordChange(): Promise<void> {
+  pwError.value = null
+  if (pwCurrent.value === '') {
+    pwError.value = 'Enter your current password.'
+    return
+  }
+  if (pwNext.value.length < 8) {
+    pwError.value = 'The new password must be at least 8 characters.'
+    return
+  }
+  if (pwNext.value !== pwConfirm.value) {
+    pwError.value = 'The new passwords do not match.'
+    return
+  }
+  pwBusy.value = true
+  try {
+    await changePassword({ currentPassword: pwCurrent.value, nextPassword: pwNext.value })
+    pwCurrent.value = ''
+    pwNext.value = ''
+    pwConfirm.value = ''
+    toast.success('Password changed', 'Other devices have been signed out.')
+  } catch (error) {
+    pwError.value = errorMessage(error, 'Could not change the password.')
+  } finally {
+    pwBusy.value = false
+  }
+}
+
+/* Two-factor authentication */
 const twoFactorMode = ref<TwoFactorMode>('idle')
 const twoFactorBusy = ref(false)
 const secret = ref<string | null>(null)
@@ -459,6 +507,122 @@ async function confirmDockerHostDelete(): Promise<void> {
   }
 }
 
+/* Users (admin) */
+
+const users = ref<ManagedUser[]>([])
+const usersLoaded = ref(false)
+const usersError = ref<string | null>(null)
+const userFormOpen = ref(false)
+const editingUser = ref<ManagedUser | null>(null)
+const userBusy = ref(false)
+const userEmail = ref('')
+const userPassword = ref('')
+const userRole = ref<UserRole>('viewer')
+const userFormErrors = reactive({ email: null, password: null })
+const pendingUserDelete = ref<ManagedUser | null>(null)
+const deletingUser = ref(false)
+
+const ROLE_OPTIONS = [
+  { value: 'viewer', label: 'Viewer — read-only' },
+  { value: 'editor', label: 'Editor — manages monitors' },
+  { value: 'admin', label: 'Admin — full access' },
+]
+
+const userColumns: TableColumn<ManagedUser>[] = [
+  { key: 'email', label: 'Email' },
+  { key: 'role', label: 'Role', width: '130px' },
+  { key: 'totpEnabled', label: '2FA', width: '90px' },
+  { key: 'createdAt', label: 'Created', sortable: true, width: '170px' },
+  { key: 'actions', label: '', align: 'right', width: '150px' },
+]
+
+async function loadUsers(): Promise<void> {
+  try {
+    users.value = await fetchUsers()
+    usersError.value = null
+  } catch (error) {
+    usersError.value = errorMessage(error, 'Could not load users.')
+  } finally {
+    usersLoaded.value = true
+  }
+}
+
+function openUserForm(user: ManagedUser | null): void {
+  editingUser.value = user
+  userEmail.value = user?.email ?? ''
+  userPassword.value = ''
+  userRole.value = user?.role ?? 'viewer'
+  userFormErrors.email = null
+  userFormErrors.password = null
+  userFormOpen.value = true
+}
+
+function closeUserForm(): void {
+  userFormOpen.value = false
+  editingUser.value = null
+}
+
+async function submitUserForm(): Promise<void> {
+  userFormErrors.email = null
+  userFormErrors.password = null
+  if (editingUser.value === null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userEmail.value.trim())) {
+    userFormErrors.email = 'Enter a valid email address.'
+  }
+  if (userPassword.value.length < 8) {
+    userFormErrors.password =
+      editingUser.value === null
+        ? 'The initial password must be at least 8 characters.'
+        : 'Leave the password blank to keep it, or enter at least 8 characters.'
+  }
+  if (userFormErrors.email !== null || userFormErrors.password !== null) return
+
+  userBusy.value = true
+  try {
+    if (editingUser.value === null) {
+      const user = await createUser({
+        email: userEmail.value.trim(),
+        password: userPassword.value,
+        role: userRole.value,
+      })
+      toast.success('User created', user.email)
+    } else {
+      const user = await updateUser(editingUser.value.id, {
+        role: userRole.value,
+        ...(userPassword.value === '' ? {} : { password: userPassword.value }),
+      })
+      toast.success('User updated', user.email)
+    }
+    closeUserForm()
+    await loadUsers()
+  } catch (error) {
+    const fallback =
+      editingUser.value === null ? 'Could not create the user.' : 'Could not update the user.'
+    if (error instanceof ApiError && error.status === 409) {
+      userFormErrors.email = 'That email is already in use.'
+    } else {
+      userFormErrors.password = errorMessage(error, fallback)
+    }
+  } finally {
+    userBusy.value = false
+  }
+}
+
+async function confirmUserDelete(): Promise<void> {
+  if (pendingUserDelete.value === null) return
+  const user = pendingUserDelete.value
+  deletingUser.value = true
+  try {
+    await deleteUser(user.id)
+    toast.success('User deleted', user.email)
+    pendingUserDelete.value = null
+    await loadUsers()
+  } catch (error) {
+    toast.error('Could not delete the user', errorMessage(error, 'Try again.'))
+  } finally {
+    deletingUser.value = false
+  }
+}
+
 /* General settings */
 
 const settingsTitle = ref('')
@@ -521,6 +685,7 @@ watch(tab, (value) => {
   if (value === 'status-pages' && isAdmin.value && !statusPagesLoaded.value) void loadStatusPages()
   if (value === 'maintenance' && isAdmin.value && !maintenanceLoaded.value) void loadMaintenance()
   if (value === 'docker-hosts' && isAdmin.value && !dockerHostsLoaded.value) void loadDockerHosts()
+  if (value === 'users' && isAdmin.value && !usersLoaded.value) void loadUsers()
   if (value === 'general' && isAdmin.value && !settingsLoaded.value) void loadSettings()
 })
 
@@ -531,7 +696,7 @@ onMounted(() => {
 
 <template>
   <div class="view">
-    <Tabs v-model="tab" :tabs="TABS">
+    <Tabs v-model="tab" :tabs="visibleTabs">
       <template #tab-profile>
         <div class="stack">
           <Card title="Account" subtitle="Your sign-in identity and role.">
@@ -541,19 +706,33 @@ onMounted(() => {
             </div>
           </Card>
 
-          <Card title="Password" subtitle="Password changes are not available in this release.">
-            <div class="form-grid">
+          <Card title="Password" subtitle="Changing the password signs out your other devices.">
+            <div class="stack-sm">
               <Input
-                :model-value="''"
+                v-model="pwCurrent"
+                label="Current password"
+                type="password"
+                autocomplete="current-password"
+              />
+              <Input
+                v-model="pwNext"
                 label="New password"
                 type="password"
-                disabled
-                hint="Coming in a later release."
+                autocomplete="new-password"
+                hint="At least 8 characters."
               />
-              <Input :model-value="''" label="Confirm password" type="password" disabled />
+              <Input
+                v-model="pwConfirm"
+                label="Confirm new password"
+                type="password"
+                autocomplete="new-password"
+              />
+              <p v-if="pwError !== null" class="form-error" role="alert">{{ pwError }}</p>
             </div>
             <template #footer>
-              <Button variant="primary" disabled>Change password</Button>
+              <Button variant="primary" :loading="pwBusy" @click="submitPasswordChange">
+                Change password
+              </Button>
             </template>
           </Card>
         </div>
@@ -1008,6 +1187,68 @@ onMounted(() => {
         </Card>
       </template>
 
+      <template #tab-users>
+        <EmptyState
+          v-if="!isAdmin"
+          title="Administrator role required"
+          description="Only administrators can manage user access."
+        />
+        <div v-else class="stack">
+          <p v-if="usersError !== null" class="banner" role="alert">{{ usersError }}</p>
+
+          <Card title="Users" subtitle="Accounts with dashboard access. Password resets sign the user out everywhere.">
+            <template #actions>
+              <Button variant="primary" size="sm" @click="openUserForm(null)">
+                <Icon name="plus" :size="14" />
+                Add user
+              </Button>
+            </template>
+            <Table
+              :columns="userColumns"
+              :rows="users"
+              :loading="!usersLoaded"
+              :row-key="(row) => row.id"
+            >
+              <template #empty>
+                <span>No users yet. Create one to grant dashboard access.</span>
+              </template>
+              <template #cell-role="{ row }">
+                <Badge variant="accent" mono>{{ row.role }}</Badge>
+              </template>
+              <template #cell-totpEnabled="{ row }">
+                <Badge :variant="row.totpEnabled ? 'success' : 'neutral'">
+                  {{ row.totpEnabled ? '2FA on' : '2FA off' }}
+                </Badge>
+              </template>
+              <template #cell-createdAt="{ row }">
+                <span class="tabular">{{ formatDateTime(row.createdAt) }}</span>
+              </template>
+              <template #cell-actions="{ row }">
+                <div class="row-actions">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    :aria-label="`Edit user ${row.email}`"
+                    @click="openUserForm(row)"
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    :disabled="row.id === state.user?.id"
+                    :aria-label="`Delete user ${row.email}`"
+                    @click="pendingUserDelete = row"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </template>
+            </Table>
+          </Card>
+        </div>
+      </template>
+
       <template #tab-general>
         <EmptyState
           v-if="!isAdmin"
@@ -1189,6 +1430,55 @@ onMounted(() => {
       :loading="deletingDockerHost"
       @confirm="confirmDockerHostDelete"
       @cancel="pendingDockerHostDelete = null"
+    />
+
+    <Modal
+      :open="userFormOpen"
+      :title="editingUser === null ? 'Add user' : `Edit ${editingUser.email}`"
+      size="sm"
+      @close="closeUserForm"
+    >
+      <div class="stack-sm">
+        <Input
+          v-model="userEmail"
+          label="Email"
+          type="email"
+          autocomplete="off"
+          :disabled="editingUser !== null"
+          :error="userFormErrors.email"
+        />
+        <Select
+          v-model="userRole"
+          label="Role"
+          :options="ROLE_OPTIONS"
+          hint="Admin manages users and settings; editor manages monitors; viewer is read-only."
+        />
+        <Input
+          v-model="userPassword"
+          label="Password"
+          type="password"
+          autocomplete="new-password"
+          :placeholder="editingUser === null ? '' : 'Leave blank to keep the current password'"
+          :error="userFormErrors.password"
+        />
+      </div>
+      <template #footer>
+        <Button variant="secondary" :disabled="userBusy" @click="closeUserForm">Cancel</Button>
+        <Button variant="primary" :loading="userBusy" @click="submitUserForm">
+          {{ editingUser === null ? 'Create user' : 'Save changes' }}
+        </Button>
+      </template>
+    </Modal>
+
+    <ConfirmDialog
+      :open="pendingUserDelete !== null"
+      :title="`Delete ${pendingUserDelete?.email ?? 'user'}?`"
+      :message="`Remove ${pendingUserDelete?.email ?? ''} from this instance? Their sessions are signed out immediately.`"
+      confirm-label="Delete user"
+      danger
+      :loading="deletingUser"
+      @confirm="confirmUserDelete"
+      @cancel="pendingUserDelete = null"
     />
   </div>
 </template>

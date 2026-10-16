@@ -18,6 +18,7 @@ import {
   lt,
   lte,
   max,
+  ne,
   sql,
   sum,
 } from 'drizzle-orm'
@@ -749,6 +750,22 @@ export class Database {
 
   deleteUser(id: number): boolean {
     return this.#db.delete(users).where(eq(users.id, id)).run().changes > 0
+  }
+
+  /**
+   * Drops every session of a user. `keepSessionId` survives, so a password
+   * change can revoke other devices while keeping the caller signed in.
+   */
+  deleteUserSessions(userId: number, keepSessionId?: string): number {
+    const result = this.#db
+      .delete(sessions)
+      .where(
+        keepSessionId === undefined
+          ? eq(sessions.userId, userId)
+          : and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)),
+      )
+      .run()
+    return result.changes
   }
 
   listUsers(): UserRow[] {

@@ -1,6 +1,5 @@
 import { runAgentCli } from '@uptime/agent'
-import { getCertExpiryDays, Scheduler, runHttpCheck, parseMonitorConfig } from '@uptime/core'
-import type { HttpMonitorConfig } from '@uptime/core'
+import { getCertExpiryDays, Scheduler, runCheck, parseMonitorConfig } from '@uptime/core'
 import { Notifier, type ChannelType } from '@uptime/notify'
 import { Database, SecretBox } from '@uptime/db'
 import { createApp, toScheduled } from './app.js'
@@ -157,12 +156,7 @@ const pushEngine = new PushEngine({
 })
 
 const scheduler = new Scheduler({
-  check: (m) => {
-    // The scheduler only probes http monitors (upsert skips every other type),
-    // so the union config is guaranteed to be the http variant here.
-    const httpConfig = m.config as HttpMonitorConfig
-    return runHttpCheck(httpConfig)
-  },
+  check: (m) => runCheck(m.type, m.config),
   onResult: (m, result, time) => {
     const under = maintenance.isUnder(m.id, time)
     maintenanceTransition(m.id, under)
@@ -191,7 +185,9 @@ const scheduler = new Scheduler({
 seedIfEmpty(db, scheduler)
 
 for (const row of db.listMonitors()) {
-  if (row.active && row.type === 'http') scheduler.upsert(toScheduled(row))
+  if (row.active && (row.type === 'http' || row.type === 'docker')) {
+    scheduler.upsert(toScheduled(row))
+  }
 }
 
 const app = createApp({
