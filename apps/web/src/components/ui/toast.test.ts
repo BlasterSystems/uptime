@@ -14,13 +14,13 @@ afterEach(() => {
 describe('toast store', () => {
   it('pushes toasts with type, title and optional message', () => {
     const api = useToast()
-    api.success('Monitor created', 'as267 prod')
+    api.success('Monitor created', 'acme prod')
     api.error('Copy failed')
     api.info('Heads up')
 
     const types = api.toasts.value.map((t) => t.type)
     expect(types).toEqual(['success', 'error', 'info'])
-    expect(api.toasts.value[0]).toMatchObject({ title: 'Monitor created', message: 'as267 prod' })
+    expect(api.toasts.value[0]).toMatchObject({ title: 'Monitor created', message: 'acme prod' })
     expect(api.toasts.value[1]?.message).toBeUndefined()
   })
 
