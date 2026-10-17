@@ -43,6 +43,13 @@
       "when": 1792073041697,
       "tag": "0005_crazy_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792220628464,
+      "tag": "0006_slim_cerise",
+      "breakpoints": true
     }
   ]
 }

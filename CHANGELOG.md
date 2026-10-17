@@ -9,6 +9,20 @@ All notable, user-visible changes are recorded here. Format follows
 
 ### Added
 
+- Self-service password recovery: a "reset your password by email" link on the sign-in
+  page emails a single-use token (1 h, replaces outstanding tokens); the reset signs
+  every session out. The endpoint is enumeration-safe (always 204, per-IP rate
+  limits on both steps).
+- Outbound email via Resend: the API key and from-address are configured in
+  Settings → General (stored AES-256-GCM encrypted, write-only, with a "send test
+  email" check).
+- `resend` notification channel (Resend HTTP API) alongside the SMTP email channel —
+  incident open/recovery/resend notifications can now be delivered by email without a
+  local SMTP relay.
+- Response-time chart hover: moving the pointer over the chart pins a guide line to the
+  nearest check and shows its latency and time as the pointer travels.
+- Status pages advertise their incident feeds: RSS/Atom links in the page footer and
+  `<link rel="alternate">` autodiscovery in the HTML shell.
 - Per-monitor public visibility and a built-in public status overview: a monitor form
   toggle ("Show on the public status page") publishes a service to the unauthenticated
   `/status` page (`GET /api/v1/public/status`), which lists name, status, latency, 24 h

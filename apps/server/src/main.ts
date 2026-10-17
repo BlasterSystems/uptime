@@ -10,6 +10,7 @@ import { GroupEngine } from './groups.js'
 import { IncidentEngine } from './incidents.js'
 import { MaintenanceEngine } from './maintenance.js'
 import { Metrics } from './metrics.js'
+import { createMailer } from './mailer.js'
 import { PushEngine } from './push.js'
 import { seedIfEmpty } from './seed.js'
 import {
@@ -190,17 +191,20 @@ for (const row of db.listMonitors()) {
   }
 }
 
+const mailer = createMailer({ db, secrets })
+
 const app = createApp({
   db,
   secrets,
   notifier,
-  auth: createAuthModule({ db, secrets }),
+  auth: createAuthModule({ db, secrets, mailer }),
   scheduler,
   metrics,
   webDist: cfg.webDist,
   incidentEngine,
   eventHub: hub,
   maintenance,
+  mailer,
   dataDir: cfg.dataDir,
   agentToken: process.env.UPTIME_AGENT_TOKEN ?? '',
 })

@@ -117,6 +117,35 @@ export const apiKeys = sqliteTable('api_keys', {
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 })
 
+/**
+ * `password_reset_tokens` — single-use forgot-password tokens (SPEC §5). Only the
+ * sha256 of the token is stored; a fresh token replaces outstanding ones.
+ */
+export const passwordResetTokens = sqliteTable(
+  'password_reset_tokens',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (table) => [index('password_reset_tokens_user_idx').on(table.userId)],
+)
+
+/** `mailer_settings` — singleton outbound-email configuration; the API key is encrypted at rest (ADR-0002). */
+export const mailerSettings = sqliteTable('mailer_settings', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  provider: text('provider', { enum: ['resend'] }).notNull().default('resend'),
+  apiKeyEnc: text('api_key_enc'),
+  fromAddress: text('from_address'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(false),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+})
+
 /** `notification_channels` — per-type config stored AES-256-GCM encrypted. */
 export const notificationChannels = sqliteTable('notification_channels', {
   id: integer('id').primaryKey({ autoIncrement: true }),

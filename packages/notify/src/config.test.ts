@@ -26,6 +26,9 @@ describe('parseChannelConfig', () => {
       to: 'd@e.f',
       transport: 'smtp',
     })
+    expect(
+      parseChannelConfig('resend', { apiKey: 're_123', from: 'a@b.c', to: 'd@e.f' }),
+    ).toEqual({ apiKey: 're_123', from: 'a@b.c', to: 'd@e.f', apiBaseUrl: 'https://api.resend.com' })
     expect(parseChannelConfig('ntfy', { topic: 'alerts' })).toEqual({
       topic: 'alerts',
       server: 'https://ntfy.sh',
@@ -135,6 +138,15 @@ describe('parseChannelConfig', () => {
         'email with unknown transport',
         'email',
         { smtpHost: 's', from: 'a@b.c', to: 'd@e.f', transport: 'sendmail' },
+      ],
+      ['resend without apiKey', 'resend', { from: 'a@b.c', to: 'd@e.f' }],
+      ['resend with empty apiKey', 'resend', { apiKey: '', from: 'a@b.c', to: 'd@e.f' }],
+      ['resend without from', 'resend', { apiKey: 're_123', to: 'd@e.f' }],
+      ['resend without to', 'resend', { apiKey: 're_123', from: 'a@b.c' }],
+      [
+        'resend with non-http apiBaseUrl',
+        'resend',
+        { apiKey: 're_123', from: 'a@b.c', to: 'd@e.f', apiBaseUrl: 'ftp://x' },
       ],
       ['ntfy without topic', 'ntfy', {}],
       ['ntfy with empty topic', 'ntfy', { topic: '' }],

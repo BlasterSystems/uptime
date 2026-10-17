@@ -20,7 +20,15 @@ export type MonitorType =
   | 'docker'
   | 'group'
 export type HeartbeatStatus = 'up' | 'down' | 'pending' | 'maintenance'
-export type ChannelType = 'telegram' | 'discord' | 'slack' | 'email' | 'ntfy' | 'gotify' | 'webhook'
+export type ChannelType =
+  | 'telegram'
+  | 'discord'
+  | 'slack'
+  | 'email'
+  | 'resend'
+  | 'ntfy'
+  | 'gotify'
+  | 'webhook'
 
 export const API_KEY_SCOPES: readonly ApiKeyScope[] = ['read', 'write', 'admin']
 export const CHANNEL_TYPES: readonly ChannelType[] = [
@@ -28,6 +36,7 @@ export const CHANNEL_TYPES: readonly ChannelType[] = [
   'discord',
   'slack',
   'email',
+  'resend',
   'ntfy',
   'gotify',
   'webhook',
@@ -678,6 +687,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_name: 'Enter a name.',
   invalid_scopes: 'Select at least one scope.',
   invalid_id: 'That item no longer exists.',
+  invalid_token: 'This reset link is no longer valid. Request a new one.',
+  mailer_not_configured: 'Email delivery is not configured yet.',
 }
 
 /**
@@ -1139,4 +1150,51 @@ export async function updateSettings(input: {
     method: 'PUT',
     body: JSON.stringify(input),
   })
+}
+
+/* Password recovery (public) */
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await request(
+    '/auth/forgot-password',
+    { method: 'POST', body: JSON.stringify({ email }) },
+    { allowUnauthenticated: true },
+  )
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await request(
+    '/auth/reset-password',
+    { method: 'POST', body: JSON.stringify({ token, password }) },
+    { allowUnauthenticated: true },
+  )
+}
+
+/* Outbound email (admin) */
+
+export interface MailerSettings {
+  provider: 'resend'
+  enabled: boolean
+  from: string | null
+  hasApiKey: boolean
+}
+
+export function fetchMailer(): Promise<MailerSettings> {
+  return request<{ mailer?: MailerSettings }>('/mailer').then((body) => body.mailer!)
+}
+
+export async function updateMailer(input: {
+  apiKey?: string | null
+  from?: string | null
+  enabled?: boolean
+}): Promise<MailerSettings> {
+  const body = await request<{ mailer?: MailerSettings }>('/mailer', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+  return body.mailer!
+}
+
+export async function testMailer(to?: string): Promise<void> {
+  await request('/mailer/test', { method: 'POST', body: JSON.stringify(to === undefined ? {} : { to }) })
 }

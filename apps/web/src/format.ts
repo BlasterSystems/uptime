@@ -48,6 +48,12 @@ export function formatDateTime(iso: string): string {
   })
 }
 
+/** `HH:MM` in the viewer's locale — chart hover labels. Accepts epoch ms. */
+export function formatClock(time: number): string {
+  if (!Number.isFinite(time)) return '—'
+  return new Date(time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+}
+
 /** Interval/latency length, e.g. `60s`, `5m`, `120 ms`. */
 export function formatInterval(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '—'

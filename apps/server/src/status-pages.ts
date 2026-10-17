@@ -499,8 +499,9 @@ export function buildBadgeSvg(label: string, status: OverallStatus): string {
 `
 }
 
-/** Minimal OpenGraph/Twitter meta injection for the SPA shell (crawler-friendly). */
-export function injectOgMeta(html: string, opts: { title: string; description: string; url: string }): string {
+/** Minimal OpenGraph/Twitter meta + feed autodiscovery for the SPA shell. */
+export function injectOgMeta(html: string, opts: { title: string; description: string; url: string; origin: string; slug: string }): string {
+  const base = `${opts.origin}/status/${opts.slug}`
   const meta = `
     <meta property="og:type" content="website" />
     <meta property="og:title" content="${xmlEscape(opts.title)}" />
@@ -508,6 +509,8 @@ export function injectOgMeta(html: string, opts: { title: string; description: s
     <meta property="og:url" content="${xmlEscape(opts.url)}" />
     <meta name="twitter:card" content="summary" />
     <meta name="twitter:title" content="${xmlEscape(opts.title)}" />
-    <meta name="twitter:description" content="${xmlEscape(opts.description)}" />`
+    <meta name="twitter:description" content="${xmlEscape(opts.description)}" />
+    <link rel="alternate" type="application/rss+xml" title="${xmlEscape(opts.title)} — incidents (RSS)" href="${xmlEscape(`${base}/rss.xml`)}" />
+    <link rel="alternate" type="application/atom+xml" title="${xmlEscape(opts.title)} — incidents (Atom)" href="${xmlEscape(`${base}/atom.xml`)}" />`
   return html.replace('</head>', `${meta}\n  </head>`)
 }

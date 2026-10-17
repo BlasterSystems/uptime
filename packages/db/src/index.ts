@@ -34,11 +34,13 @@ import {
   heartbeatsDaily,
   heartbeatsHourly,
   incidents,
+  mailerSettings,
   maintenanceWindows,
   monitorNotifications,
   monitors,
   monitorTags,
   notificationChannels,
+  passwordResetTokens,
   pushTokens,
   sessions,
   settings,
@@ -341,6 +343,24 @@ export interface KumaImportResult {
 
 type MonitorSelect = typeof monitors.$inferSelect
 
+export interface PasswordResetTokenRow {
+  id: number
+  userId: number
+  tokenHash: string
+  expiresAt: Date
+  usedAt: Date | null
+  createdAt: Date
+}
+
+export interface MailerSettingsRow {
+  id: number
+  provider: 'resend'
+  apiKeyEnc: string | null
+  fromAddress: string | null
+  enabled: boolean
+  updatedAt: Date
+}
+
 export interface DockerHostRow {
   id: number
   name: string
@@ -350,6 +370,19 @@ export interface DockerHostRow {
   tlsKeyEnc: string | null
   createdAt: Date
   updatedAt: Date
+}
+
+type MailerSettingsSelect = typeof mailerSettings.$inferSelect
+
+function toMailerSettingsRow(row: MailerSettingsSelect): MailerSettingsRow {
+  return {
+    id: row.id,
+    provider: row.provider,
+    apiKeyEnc: row.apiKeyEnc,
+    fromAddress: row.fromAddress,
+    enabled: row.enabled,
+    updatedAt: row.updatedAt,
+  }
 }
 
 type DockerHostSelect = typeof dockerHosts.$inferSelect
@@ -694,6 +727,49 @@ export class Database {
     return result
   }
 
+  // ---- Mailer settings (singleton row) ----
+
+  /** The singleton mailer row, created on first access. */
+  getMailerSettings(): MailerSettingsRow {
+    const row = this.#db.select().from(mailerSettings).orderBy(asc(mailerSettings.id)).get()
+    if (row !== undefined) return toMailerSettingsRow(row)
+    this.#db.insert(mailerSettings).values({ updatedAt: new Date() }).run()
+    const created = this.#db.select().from(mailerSettings).orderBy(asc(mailerSettings.id)).get()
+    return toMailerSettingsRow(created!)
+  }
+
+  updateMailerSettings(
+    patch: Partial<{ apiKeyEnc: string | null; fromAddress: string | null; enabled: boolean }>,
+  ): MailerSettingsRow {
+    const current = this.#db
+      .select({ id: mailerSettings.id })
+      .from(mailerSettings)
+      .orderBy(asc(mailerSettings.id))
+      .get()
+    let id: number
+    if (current === undefined) {
+      const inserted = this.#db
+        .insert(mailerSettings)
+        .values({ updatedAt: new Date() })
+        .returning({ id: mailerSettings.id })
+        .all()
+      id = inserted[0]!.id
+    } else {
+      id = current.id
+    }
+    const values: Partial<typeof mailerSettings.$inferInsert> = { updatedAt: new Date() }
+    if (patch.apiKeyEnc !== undefined) values.apiKeyEnc = patch.apiKeyEnc
+    if (patch.fromAddress !== undefined) values.fromAddress = patch.fromAddress
+    if (patch.enabled !== undefined) values.enabled = patch.enabled
+    const updated = this.#db
+      .update(mailerSettings)
+      .set(values)
+      .where(eq(mailerSettings.id, id))
+      .returning()
+      .all()
+    return toMailerSettingsRow(updated[0]!)
+  }
+
   // Users
 
   countUsers(): number {
@@ -770,6 +846,55 @@ export class Database {
 
   listUsers(): UserRow[] {
     return this.#db.select().from(users).orderBy(users.id).all()
+  }
+
+  // ---- Password reset tokens ----
+
+  /**
+   * Stores only the sha256 of `rawToken` and replaces any outstanding tokens for
+   * the user, so at most one live reset link exists per account.
+   */
+  createPasswordResetToken(input: { userId: number; rawToken: string; expiresAt: Date }): void {
+    const tokenHash = createHash('sha256').update(input.rawToken).digest('hex')
+    const now = new Date()
+    this.#db.transaction((tx) => {
+      tx.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, input.userId)).run()
+      tx.insert(passwordResetTokens)
+        .values({ userId: input.userId, tokenHash, expiresAt: input.expiresAt, createdAt: now })
+        .run()
+    })
+  }
+
+  /** The row for a raw token that is known, unused and unexpired; `null` otherwise. */
+  getValidPasswordResetToken(rawToken: string): PasswordResetTokenRow | null {
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex')
+    const row = this.#db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.tokenHash, tokenHash))
+      .get()
+    if (row === undefined) return null
+    if (row.usedAt !== null || row.expiresAt.getTime() <= Date.now()) return null
+    return {
+      id: row.id,
+      userId: row.userId,
+      tokenHash: row.tokenHash,
+      expiresAt: row.expiresAt,
+      usedAt: row.usedAt,
+      createdAt: row.createdAt,
+    }
+  }
+
+  markPasswordResetTokenUsed(id: number, usedAt: Date): void {
+    this.#db
+      .update(passwordResetTokens)
+      .set({ usedAt })
+      .where(eq(passwordResetTokens.id, id))
+      .run()
+  }
+
+  deletePasswordResetTokensForUser(userId: number): void {
+    this.#db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId)).run()
   }
 
   // Sessions
