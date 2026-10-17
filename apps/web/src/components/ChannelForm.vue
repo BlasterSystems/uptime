@@ -86,6 +86,23 @@ const CHANNEL_FIELDS: Record<ChannelType, readonly ChannelField[]> = {
       placeholder: 'oncall@example.com',
     },
   ],
+  resend: [
+    { key: 'apiKey', label: 'API key', kind: 'password', required: true, placeholder: 're_…' },
+    {
+      key: 'from',
+      label: 'From address',
+      kind: 'text',
+      required: true,
+      placeholder: 'alerts@example.com',
+    },
+    {
+      key: 'to',
+      label: 'To address',
+      kind: 'text',
+      required: true,
+      placeholder: 'oncall@example.com',
+    },
+  ],
   ntfy: [
     { key: 'topic', label: 'Topic', kind: 'text', required: true, placeholder: 'uptime-alerts' },
     { key: 'server', label: 'Server', kind: 'text', default: 'https://ntfy.sh' },
@@ -128,6 +145,7 @@ const TYPE_OPTIONS = [
   { value: 'discord', label: 'Discord' },
   { value: 'slack', label: 'Slack' },
   { value: 'email', label: 'Email (SMTP)' },
+  { value: 'resend', label: 'Email (Resend)' },
   { value: 'ntfy', label: 'ntfy' },
   { value: 'gotify', label: 'Gotify' },
   { value: 'webhook', label: 'Webhook' },

@@ -5,6 +5,7 @@ import type { Algorithm } from '@node-rs/argon2'
 import type { ApiKeyRow, Database, SecretBox, UserRole, UserRow } from '@uptime/db'
 import { SlidingWindowRateLimiter } from './rate-limit.js'
 import { generateTotpSecret, otpauthUrl, verifyTotp } from './totp.js'
+import type { MailerLike } from '../mailer.js'
 
 /** Session cookie (httpOnly, SameSite=Lax, Path=/; Secure when the request is). */
 export const SESSION_COOKIE = 'uptime_session'
@@ -31,6 +32,12 @@ const MIN_PASSWORD_LENGTH = 8
 const RECOVERY_CODE_COUNT = 10
 const RECOVERY_CODE_LENGTH = 10
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000
+/** Password-reset attempts per window; every request counts (enumeration-safe). */
+const FORGOT_ATTEMPT_LIMIT = 5
+const FORGOT_WINDOW_MS = 60 * 60 * 1000
+const RESET_ATTEMPT_LIMIT = 10
+const RESET_WINDOW_MS = 60 * 60 * 1000
 
 const API_KEY_SCOPES = ['read', 'write', 'admin'] as const
 type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
@@ -99,12 +106,22 @@ export function createAuthModule(deps: {
   db: Database
   secrets: SecretBox
   sessionTtlMs?: number
+  /** Outbound email for password recovery; recovery is inert when absent. */
+  mailer?: MailerLike
 }): AuthModule {
   const { db, secrets } = deps
   const sessionTtlMs = deps.sessionTtlMs ?? SESSION_TTL_DEFAULT_MS
   const loginLimiter = new SlidingWindowRateLimiter({
     limit: LOGIN_FAILURE_LIMIT,
     windowMs: LOGIN_FAILURE_WINDOW_MS,
+  })
+  const forgotLimiter = new SlidingWindowRateLimiter({
+    limit: FORGOT_ATTEMPT_LIMIT,
+    windowMs: FORGOT_WINDOW_MS,
+  })
+  const resetLimiter = new SlidingWindowRateLimiter({
+    limit: RESET_ATTEMPT_LIMIT,
+    windowMs: RESET_WINDOW_MS,
   })
   const router = Router()
 
@@ -315,6 +332,85 @@ export function createAuthModule(deps: {
 
     loginLimiter.reset(limiterKey)
     completeLogin(req, res, user)
+  })
+
+  // Password recovery (SPEC §5). Always 204 and always rate-counted so the
+  // endpoint neither confirms nor denies whether an email exists or mail is
+  // configured. The reset link uses the request origin; `sendMail` failures are
+  // logged, not surfaced, for the same reason.
+  router.post('/forgot-password', async (req, res) => {
+    const limiterKey = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+    const decision = forgotLimiter.check(limiterKey)
+    if (decision.limited) {
+      res.status(429).json({ error: 'too_many_attempts', retryAfterMs: decision.retryAfterMs })
+      return
+    }
+    forgotLimiter.recordFailure(limiterKey)
+
+    const email = stringField(bodyOf(req), 'email')
+    const user = email === undefined || !EMAIL_PATTERN.test(email) ? null : db.getUserByEmail(email)
+    const mailer = deps.mailer
+    if (user !== null && mailer !== undefined && mailer.configured) {
+      const rawToken = secrets.token(32)
+      db.createPasswordResetToken({
+        userId: user.id,
+        rawToken,
+        expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+      })
+      const origin = `${req.protocol}://${req.get('host') ?? 'localhost'}`
+      const link = `${origin}/reset-password?token=${encodeURIComponent(rawToken)}`
+      try {
+        await mailer.sendMail({
+          to: user.email,
+          subject: 'Reset your password',
+          text: `Use this link within one hour to choose a new password:\n\n${link}\n\nIf you did not request a reset, ignore this email.`,
+          html: `<p>Use this link within one hour to choose a new password:</p><p><a href="${link}">${link}</a></p><p>If you did not request a reset, ignore this email.</p>`,
+        })
+      } catch (error) {
+        console.warn(
+          `password reset email for ${user.email} failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        )
+      }
+    }
+    res.status(204).send()
+  })
+
+  router.post('/reset-password', async (req, res) => {
+    const limiterKey = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+    const decision = resetLimiter.check(limiterKey)
+    if (decision.limited) {
+      res.status(429).json({ error: 'too_many_attempts', retryAfterMs: decision.retryAfterMs })
+      return
+    }
+    resetLimiter.recordFailure(limiterKey)
+
+    const body = bodyOf(req)
+    const rawToken = stringField(body, 'token')
+    const password: unknown = body.password
+    if (rawToken === undefined) {
+      res.status(400).json({ error: 'invalid_token' })
+      return
+    }
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: 'invalid_password' })
+      return
+    }
+    const row = db.getValidPasswordResetToken(rawToken)
+    if (row === null) {
+      res.status(400).json({ error: 'invalid_token' })
+      return
+    }
+    const user = db.getUser(row.userId)
+    if (user === null) {
+      res.status(400).json({ error: 'invalid_token' })
+      return
+    }
+    db.updateUser(user.id, { passwordHash: await argon2Hash(password, ARGON2_OPTIONS) })
+    db.markPasswordResetTokenUsed(row.id, new Date())
+    // The caller proves ownership of the token, not a session: revoke all of them.
+    db.deleteUserSessions(user.id)
+    resetLimiter.reset(limiterKey)
+    res.status(204).send()
   })
 
   router.post('/logout', (req, res) => {

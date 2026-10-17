@@ -15,6 +15,7 @@ import {
   errorMessage,
   fetchApiKeys,
   fetchDockerHosts,
+  fetchMailer,
   fetchMaintenanceWindows,
   fetchMonitors,
   fetchSettings,
@@ -22,6 +23,8 @@ import {
   fetchTags,
   fetchUsers,
   startTotpSetup,
+  testMailer,
+  updateMailer,
   updateSettings,
   updateUser,
   verifyTotpSetup,
@@ -30,6 +33,7 @@ import type {
   ApiKey,
   ApiKeyScope,
   DockerHost,
+  MailerSettings,
   MaintenanceScope,
   MaintenanceStrategy,
   MaintenanceWindow,
@@ -636,6 +640,69 @@ const settingsTitleError = ref<string | null>(null)
 const settingsSaveError = ref<string | null>(null)
 const settingsSaving = ref(false)
 
+/* Email delivery (Resend) */
+
+const mailerLoaded = ref(false)
+const mailerError = ref<string | null>(null)
+const mailerFrom = ref('')
+const mailerEnabled = ref(false)
+const mailerHasApiKey = ref(false)
+const mailerApiKey = ref('')
+const mailerFromError = ref<string | null>(null)
+const mailerSaving = ref(false)
+const mailerTestTo = ref('')
+const mailerTesting = ref(false)
+const mailerTestError = ref<string | null>(null)
+
+async function loadMailer(): Promise<void> {
+  try {
+    const mailer = await fetchMailer()
+    mailerFrom.value = mailer.from ?? ''
+    mailerEnabled.value = mailer.enabled
+    mailerHasApiKey.value = mailer.hasApiKey
+    mailerLoaded.value = true
+    mailerError.value = null
+  } catch (error) {
+    mailerError.value = errorMessage(error, 'Could not load email settings.')
+  }
+}
+
+async function saveMailer(): Promise<void> {
+  const from = mailerFrom.value.trim()
+  mailerFromError.value = from === '' ? 'Enter the from address.' : null
+  if (mailerFromError.value !== null) return
+
+  mailerSaving.value = true
+  try {
+    const updated = await updateMailer({
+      from,
+      enabled: mailerEnabled.value,
+      ...(mailerApiKey.value.trim() === '' ? {} : { apiKey: mailerApiKey.value.trim() }),
+    })
+    mailerHasApiKey.value = updated.hasApiKey
+    mailerEnabled.value = updated.enabled
+    mailerApiKey.value = ''
+    toast.success('Email settings saved')
+  } catch (error) {
+    toast.error('Could not save email settings', errorMessage(error, 'Try again.'))
+  } finally {
+    mailerSaving.value = false
+  }
+}
+
+async function sendMailerTest(): Promise<void> {
+  mailerTesting.value = true
+  mailerTestError.value = null
+  try {
+    await testMailer(mailerTestTo.value.trim() === '' ? undefined : mailerTestTo.value.trim())
+    toast.success('Test email sent', 'Delivery works.')
+  } catch (error) {
+    mailerTestError.value = errorMessage(error, 'The test email failed.')
+  } finally {
+    mailerTesting.value = false
+  }
+}
+
 async function loadSettings(): Promise<void> {
   try {
     const settings = await fetchSettings()
@@ -689,7 +756,10 @@ watch(tab, (value) => {
   if (value === 'maintenance' && isAdmin.value && !maintenanceLoaded.value) void loadMaintenance()
   if (value === 'docker-hosts' && isAdmin.value && !dockerHostsLoaded.value) void loadDockerHosts()
   if (value === 'users' && isAdmin.value && !usersLoaded.value) void loadUsers()
-  if (value === 'general' && isAdmin.value && !settingsLoaded.value) void loadSettings()
+  if (value === 'general' && isAdmin.value) {
+    if (!settingsLoaded.value) void loadSettings()
+    if (!mailerLoaded.value) void loadMailer()
+  }
 })
 
 onMounted(() => {
@@ -1301,6 +1371,70 @@ onMounted(() => {
             </Button>
           </template>
         </Card>
+
+        <Card
+          title="Email delivery"
+          subtitle="Transactional email via Resend: password recovery and test sends. The API key is stored encrypted and never returned."
+        >
+          <p v-if="mailerError !== null" class="banner" role="alert">{{ mailerError }}</p>
+
+          <div v-if="!mailerLoaded" class="loading-row">
+            <Spinner size="sm" />
+            <span class="text-note">Loading email settings…</span>
+          </div>
+
+          <div v-else class="stack-sm">
+            <div class="form-grid">
+              <Input
+                v-model="mailerFrom"
+                label="From address"
+                type="email"
+                placeholder="uptime@example.com"
+                required
+                :error="mailerFromError"
+              />
+              <Input
+                v-model="mailerApiKey"
+                label="API key"
+                type="password"
+                :placeholder="mailerHasApiKey ? 'Stored — leave blank to keep' : 're_…'"
+                autocomplete="off"
+                mono
+              />
+            </div>
+            <Switch
+              :model-value="mailerEnabled"
+              label="Enabled"
+              hint="Password recovery stays unavailable while disabled."
+              @update:model-value="(value) => (mailerEnabled = value)"
+            />
+          </div>
+
+          <template #footer>
+            <div class="mailer-footer">
+              <div class="mailer-test">
+                <Input
+                  v-model="mailerTestTo"
+                  label="Send test to"
+                  type="email"
+                  placeholder="Defaults to your address"
+                  :error="mailerTestError"
+                />
+                <Button :loading="mailerTesting" :disabled="!mailerLoaded" @click="sendMailerTest">
+                  Send test email
+                </Button>
+              </div>
+              <Button
+                variant="primary"
+                :loading="mailerSaving"
+                :disabled="!mailerLoaded"
+                @click="saveMailer"
+              >
+                Save
+              </Button>
+            </div>
+          </template>
+        </Card>
       </template>
     </Tabs>
 
@@ -1616,5 +1750,25 @@ onMounted(() => {
 .form-error {
   color: var(--thread-ink);
   font-size: 12.5px;
+}
+
+.mailer-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.mailer-test {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+
+.mailer-test :first-child {
+  flex: 1;
 }
 </style>

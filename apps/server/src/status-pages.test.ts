@@ -233,13 +233,19 @@ describe('feeds and badge', () => {
     expect(buildBadgeSvg('A<&>', 'unknown')).toContain('A&lt;&amp;&gt;')
   })
 
-  it('injects OG meta before </head>', () => {
+  it('injects OG meta and feed autodiscovery before </head>', () => {
     const out = injectOgMeta('<html><head><title>x</title></head><body></body></html>', {
       title: 'T',
       description: 'D',
       url: 'https://x/status/p',
+      origin: 'https://x',
+      slug: 'p',
     })
     expect(out).toContain('og:title" content="T"')
     expect(out.indexOf('og:title')).toBeLessThan(out.indexOf('</head>'))
+    expect(out).toContain('rel="alternate" type="application/rss+xml"')
+    expect(out).toContain('href="https://x/status/p/rss.xml"')
+    expect(out).toContain('href="https://x/status/p/atom.xml"')
+    expect(out.indexOf('rss+xml')).toBeLessThan(out.indexOf('</head>'))
   })
 })

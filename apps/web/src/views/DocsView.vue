@@ -358,7 +358,8 @@ const limitsRows: { limit: string; value: string }[] = [
         monitors, <em>admin</em> manages users, keys, channels, and settings.
         The unauthenticated surface is deliberately tiny:
         <code>/healthz</code>, <code>/metrics</code> (restrictable), the push
-        receiver, and published status pages.
+        receiver, published status pages, and the two password-recovery
+        endpoints (rate-limited, enumeration-safe).
       </p>
     </section>
 

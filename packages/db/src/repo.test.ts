@@ -1055,3 +1055,112 @@ describe('monitor isPublic', () => {
     expect(withdrawn).toMatchObject({ id: monitor.id, isPublic: false })
   })
 })
+
+describe('password reset tokens', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db?.close()
+  })
+
+  it('stores only the hash and replaces outstanding tokens', () => {
+    const user = db.createUser({ email: 'a@b.c', passwordHash: 'h' })
+    db.createPasswordResetToken({
+      userId: user.id,
+      rawToken: 'tok-1',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    db.createPasswordResetToken({
+      userId: user.id,
+      rawToken: 'tok-2',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+
+    const valid = db.getValidPasswordResetToken('tok-2')
+    expect(valid).not.toBeNull()
+    expect(valid?.tokenHash).toBe(sha256('tok-2'))
+    expect(valid?.userId).toBe(user.id)
+    expect(valid?.usedAt).toBeNull()
+    expect(db.getValidPasswordResetToken('tok-1')).toBeNull()
+  })
+
+  it('rejects expired and used tokens', () => {
+    const user = db.createUser({ email: 'a@b.c', passwordHash: 'h' })
+    db.createPasswordResetToken({
+      userId: user.id,
+      rawToken: 'old',
+      expiresAt: new Date(Date.now() - 1_000),
+    })
+    expect(db.getValidPasswordResetToken('old')).toBeNull()
+
+    db.createPasswordResetToken({
+      userId: user.id,
+      rawToken: 'fresh',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    const row = db.getValidPasswordResetToken('fresh')
+    expect(row).not.toBeNull()
+    db.markPasswordResetTokenUsed(row!.id, new Date())
+    expect(db.getValidPasswordResetToken('fresh')).toBeNull()
+    expect(db.getValidPasswordResetToken('unknown')).toBeNull()
+  })
+
+  it('deletes tokens per user without touching other users', () => {
+    const a = db.createUser({ email: 'a@b.c', passwordHash: 'h' })
+    const b = db.createUser({ email: 'd@e.f', passwordHash: 'h' })
+    db.createPasswordResetToken({
+      userId: a.id,
+      rawToken: 'ta',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    db.createPasswordResetToken({
+      userId: b.id,
+      rawToken: 'tb',
+      expiresAt: new Date(Date.now() + 60_000),
+    })
+    db.deletePasswordResetTokensForUser(a.id)
+    expect(db.getValidPasswordResetToken('ta')).toBeNull()
+    expect(db.getValidPasswordResetToken('tb')).not.toBeNull()
+  })
+})
+
+describe('mailer settings', () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = Database.open({ file: ':memory:' })
+  })
+
+  afterEach(() => {
+    db?.close()
+  })
+
+  it('creates the singleton on first access and patches it', () => {
+    const initial = db.getMailerSettings()
+    expect(initial.provider).toBe('resend')
+    expect(initial.apiKeyEnc).toBeNull()
+    expect(initial.fromAddress).toBeNull()
+    expect(initial.enabled).toBe(false)
+    expect(db.getMailerSettings().id).toBe(initial.id)
+
+    const updated = db.updateMailerSettings({
+      apiKeyEnc: 'v1:enc',
+      fromAddress: 'uptime@example.com',
+      enabled: true,
+    })
+    expect(updated.apiKeyEnc).toBe('v1:enc')
+    expect(updated.fromAddress).toBe('uptime@example.com')
+    expect(updated.enabled).toBe(true)
+    expect(db.getMailerSettings().apiKeyEnc).toBe('v1:enc')
+
+    // Clearing the key leaves the other fields alone.
+    const cleared = db.updateMailerSettings({ apiKeyEnc: null })
+    expect(cleared.apiKeyEnc).toBeNull()
+    expect(cleared.enabled).toBe(true)
+    expect(cleared.fromAddress).toBe('uptime@example.com')
+  })
+})

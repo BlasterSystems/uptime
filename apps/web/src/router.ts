@@ -8,6 +8,8 @@ import LoginView from './views/LoginView.vue'
 import MonitorDetailView from './views/MonitorDetailView.vue'
 import NotificationsView from './views/NotificationsView.vue'
 import PublicStatusView from './views/PublicStatusView.vue'
+import RequestResetView from './views/RequestResetView.vue'
+import ResetPasswordView from './views/ResetPasswordView.vue'
 import SettingsView from './views/SettingsView.vue'
 import SetupView from './views/SetupView.vue'
 import StatusPageIncidentsView from './views/StatusPageIncidentsView.vue'
@@ -70,6 +72,18 @@ const routes: RouteRecordRaw[] = [
     name: 'login',
     component: LoginView,
     meta: { title: 'Sign in', public: true },
+  },
+  {
+    path: '/forgot-password',
+    name: 'forgot-password',
+    component: RequestResetView,
+    meta: { title: 'Reset your password', public: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'reset-password',
+    component: ResetPasswordView,
+    meta: { title: 'Choose a new password', public: true },
   },
   {
     path: '/status',

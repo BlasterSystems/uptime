@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { formatLatency } from '../../format.js'
+import { computed, ref } from 'vue'
+import { formatClock, formatLatency } from '../../format.js'
 import type { ChartMarker, LatencyPoint } from './types.js'
 
 /**
@@ -73,17 +73,74 @@ const chart = computed(() => {
 
   const markers = props.markers.map((marker) => ({ ...marker, x: xAt(marker.time) }))
 
-  return { polyline, markers, peakLatency, hasLatency: props.points.length > 0 }
+  return { polyline, markers, peakLatency, hasLatency: props.points.length > 0, xAt, yAt }
+})
+
+/** Index of the point under the pointer, or `null` when not hovering. */
+const hoverIndex = ref<number | null>(null)
+const svgEl = ref<SVGSVGElement | null>(null)
+
+/** Distance from the left plot edge to `clientX` in viewBox units. */
+function localX(clientX: number): number | null {
+  const svg = svgEl.value
+  if (svg === null) return null
+  const rect = svg.getBoundingClientRect()
+  if (rect.width === 0) return null
+  return ((clientX - rect.left) / rect.width) * CHART_WIDTH
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (props.points.length === 0) return
+  const x = localX(event.clientX)
+  const domain = timeDomain.value
+  if (x === null || domain === null) return
+  const ratio = Math.min(1, Math.max(0, (x - CHART_PAD_X) / CHART_PLOT_WIDTH))
+  const time = domain.min + ratio * (domain.max - domain.min)
+  let best = 0
+  let bestDistance = Number.POSITIVE_INFINITY
+  for (let i = 0; i < props.points.length; i += 1) {
+    const distance = Math.abs(props.points[i]!.time - time)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = i
+    }
+  }
+  hoverIndex.value = best
+}
+
+function onPointerLeave(): void {
+  hoverIndex.value = null
+}
+
+const HOVER_GAP = 8
+
+/** Geometry + label for the hover overlay; `null` hides it. */
+const hover = computed(() => {
+  const index = hoverIndex.value
+  const point = index === null ? undefined : props.points[index]
+  if (index === null || point === undefined || timeDomain.value === null) return null
+  const x = chart.value.xAt(point.time)
+  const anchorEnd = x > CHART_WIDTH / 2
+  return {
+    x,
+    y: chart.value.yAt(point.latencyMs),
+    label: `${formatLatency(point.latencyMs)} · ${formatClock(point.time)}`,
+    anchorEnd,
+    textX: anchorEnd ? x - HOVER_GAP : x + HOVER_GAP,
+  }
 })
 </script>
 
 <template>
   <div class="chart-block">
     <svg
+      ref="svgEl"
       class="chart"
       :viewBox="`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`"
       role="img"
       :aria-label="ariaLabel"
+      @pointermove="onPointerMove"
+      @pointerleave="onPointerLeave"
     >
       <line
         class="chart-baseline"
@@ -104,6 +161,24 @@ const chart = computed(() => {
         >
           <title>{{ marker.title }}</title>
         </line>
+      </g>
+      <g v-if="hover !== null" class="chart-hover">
+        <line
+          class="hover-guide"
+          :x1="hover.x"
+          :y1="CHART_PAD_TOP"
+          :x2="hover.x"
+          :y2="CHART_PLOT_BOTTOM"
+        />
+        <circle class="hover-dot" :cx="hover.x" :cy="hover.y" r="3" />
+        <text
+          class="hover-text"
+          :x="hover.textX"
+          :y="CHART_PAD_TOP + 3"
+          :text-anchor="hover.anchorEnd ? 'end' : 'start'"
+        >
+          {{ hover.label }}
+        </text>
       </g>
     </svg>
     <div class="chart-caption">
@@ -126,6 +201,7 @@ const chart = computed(() => {
   display: block;
   width: 100%;
   height: auto;
+  cursor: crosshair;
 }
 
 .chart-baseline {
@@ -169,5 +245,27 @@ const chart = computed(() => {
 .chart-note {
   color: var(--muted);
   font-size: 12.5px;
+}
+
+.hover-guide {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.hover-dot {
+  fill: var(--thread);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.hover-text {
+  fill: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
 }
 </style>

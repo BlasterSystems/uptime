@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest'
 import { parseChannelConfig } from './config.js'
 import {
   buildEmailMessage,
+  buildResendMessage,
   sendDiscord,
   sendEmail,
   sendGotify,
   sendNtfy,
+  sendResend,
   sendSlack,
   sendTelegram,
   sendWebhook,
@@ -281,5 +283,60 @@ describe('email provider', () => {
       subject: 'Example is down',
       text: 'Connection refused',
     })
+  })
+})
+
+describe('resend provider', () => {
+  it('POSTs the message to {apiBaseUrl}/emails with a bearer token', async () => {
+    await withServer(async ({ base, requests }) => {
+      const config = parseChannelConfig('resend', {
+        apiKey: 're_123',
+        from: 'uptime@example.com',
+        to: 'ops@example.com',
+        apiBaseUrl: base,
+      })
+      await sendResend(config, payload)
+      expect(requests).toHaveLength(1)
+      expect(requests[0]?.method).toBe('POST')
+      expect(requests[0]?.url).toBe('/emails')
+      expect(requests[0]?.headers.authorization).toBe('Bearer re_123')
+      expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({
+        from: 'uptime@example.com',
+        to: ['ops@example.com'],
+        subject: 'Example is down',
+        text: 'Connection refused',
+      })
+    })
+  })
+
+  it('builds the request body from the payload', () => {
+    const config = parseChannelConfig('resend', {
+      apiKey: 're_123',
+      from: 'uptime@example.com',
+      to: 'ops@example.com',
+    })
+    expect(buildResendMessage(config, payload)).toEqual({
+      from: 'uptime@example.com',
+      to: ['ops@example.com'],
+      subject: 'Example is down',
+      text: 'Connection refused',
+    })
+  })
+
+  it('throws with the status and body snippet on non-2xx', async () => {
+    await withServer(
+      async ({ base }) => {
+        const config = parseChannelConfig('resend', {
+          apiKey: 're_123',
+          from: 'uptime@example.com',
+          to: 'ops@example.com',
+          apiBaseUrl: base,
+        })
+        await expect(sendResend(config, payload)).rejects.toThrow(
+          /resend responded with 422: validation failed/,
+        )
+      },
+      { status: 422, responseBody: 'validation failed' },
+    )
   })
 })

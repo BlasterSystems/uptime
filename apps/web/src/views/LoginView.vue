@@ -28,6 +28,10 @@ const redirectTarget = computed(() => {
   return '/'
 })
 
+if (route.query.reset === '1') {
+  notice.value = 'Password updated. Sign in with your new password.'
+}
+
 async function submit(): Promise<void> {
   emailError.value = email.value.trim() === '' ? 'Enter your email address.' : null
   passwordError.value = password.value === '' ? 'Enter your password.' : null
@@ -96,7 +100,10 @@ async function submit(): Promise<void> {
         No account yet?
         <RouterLink :to="{ name: 'setup' }">Create the administrator account</RouterLink>
       </span>
-      <span v-else>Contact an administrator if you have lost access.</span>
+      <span v-else>
+        Contact an administrator if you have lost access, or
+        <RouterLink :to="{ name: 'forgot-password' }">reset your password by email</RouterLink>.
+      </span>
     </template>
   </AuthLayout>
 </template>

@@ -11,12 +11,13 @@ export type {
   EmailConfig,
   GotifyConfig,
   NtfyConfig,
+  ResendConfig,
   SlackConfig,
   TelegramConfig,
   WebhookConfig,
 } from './config.js'
 export { renderTemplate } from './template.js'
-export { sendToChannel } from './providers.js'
+export { sendResend, sendToChannel } from './providers.js'
 
 /** Channel row as the notifier sees it; `config` is the already-decrypted config. */
 export interface ChannelLike {

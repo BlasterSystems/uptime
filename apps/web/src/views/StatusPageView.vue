@@ -497,6 +497,10 @@ watch(slug, () => {
               Incident history
             </RouterLink>
             <span aria-hidden="true">·</span>
+            <a :href="`/status/${slug}/rss.xml`" title="Incident feed (RSS)">RSS</a>
+            <span aria-hidden="true">·</span>
+            <a :href="`/status/${slug}/atom.xml`" title="Incident feed (Atom)">Atom</a>
+            <span aria-hidden="true">·</span>
             <span>Powered by Uptime</span>
           </p>
         </footer>

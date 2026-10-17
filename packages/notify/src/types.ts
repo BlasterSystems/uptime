@@ -4,6 +4,7 @@ export const CHANNEL_TYPES = [
   'discord',
   'slack',
   'email',
+  'resend',
   'ntfy',
   'gotify',
   'webhook',

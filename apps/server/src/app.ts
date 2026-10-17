@@ -18,6 +18,7 @@ import type { SecretBox } from '@uptime/db'
 import type { Notifier } from '@uptime/notify'
 import type { Metrics } from './metrics.js'
 import type { AuthModule } from './auth/index.js'
+import type { MailerLike } from './mailer.js'
 import type { IncidentEngine } from './incidents.js'
 import type { EventHub } from './events.js'
 import { MaintenanceEngine } from './maintenance.js'
@@ -58,6 +59,8 @@ export interface AppOptions {
   incidentEngine?: Pick<IncidentEngine, 'onPushDown' | 'onResult' | 'reset'>
   eventHub?: EventHub
   maintenance?: MaintenanceEngine
+  /** Outbound email (password recovery, test sends); inert when absent. */
+  mailer?: MailerLike
   /** Directory for backups (lifecycle router); defaults to cwd. */
   dataDir?: string
   /** Agent hub token; empty string disables the agent API. */
@@ -237,7 +240,7 @@ function monitorId(req: Request): number | null {
 }
 
 export function createApp(opts: AppOptions): Express {
-  const { db, secrets, notifier, auth, scheduler, metrics } = opts
+  const { db, secrets, notifier, auth, scheduler, metrics, mailer } = opts
   const app = express()
   app.disable('x-powered-by')
   app.use(express.json({ limit: '1mb' }))
@@ -943,6 +946,74 @@ export function createApp(opts: AppOptions): Express {
     })
   })
 
+  // ---- Outbound email (SPEC §5): Resend API key stored encrypted (ADR-0002) ----
+  const mailerView = (row: {
+    provider: 'resend'
+    enabled: boolean
+    fromAddress: string | null
+    apiKeyEnc: string | null
+  }) => ({
+    provider: row.provider,
+    enabled: row.enabled,
+    from: row.fromAddress,
+    hasApiKey: row.apiKeyEnc !== null,
+  })
+
+  app.get('/api/v1/mailer', auth.requireAuth('admin'), (_req, res) => {
+    res.json({ mailer: mailerView(db.getMailerSettings()) })
+  })
+
+  app.put('/api/v1/mailer', auth.requireAuth('admin'), (req, res) => {
+    const b = req.body as Record<string, unknown>
+    const patch: { apiKeyEnc?: string | null; fromAddress?: string | null; enabled?: boolean } = {}
+    if (b.from !== undefined) {
+      if (b.from !== null && (typeof b.from !== 'string' || b.from.trim().length === 0)) {
+        return res.status(400).json({ error: 'from must be a non-empty string or null' })
+      }
+      patch.fromAddress = typeof b.from === 'string' ? b.from.trim() : null
+    }
+    if (b.enabled !== undefined) {
+      if (typeof b.enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled must be a boolean' })
+      }
+      patch.enabled = b.enabled
+    }
+    // Write-only like channel credentials: the response never echoes the key.
+    if (b.apiKey !== undefined) {
+      if (b.apiKey !== null && (typeof b.apiKey !== 'string' || b.apiKey.trim().length === 0)) {
+        return res.status(400).json({ error: 'apiKey must be a non-empty string or null' })
+      }
+      patch.apiKeyEnc = typeof b.apiKey === 'string' ? secrets.encrypt(b.apiKey.trim()) : null
+    }
+    res.json({ mailer: mailerView(db.updateMailerSettings(patch)) })
+  })
+
+  app.post('/api/v1/mailer/test', auth.requireAuth('admin'), async (req, res) => {
+    const b = req.body as Record<string, unknown>
+    const caller = res.locals.auth as { email: string | null }
+    const to = typeof b.to === 'string' && b.to.trim().length > 0 ? b.to.trim() : caller.email
+    if (to === null || to === undefined) {
+      return res.status(400).json({ error: 'to must be a non-empty string' })
+    }
+    if (mailer === undefined || !mailer.configured) {
+      return res.status(400).json({ error: 'mailer_not_configured' })
+    }
+    const title = db.getSetting('title') ?? 'Uptime Monitoring'
+    try {
+      await mailer.sendMail({
+        to,
+        subject: `Test email from ${title}`,
+        text: 'Delivery from the mailer settings works. No action needed.',
+        html: '<p>Delivery from the mailer settings works. No action needed.</p>',
+      })
+    } catch (err) {
+      return res.status(502).json({
+        error: err instanceof Error ? err.message : 'send failed',
+      })
+    }
+    res.status(204).send()
+  })
+
   // ---- Docker hosts (SPEC §4) ----
   const dockerHostApi = (row: {
     id: number
@@ -1219,7 +1290,9 @@ export function createApp(opts: AppOptions): Express {
               title: `${page.title} — status`,
               description: `Real-time status and incident updates for ${page.title}.`,
               url: `${req.protocol}://${req.get('host') ?? 'localhost'}/status/${page.slug}`,
-            }),
+              origin: `${req.protocol}://${req.get('host') ?? 'localhost'}`,
+              slug: page.slug,
+            })
           )
       } catch {
         res.sendFile(indexFile)

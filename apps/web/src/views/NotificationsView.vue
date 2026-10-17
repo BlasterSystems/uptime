@@ -17,6 +17,7 @@ const TYPE_LABELS: Record<ChannelType, string> = {
   discord: 'Discord',
   slack: 'Slack',
   email: 'Email',
+  resend: 'Email (Resend)',
   ntfy: 'ntfy',
   gotify: 'Gotify',
   webhook: 'Webhook',

@@ -5,6 +5,7 @@ import type {
   EmailConfig,
   GotifyConfig,
   NtfyConfig,
+  ResendConfig,
   SlackConfig,
   TelegramConfig,
   WebhookConfig,
@@ -94,6 +95,23 @@ export async function sendEmail(config: EmailConfig, payload: NotifyPayload): Pr
   await transporter.sendMail(buildEmailMessage(config, payload))
 }
 
+/** Request body used by {@link sendResend}; exported for direct assertions. */
+export function buildResendMessage(config: ResendConfig, payload: NotifyPayload): {
+  from: string
+  to: string[]
+  subject: string
+  text: string
+} {
+  return { from: config.from, to: [config.to], subject: payload.title, text: payload.body }
+}
+
+export async function sendResend(config: ResendConfig, payload: NotifyPayload): Promise<void> {
+  const base = config.apiBaseUrl.replace(/\/+$/, '')
+  await sendJson('resend', `${base}/emails`, buildResendMessage(config, payload), {
+    headers: { authorization: `Bearer ${config.apiKey}` },
+  })
+}
+
 export async function sendNtfy(config: NtfyConfig, payload: NotifyPayload): Promise<void> {
   const url = `${config.server.replace(/\/+$/, '')}/${encodeURIComponent(config.topic)}`
   await sendJson(
@@ -156,6 +174,8 @@ export async function sendToChannel(
       return sendSlack(parseChannelConfig('slack', config), payload)
     case 'email':
       return sendEmail(parseChannelConfig('email', config), payload)
+    case 'resend':
+      return sendResend(parseChannelConfig('resend', config), payload)
     case 'ntfy':
       return sendNtfy(parseChannelConfig('ntfy', config), payload)
     case 'gotify':

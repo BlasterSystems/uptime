@@ -44,6 +44,14 @@ export const emailConfigSchema = z.object({
   transport: z.enum(['smtp', 'json']).default('smtp'),
 })
 
+export const resendConfigSchema = z.object({
+  apiKey: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
+  /** Overrides the API host — used by tests to point at a local server. */
+  apiBaseUrl: httpUrl.default('https://api.resend.com'),
+})
+
 export const ntfyConfigSchema = z.object({
   topic: z.string().min(1),
   server: httpUrl.default('https://ntfy.sh'),
@@ -71,6 +79,7 @@ export const channelConfigSchemas = {
   discord: discordConfigSchema,
   slack: slackConfigSchema,
   email: emailConfigSchema,
+  resend: resendConfigSchema,
   ntfy: ntfyConfigSchema,
   gotify: gotifyConfigSchema,
   webhook: webhookConfigSchema,
@@ -80,6 +89,7 @@ export type TelegramConfig = z.infer<typeof telegramConfigSchema>
 export type DiscordConfig = z.infer<typeof discordConfigSchema>
 export type SlackConfig = z.infer<typeof slackConfigSchema>
 export type EmailConfig = z.infer<typeof emailConfigSchema>
+export type ResendConfig = z.infer<typeof resendConfigSchema>
 export type NtfyConfig = z.infer<typeof ntfyConfigSchema>
 export type GotifyConfig = z.infer<typeof gotifyConfigSchema>
 export type WebhookConfig = z.infer<typeof webhookConfigSchema>
@@ -89,6 +99,7 @@ export interface ChannelConfigMap {
   discord: DiscordConfig
   slack: SlackConfig
   email: EmailConfig
+  resend: ResendConfig
   ntfy: NtfyConfig
   gotify: GotifyConfig
   webhook: WebhookConfig

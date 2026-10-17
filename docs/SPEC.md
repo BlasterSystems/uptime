@@ -121,6 +121,8 @@ status_incidents(id, page_id, title, status investigating|identified|monitoring|
 status_incident_updates(id, incident_id, status, body, created_at)
 status_subscriptions(id, page_id, channel_id, component_ids[], events[], created_at)
 docker_hosts(id, name, uri, tls_ca_enc, tls_cert_enc, tls_key_enc)  -- for docker monitors
+password_reset_tokens(id, user_id→users, token_hash UNIQUE sha256, expires_at, used_at, created_at)
+mailer_settings(id, provider 'resend', api_key_enc, from_address, enabled, updated_at)  -- singleton
 settings(key, value)                                   -- instance-level (title, timezone)
 push_tokens(id, monitor_id UNIQUE, token_hash, created_at)
 ```
@@ -171,8 +173,9 @@ Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD 
 
 ## 7. Notifications
 
-Providers v1: Telegram, Discord, Slack (incoming webhook), Email (SMTP), Ntfy, Gotify,
-generic Webhook (JSON template). Phase 2: PagerDuty Events v2, Opsgenie, SMS (Twilio).
+Providers v1: Telegram, Discord, Slack (incoming webhook), Email (SMTP), Email
+(Resend HTTP API), Ntfy, Gotify, generic Webhook (JSON template). Phase 2:
+PagerDuty Events v2, Opsgenie, SMS (Twilio).
 
 - Per-channel config stored **encrypted**; per-monitor routing; global defaults; test
   button; per-monitor `resendNotificationInterval`; templating with
@@ -183,6 +186,11 @@ generic Webhook (JSON template). Phase 2: PagerDuty Events v2, Opsgenie, SMS (Tw
 
 - Argon2id password hashing; TOTP 2FA optional; session cookies `httpOnly` `SameSite=Lax`
   behind whatever TLS the user fronts (docs: NPM/Caddy/Traefik examples + compose labels).
+- Self-service password recovery (`POST /auth/forgot-password` → single-use sha256-hashed
+  token, 1 h, replaces outstanding tokens; reset revokes all sessions) — enumeration-safe
+  (always 204, every attempt rate-counted per IP). The outbound email is sent through
+  Resend; the API key is configured in Settings → General and encrypted at rest
+  (`mailer_settings`, ADR-0002). With no mailer the flow is inert but still 204.
 - API keys hashed (SHA-256), scoped, expirable; shown once.
 - Secrets (notification configs, docker TLS, DB URLs) encrypted at rest (ADR-0002).
 - Container: non-root UID 1001, `read_only: true` compatible (tmpfs `/tmp`), runtime
@@ -231,10 +239,11 @@ it). Instead:
 - Status pages: public, slug-based, component groups, live-reloading admin views,
   incident banner + archive, feeds + badge.
 - Settings: profile, security (2FA), api keys, status pages, status incidents,
-  subscriptions, maintenance windows, docker hosts, general (title/timezone).
-  Notifications live on their own page. Backup/restore/retention/export are admin
-  API endpoints (POST /backup, /restore, /retention/run, /config/export) without UI;
-  the password-change field is an honest disabled stub.
+  subscriptions, maintenance windows, docker hosts, general (title/timezone plus the
+  encrypted Resend email settings with a test send). Password recovery is self-service
+  (login link → emailed single-use token → reset form). Notifications live on their own
+  page. Backup/restore/retention/export are admin API endpoints (POST /backup,
+  /restore, /retention/run, /config/export) without UI.
 
 ## 12. Roadmap
 
@@ -274,5 +283,4 @@ design, this section is the contract:
   docker-entrypoint.sh, no stripped agent image); CI lints with eslint only (prettier
   is not enforced), and the image job builds without running (no compose e2e).
 - **UI**: hand-written per-type monitor form (no JSON-schema-driven generation); no
-  dashboard sparkline; no backup/retention/export UI (admin API only); password change
-  is a disabled stub.
+  dashboard sparkline; no backup/retention/export UI (admin API only).
