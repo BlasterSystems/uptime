@@ -23,7 +23,7 @@ import { useToast } from './ui/toast.js'
 vi.mocked(createMonitor).mockResolvedValue({
   id: 1,
   type: 'http',
-  name: 'as267 prod',
+  name: 'acme prod',
   intervalS: 1300,
   retries: 0,
   active: true,
@@ -105,7 +105,7 @@ describe('MonitorForm create', () => {
   it('creates a monitor from the reported failing state (interval typed, retries 0)', async () => {
     const wrapper = await openForm()
 
-    await (await controlByLabel(wrapper, 'Name')).setValue('as267 prod')
+    await (await controlByLabel(wrapper, 'Name')).setValue('acme prod')
     await (await controlByLabel(wrapper, 'URL')).setValue('https://example.com')
     await (await controlByLabel(wrapper, 'Headers')).setValue('Authorization: Bearer token')
     await (await controlByLabel(wrapper, 'Keyword')).setValue('Signed in')
@@ -124,7 +124,7 @@ describe('MonitorForm create', () => {
     expect(createMonitor).toHaveBeenCalledTimes(1)
     expect(createMonitor).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'as267 prod',
+        name: 'acme prod',
         type: 'http',
         intervalS: 1300,
         retries: 0,

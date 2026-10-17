@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { login } from '../global-setup.js'
 
-const NAME = `as267 prod e2e`
+const NAME = `acme prod e2e`
 
 test.beforeEach(async ({ page }) => {
   await login(page)
