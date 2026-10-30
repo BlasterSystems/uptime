@@ -7,7 +7,9 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    # Dependabot PRs are untrusted on a public repo — keep them on GitHub-hosted
+    # runners; everything else runs on the self-hosted dev-VM runner.
+    runs-on: ${{ github.actor == 'dependabot[bot]' && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -27,7 +29,9 @@ jobs:
   # End-to-end flows against the built app: fresh throwaway server per run,
   # real Chromium. Kept out of `pnpm -r test` (no browsers in the check job).
   e2e:
-    runs-on: ubuntu-latest
+    # Dependabot PRs are untrusted on a public repo — keep them on GitHub-hosted
+    # runners; everything else runs on the self-hosted dev-VM runner.
+    runs-on: ${{ github.actor == 'dependabot[bot]' && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -37,13 +41,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @uptime/e2e exec playwright install --with-deps chromium
+      # Chromium system libs are preinstalled on the runner host; the runner
+      # user has no sudo, so --with-deps cannot work there.
+      - run: pnpm --filter @uptime/e2e exec playwright install chromium
       - run: pnpm test:e2e
 
   # Plan review J4/B1: verify the image builds on both arches in M1 (no publish —
   # GHCR push + SBOM lands in M5).
   image:
-    runs-on: ubuntu-latest
+    # Dependabot PRs are untrusted on a public repo — keep them on GitHub-hosted
+    # runners; everything else runs on the self-hosted dev-VM runner.
+    runs-on: ${{ github.actor == 'dependabot[bot]' && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
