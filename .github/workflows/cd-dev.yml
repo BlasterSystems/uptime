@@ -16,7 +16,9 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Dependabot PRs are untrusted on a public repo — keep them on GitHub-hosted
+    # runners; everything else runs on the self-hosted dev-VM runner.
+    runs-on: ${{ github.actor == 'dependabot[bot]' && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v4
         with:
