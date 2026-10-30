@@ -1,0 +1,18 @@
+name: Runner probe 2
+
+on:
+  push:
+    paths: ['.github/workflows/probe2.yml']
+  workflow_dispatch:
+
+jobs:
+  default-label:
+    runs-on: self-hosted
+    steps:
+      - name: Which runner took this?
+        run: echo "RUNNER_NAME=$RUNNER_NAME"
+
+  vm-label:
+    runs-on: uptime-dev-vm
+    steps:
+      - run: echo "RUNNER_NAME=$RUNNER_NAME"
