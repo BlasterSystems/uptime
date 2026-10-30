@@ -41,7 +41,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm --filter @uptime/e2e exec playwright install --with-deps chromium
+      # Chromium system libs are preinstalled on the runner host; the runner
+      # user has no sudo, so --with-deps cannot work there.
+      - run: pnpm --filter @uptime/e2e exec playwright install chromium
       - run: pnpm test:e2e
 
   # Plan review J4/B1: verify the image builds on both arches in M1 (no publish —
