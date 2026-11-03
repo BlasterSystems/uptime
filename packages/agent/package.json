@@ -21,7 +21,7 @@
   "dependencies": {
     "@uptime/core": "workspace:*",
     "ws": "^8.18.0",
-    "zod": "^4.1.0"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",
