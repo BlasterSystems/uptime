@@ -208,6 +208,7 @@ const app = createApp({
   mailer,
   dataDir: cfg.dataDir,
   agentToken: process.env.UPTIME_AGENT_TOKEN ?? '',
+  trustProxy: cfg.trustProxy,
 })
 scheduler.start()
 pushEngine.start()

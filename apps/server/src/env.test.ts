@@ -19,6 +19,13 @@ describe('readConfig', () => {
     expect(readConfig({ SEED: 'true' }).seed).toBe(false)
   })
 
+  it('passes TRUST_PROXY through and trims it', () => {
+    expect(readConfig({}).trustProxy).toBeUndefined()
+    expect(readConfig({ TRUST_PROXY: '  ' }).trustProxy).toBeUndefined()
+    expect(readConfig({ TRUST_PROXY: '1' }).trustProxy).toBe('1')
+    expect(readConfig({ TRUST_PROXY: ' loopback ' }).trustProxy).toBe('loopback')
+  })
+
   it('reads env overrides', () => {
     const cfg = readConfig({
       PORT: '8080',

@@ -4,6 +4,8 @@ export interface ServerConfig {
   webDist: string | null
   seed: boolean
   encryptionKey: string | undefined
+  /** Raw TRUST_PROXY value (Express `trust proxy`); unset = direct exposure. */
+  trustProxy: string | undefined
 }
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
@@ -16,5 +18,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     // with a fabricated monitor. `pnpm dev` and the root compose pass SEED=1.
     seed: env.SEED === '1',
     encryptionKey: env.ENCRYPTION_KEY,
+    trustProxy: env.TRUST_PROXY?.trim() === '' ? undefined : env.TRUST_PROXY?.trim(),
   }
 }

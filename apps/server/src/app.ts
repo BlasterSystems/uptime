@@ -66,6 +66,26 @@ export interface AppOptions {
   dataDir?: string
   /** Agent hub token; empty string disables the agent API. */
   agentToken?: string
+  /**
+   * Express `trust proxy` value (`TRUST_PROXY`): a hop count (`1`), a boolean
+   * string, or an express-parseable list (`loopback`, IPs/CIDRs). Behind a
+   * reverse proxy this is what makes `req.ip` the client (per-IP rate limits)
+   * and `req.secure` reflect TLS (Secure cookies). Unset = direct exposure.
+   */
+  trustProxy?: string
+}
+
+/**
+ * Maps the raw `TRUST_PROXY` string onto the value Express understands:
+ * integer strings become hop counts, `true`/`false` become booleans, anything
+ * else passes through (`loopback`, `linklocal`, `uniquelocal`, IP/CIDR lists).
+ */
+export function normalizeTrustProxy(raw: string): string | number | boolean {
+  const value = raw.trim()
+  if (/^-?\d+$/.test(value)) return Number.parseInt(value, 10)
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return value
 }
 
 export function toScheduled(row: MonitorRow): ScheduledMonitor {
@@ -244,6 +264,9 @@ export function createApp(opts: AppOptions): Express {
   const { db, secrets, notifier, auth, scheduler, metrics, mailer } = opts
   const app = express()
   app.disable('x-powered-by')
+  if (opts.trustProxy !== undefined) {
+    app.set('trust proxy', normalizeTrustProxy(opts.trustProxy))
+  }
   app.use(express.json({ limit: '1mb' }))
 
   app.get('/healthz', (_req, res) => {
