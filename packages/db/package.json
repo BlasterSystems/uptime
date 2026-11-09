@@ -18,12 +18,12 @@
     "rotate-key": "node dist/rotate-key.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.4.0",
+    "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.0",
+    "@types/better-sqlite3": "^9.6.0",
     "drizzle-kit": "^0.31.0",
-    "vitest": "^3.2.0"
+    "vitest": "^5.1.0"
   }
 }
