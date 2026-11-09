@@ -1,0 +1,52 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Steps to reproduce, expected vs actual behavior.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Monitor / check engine (http, tcp, dns, icmp, db, docker, push, group)
+        - Dashboard / monitor detail UI
+        - Status pages / public overview
+        - Notifications / channels
+        - Incidents / maintenance windows
+        - Auth / users / API keys
+        - Agent (remote vantage)
+        - Metrics / Prometheus
+        - Deployment / Docker
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Image tag, commit or `docker inspect` digest.
+      placeholder: v1.0.0 / main @ abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: deployment
+    attributes:
+      label: Deployment
+      description: Compose file, storage (SQLite path/volume), reverse proxy, agent usage. Redact secrets and internal hostnames.
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console output
+      description: Server container logs or browser console. Redact secrets.
+      render: shell
+    validations:
+      required: false
