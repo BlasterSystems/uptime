@@ -8,7 +8,12 @@ test.beforeEach(async ({ page }) => {
 })
 
 async function openAddDialog(page: Page) {
-  await page.getByRole('button', { name: 'Add monitor' }).click()
+  // Two "Add monitor" buttons exist on an empty dashboard (header + empty
+  // state) since the demo seed became opt-in — scope to the summary header.
+  await page
+    .getByRole('region', { name: 'Status summary' })
+    .getByRole('button', { name: 'Add monitor' })
+    .click()
   return page.getByRole('dialog')
 }
 

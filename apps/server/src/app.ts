@@ -26,7 +26,7 @@ import { MaintenanceEngine } from './maintenance.js'
 import { parseGroupConfig } from './groups.js'
 import { buildPublicStatusPayload } from './public-status.js'
 import { createUsersRouter } from './auth/index.js'
-import { createAgentRouter } from './agent/index.js'
+import { createAgentRouter, type AgentPulseResult } from './agent/index.js'
 import { createLifecycleRouter } from './lifecycle/index.js'
 import {
   buildAtomFeed,
@@ -73,6 +73,12 @@ export interface AppOptions {
    * and `req.secure` reflect TLS (Secure cookies). Unset = direct exposure.
    */
   trustProxy?: string
+  /**
+   * Integrates accepted agent pulses (both HTTP and WS): `createPulseIntegrator`
+   * in the main server persists the beat and runs metrics/SSE/incident effects.
+   * Without it the hub writes the heartbeat row only.
+   */
+  onAgentPulse?: (result: AgentPulseResult) => void
 }
 
 /**
@@ -378,7 +384,14 @@ export function createApp(opts: AppOptions): Express {
 
   // ---- Agent hub (optional; disabled without a token) ----
   if (opts.agentToken) {
-    app.use('/api/v1/agent', createAgentRouter({ db, secrets, token: opts.agentToken }))
+    app.use(
+      '/api/v1/agent',
+      createAgentRouter({
+        db,
+        token: opts.agentToken,
+        ...(opts.onAgentPulse === undefined ? {} : { onPulse: opts.onAgentPulse }),
+      }),
+    )
   }
 
   // ---- Lifecycle: export/import, backup, retention, Kuma import (admin) ----

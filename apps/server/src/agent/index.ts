@@ -2,13 +2,18 @@ import { Router } from 'express'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import type { MonitorType } from '@uptime/core'
-import type { Database, SecretBox } from '@uptime/db'
+import type { Database } from '@uptime/db'
 
 /** Everything the agent hub needs; `token` comes from `UPTIME_AGENT_TOKEN` (hub disabled when unset). */
 export interface AgentHubDeps {
   db: Database
-  secrets: SecretBox
   token: string
+  /**
+   * Integration point for accepted pulses (heartbeat write + metrics + SSE +
+   * incident engine at integration — see `agent/integrate.ts`). When absent,
+   * the hub falls back to writing the heartbeat row only.
+   */
+  onPulse?: (result: AgentPulseResult) => void
 }
 
 /** Wire shape of one assigned monitor; kept in sync with `packages/agent`'s `AssignedMonitor`. */
@@ -22,22 +27,22 @@ export interface AssignedMonitorPayload {
   config: unknown
 }
 
+/** One validated pulse result (HTTP body entry or WS `pulse` item). */
+export interface AgentPulseResult {
+  id: number
+  status: 'up' | 'down'
+  latencyMs: number
+  responseSnippet?: string
+  time: Date
+}
+
 const pulseRequestSchema = z.object({ results: z.array(z.unknown()) })
 
-type ParsedPulse =
-  | {
-      ok: true
-      value: {
-        id: number
-        status: 'up' | 'down'
-        latencyMs: number
-        responseSnippet?: string
-        time: Date
-      }
-    }
+export type ParsedPulse =
+  | { ok: true; value: AgentPulseResult }
   | { ok: false; id: unknown; reason: string }
 
-function parsePulseResult(raw: unknown): ParsedPulse {
+export function parsePulseResult(raw: unknown): ParsedPulse {
   if (typeof raw !== 'object' || raw === null) {
     return { ok: false, id: undefined, reason: 'result must be an object' }
   }
@@ -71,25 +76,45 @@ function parsePulseResult(raw: unknown): ParsedPulse {
 /**
  * Constant-time token check: both sides are hashed first, so the comparison is
  * independent of the presented length and an unset token disables the hub.
+ * Shared by the HTTP router and the WS upgrade handler.
  */
-function tokenMatches(given: string | undefined, expected: string): boolean {
+export function tokenMatches(given: string | undefined, expected: string): boolean {
   if (expected === '' || given === undefined) return false
   const a = createHash('sha256').update(given).digest()
   const b = createHash('sha256').update(expected).digest()
   return timingSafeEqual(a, b)
 }
 
+/** Assignment snapshot for the `default` vantage point: active, non-group monitors. */
+export function assignedMonitors(db: Database): AssignedMonitorPayload[] {
+  return db
+    .listMonitors()
+    .filter((row) => row.active && row.type !== 'group')
+    .map((row) => ({
+      id: row.id,
+      // The API layer validates stored types against @uptime/core, so the cast holds.
+      type: row.type as MonitorType,
+      name: row.name,
+      intervalS: row.intervalS,
+      retries: row.retries,
+      retryIntervalS: row.retryIntervalS,
+      config: row.config,
+    }))
+}
+
 /**
  * Agent hub, mounted at `/api/v1/agent` (ADR-0003):
  * - `GET /assigned` — assignment snapshot for the `default` vantage point: active,
  *   non-group monitors (groups are evaluated server-side).
- * - `POST /pulse` — heartbeat batch; valid ids are written and acked, invalid/unknown
+ * - `POST /pulse` — heartbeat batch; valid ids are processed and acked, invalid/unknown
  *   ones are rejected with a reason.
  * - `GET /healthz` — link probe; 200 proves the presented token is accepted.
  *
- * Auth is the shared `x-agent-token` header for every route; heartbeats written here
- * flow through the normal engine at integration (metrics/WS broadcast are wired by
- * the main server).
+ * Auth is the shared `x-agent-token` header for every route. Accepted pulses go
+ * through `deps.onPulse` (the main server wires `createPulseIntegrator`, which
+ * persists the beat and runs metrics/SSE/incident effects); without an
+ * integrator the beat is written directly. The WS twin of this router lives in
+ * `agent/ws.ts` and shares the parser and token check.
  */
 export function createAgentRouter(deps: AgentHubDeps): Router {
   const router = Router()
@@ -107,20 +132,7 @@ export function createAgentRouter(deps: AgentHubDeps): Router {
   })
 
   router.get('/assigned', (_req, res) => {
-    const monitors: AssignedMonitorPayload[] = deps.db
-      .listMonitors()
-      .filter((row) => row.active && row.type !== 'group')
-      .map((row) => ({
-        id: row.id,
-        // The API layer validates stored types against @uptime/core, so the cast holds.
-        type: row.type as MonitorType,
-        name: row.name,
-        intervalS: row.intervalS,
-        retries: row.retries,
-        retryIntervalS: row.retryIntervalS,
-        config: row.config,
-      }))
-    res.json({ agentId: 'default', monitors })
+    res.json({ agentId: 'default', monitors: assignedMonitors(deps.db) })
   })
 
   router.post('/pulse', (req, res) => {
@@ -141,13 +153,18 @@ export function createAgentRouter(deps: AgentHubDeps): Router {
         rejected.push({ id: parsed.value.id, reason: 'unknown monitor' })
         continue
       }
-      deps.db.insertHeartbeat({
-        monitorId: parsed.value.id,
-        status: parsed.value.status,
-        latencyMs: parsed.value.latencyMs,
-        responseSnippet: parsed.value.responseSnippet,
-        time: parsed.value.time,
-      })
+      if (deps.onPulse !== undefined) {
+        deps.onPulse(parsed.value)
+      } else {
+        // Legacy fallback (no integrator wired): persist the beat only.
+        deps.db.insertHeartbeat({
+          monitorId: parsed.value.id,
+          status: parsed.value.status,
+          latencyMs: parsed.value.latencyMs,
+          responseSnippet: parsed.value.responseSnippet,
+          time: parsed.value.time,
+        })
+      }
       acked.push(parsed.value.id)
     }
     res.json({ acked, rejected })

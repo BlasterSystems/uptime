@@ -5,7 +5,10 @@ const NAME = 'push e2e'
 
 test('creates a push monitor and accepts its heartbeat', async ({ page, request }) => {
   await login(page)
-  await page.getByRole('button', { name: 'Add monitor' }).click()
+  await page
+    .getByRole('region', { name: 'Status summary' })
+    .getByRole('button', { name: 'Add monitor' })
+    .click()
   const dialog = page.getByRole('dialog', { name: 'Add monitor' })
   await dialog.getByLabel('Name').fill(NAME)
   await dialog.getByLabel('Type').selectOption({ label: 'Push — wait for an incoming heartbeat' })

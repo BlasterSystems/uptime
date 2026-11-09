@@ -3,6 +3,9 @@ import { getCertExpiryDays, Scheduler, runCheck, parseMonitorConfig } from '@upt
 import { Notifier, type ChannelType } from '@uptime/notify'
 import { Database, SecretBox } from '@uptime/db'
 import { createApp, toScheduled } from './app.js'
+import { attachAgentWsHub, type AgentWsHub } from './agent/ws.js'
+import { createPulseIntegrator } from './agent/integrate.js'
+import { assignedMonitors } from './agent/index.js'
 import { createAuthModule } from './auth/index.js'
 import { DEFAULT_RETENTION_DAYS, runRetention } from './lifecycle/index.js'
 import { readConfig } from './env.js'
@@ -157,6 +160,19 @@ const pushEngine = new PushEngine({
   onDown: (m, reason, time) => incidentEngine.onPushDown(m, reason, time),
 })
 
+/**
+ * Agent pulses (HTTP + WS) get the same downstream effects as server-scheduled
+ * checks — without this, agent-run types (tcp/dns/icmp/db) would record
+ * heartbeats but never open incidents, notify, or appear in metrics/SSE.
+ */
+const processAgentPulse = createPulseIntegrator({
+  db,
+  metrics,
+  hub,
+  maintenance,
+  incidentEngine,
+})
+
 const scheduler = new Scheduler({
   check: (m) => runCheck(m.type, m.config),
   onResult: (m, result, time) => {
@@ -194,6 +210,7 @@ for (const row of db.listMonitors()) {
 
 const mailer = createMailer({ db, secrets })
 
+const agentToken = process.env.UPTIME_AGENT_TOKEN ?? ''
 const app = createApp({
   db,
   secrets,
@@ -207,7 +224,8 @@ const app = createApp({
   maintenance,
   mailer,
   dataDir: cfg.dataDir,
-  agentToken: process.env.UPTIME_AGENT_TOKEN ?? '',
+  agentToken,
+  onAgentPulse: processAgentPulse,
   trustProxy: cfg.trustProxy,
 })
 scheduler.start()
@@ -300,10 +318,22 @@ const server = app.listen(cfg.port, () => {
   console.log(`uptime-monitoring server listening on :${cfg.port} (data: ${cfg.dataDir})`)
 })
 
+// WS twin of the agent HTTP hub (ADR-0003): same token, same integration. The
+// agent client attempts this link first and falls back to HTTP polling.
+let agentWsHub: AgentWsHub | undefined
+if (agentToken) {
+  agentWsHub = attachAgentWsHub(server, {
+    token: agentToken,
+    assigned: () => assignedMonitors(db),
+    processPulse: processAgentPulse,
+  })
+}
+
 const shutdown = () => {
   if (closing) return
   closing = true
   scheduler.stop()
+  agentWsHub?.close()
   pushEngine.stop()
   groupEngine.stop()
   hub.stop()

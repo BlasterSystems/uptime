@@ -1,12 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import express from 'express'
 import type { Express } from 'express'
 import request from 'supertest'
-import { Database, SecretBox } from '@uptime/db'
+import { Database } from '@uptime/db'
 import { createAgentRouter } from './index.js'
 
 const TOKEN = 'agent-shared-token'
-const KEY = 'a'.repeat(64)
 const httpConfig = {
   method: 'GET',
   url: 'https://example.test/health',
@@ -16,11 +15,18 @@ const httpConfig = {
 
 let db: Database | undefined
 
-function makeApp(token = TOKEN): Express {
+function makeApp(token = TOKEN, onPulse?: (result: unknown) => void): Express {
   db = Database.open({ file: ':memory:' })
   const app = express()
   app.use(express.json())
-  app.use('/api/v1/agent', createAgentRouter({ db, secrets: new SecretBox(KEY), token }))
+  app.use(
+    '/api/v1/agent',
+    createAgentRouter({
+      db,
+      token,
+      ...(onPulse === undefined ? {} : { onPulse: onPulse as never }),
+    }),
+  )
   return app
 }
 
@@ -165,6 +171,31 @@ describe('agent hub', () => {
       responseSnippet: 'ok',
       time: first,
     })
+  })
+
+  it('routes accepted pulses through onPulse when an integrator is wired', async () => {
+    const onPulse = vi.fn()
+    const app = makeApp(TOKEN, onPulse)
+    const { activeId } = seedMonitors()
+    const time = new Date('2026-10-10T10:00:00.000Z')
+
+    const res = await request(app)
+      .post('/api/v1/agent/pulse')
+      .set('x-agent-token', TOKEN)
+      .send({
+        results: [
+          { id: activeId, status: 'up', latencyMs: 5, time: time.toISOString() },
+          { id: 999, status: 'up', latencyMs: 1, time: time.toISOString() },
+        ],
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.acked).toEqual([activeId])
+    // Only accepted pulses reach the integrator; unknown ids stay rejected and
+    // the integrator owns persistence (no legacy insert happens).
+    expect(onPulse).toHaveBeenCalledTimes(1)
+    expect(onPulse.mock.calls[0]?.[0]).toMatchObject({ id: activeId, status: 'up', latencyMs: 5 })
+    expect((db as Database).listHeartbeats(activeId)).toHaveLength(0)
   })
 
   it('rejects a malformed pulse envelope', async () => {

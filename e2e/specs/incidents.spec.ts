@@ -5,7 +5,10 @@ const NAME = 'refused e2e'
 
 test('opens an incident when a monitor fails past its retries', async ({ page }) => {
   await login(page)
-  await page.getByRole('button', { name: 'Add monitor' }).click()
+  await page
+    .getByRole('region', { name: 'Status summary' })
+    .getByRole('button', { name: 'Add monitor' })
+    .click()
   const dialog = page.getByRole('dialog', { name: 'Add monitor' })
   await dialog.getByLabel('Name').fill(NAME)
   // Only http (and docker) monitors are probe-scheduled, so use an http check
