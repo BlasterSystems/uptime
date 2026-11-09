@@ -89,6 +89,17 @@ All notable, user-visible changes are recorded here. Format follows
   ("6s from now") on clock skew or a just-arrived SSE event.
 - The status-page *Subscriptions* empty state now links to *Notifications*
   when the instance has no channels yet, instead of ending in a dead end.
+- Agent-run monitor types (tcp, dns, icmp, postgres, mysql, mssql, mongodb, redis)
+  execute again: the shared probe scheduler dropped every non-http/docker
+  assignment, so these monitors were validated and stored but never probed
+  anywhere (a regression from the docker-scheduling change). The agent now
+  constructs its scheduler with the full type list.
+- Agent pulses flow through the full result pipeline — incidents (open after
+  `retries`, recovery, notifications), Prometheus gauges and the SSE hub —
+  instead of only writing a heartbeat row. Agent-run monitors now alert.
+- The agent's WS link actually works: the server ships the WS hub (ADR-0003),
+  so agents stop cycling a failed WS attempt + timeout before every HTTP
+  fallback. HTTP fallback stays as-is; pulses over both paths are integrated.
 
 ### Added
 

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Scheduler } from './scheduler.js'
+import type { SchedulerOptions } from './scheduler.js'
 import type { CheckResult, HttpMonitorConfig, ScheduledMonitor } from './types.js'
 
 const UP: CheckResult = { status: 'up', latencyMs: 1 }
@@ -29,12 +30,12 @@ function monitor(overrides: Partial<ScheduledMonitor> = {}): ScheduledMonitor {
 /** Scheduler wired to a stubbed check; `times` are result timestamps relative to creation. */
 function createHarness(
   check: (monitor: ScheduledMonitor) => Promise<CheckResult>,
-  limits: { globalConcurrency?: number; perHostConcurrency?: number } = {},
+  options: { globalConcurrency?: number; perHostConcurrency?: number; allowedTypes?: SchedulerOptions['allowedTypes'] } = {},
 ) {
   const onResult = vi.fn(
     (_monitor: ScheduledMonitor, _result: CheckResult, _time: Date): void => {},
   )
-  const scheduler = new Scheduler({ ...limits, check, onResult })
+  const scheduler = new Scheduler({ ...options, check, onResult })
   const startedAt = Date.now()
   return {
     scheduler,
@@ -305,5 +306,30 @@ describe('Scheduler', () => {
     scheduler.upsert(monitor({ type: 'push' }))
     await vi.advanceTimersByTimeAsync(10 * 60_000)
     expect(check).toHaveBeenCalledTimes(1)
+  })
+
+  it('defaults to the server-scheduled set and drops tcp assignments', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const { scheduler, check } = createHarness(stubCheck())
+
+    // The agent runs tcp checks; the SERVER-side scheduler must not.
+    scheduler.upsert(monitor({ type: 'tcp', config: {} as unknown as HttpMonitorConfig }))
+    scheduler.start()
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(check).not.toHaveBeenCalled()
+  })
+
+  it('accepts every assigned type when the agent widens allowedTypes', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
+    const { scheduler, check, onResult } = createHarness(stubCheck(), {
+      allowedTypes: ['http', 'push', 'tcp', 'dns', 'icmp', 'postgres', 'mysql', 'mssql', 'mongodb', 'redis', 'docker'],
+    })
+
+    scheduler.upsert(monitor({ type: 'tcp', config: {} as unknown as HttpMonitorConfig, intervalS: 60 }))
+    scheduler.start()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushMicrotasks()
+    expect(check).toHaveBeenCalledTimes(1)
+    expect(onResult).toHaveBeenCalledTimes(1)
   })
 })

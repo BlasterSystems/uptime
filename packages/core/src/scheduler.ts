@@ -1,10 +1,21 @@
 import { MIN_INTERVAL_S } from './config.js'
-import type { CheckResult, ScheduledMonitor } from './types.js'
+import type { CheckResult, MonitorType, ScheduledMonitor } from './types.js'
+
+/** Monitor types the server probe-schedules (SPEC §6): push is heartbeat-driven,
+ * and tcp/dns/icmp/db run on agents — which construct their scheduler with the
+ * full type list via `allowedTypes`. */
+const SERVER_SCHEDULED_TYPES = ['http', 'docker'] as const
 
 /** Scheduler wiring and limits; the concurrency defaults follow SPEC §6. */
 export interface SchedulerOptions {
   check: (monitor: ScheduledMonitor) => Promise<CheckResult>
   onResult: (monitor: ScheduledMonitor, result: CheckResult, time: Date) => void
+  /**
+   * Monitor types this scheduler accepts. Defaults to the server's
+   * probe-scheduled set (`http`, `docker`); the agent passes every type it
+   * can execute so its assignments are not silently dropped.
+   */
+  allowedTypes?: readonly MonitorType[]
   /** Maximum number of checks running at once across all monitors (default 50). */
   globalConcurrency?: number
   /** Maximum number of concurrent checks against a single hostname (default 5). */
@@ -96,6 +107,7 @@ class Limiter {
 export class Scheduler {
   private readonly check: (monitor: ScheduledMonitor) => Promise<CheckResult>
   private readonly onResult: (monitor: ScheduledMonitor, result: CheckResult, time: Date) => void
+  private readonly allowedTypes: ReadonlySet<MonitorType>
   private readonly limiter: Limiter
   private readonly entries = new Map<number, Entry>()
   private running = false
@@ -103,6 +115,7 @@ export class Scheduler {
   constructor(opts: SchedulerOptions) {
     this.check = opts.check
     this.onResult = opts.onResult
+    this.allowedTypes = new Set(opts.allowedTypes ?? SERVER_SCHEDULED_TYPES)
     this.limiter = new Limiter(
       opts.globalConcurrency ?? DEFAULT_GLOBAL_CONCURRENCY,
       opts.perHostConcurrency ?? DEFAULT_PER_HOST_CONCURRENCY,
@@ -111,9 +124,9 @@ export class Scheduler {
 
   /** Add or replace a monitor; while running this restarts its schedule and probes it now. */
   upsert(monitor: ScheduledMonitor): void {
-    // `http` and `docker` are probe-scheduled (SPEC §6): push is heartbeat-driven and
-    // the remaining types are not wired into the scheduler yet; drop a stale entry.
-    if (monitor.type !== 'http' && monitor.type !== 'docker') {
+    // Outside the scheduler's allowed set (push is heartbeat-driven; the
+    // server leaves tcp/dns/icmp/db to the agents): drop any stale entry.
+    if (!this.allowedTypes.has(monitor.type)) {
       this.remove(monitor.id)
       return
     }
