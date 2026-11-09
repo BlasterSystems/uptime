@@ -20,11 +20,11 @@ jobs:
     # GitHub-hosted runners; everything else runs on the self-hosted dev-VM runner.
     runs-on: ${{ (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true) && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -38,7 +38,7 @@ jobs:
     runs-on: uptime-dev-vm
     environment: development
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Full history: the git bundle must contain all parent objects.
           fetch-depth: 0
