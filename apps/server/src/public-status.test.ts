@@ -88,6 +88,18 @@ describe('public status overview', () => {
     expect(body).not.toContain('config')
   })
 
+  it('reports no latency while a public service is down', async () => {
+    const downId = createMonitor(db, 'down-api', { isPublic: true })
+    db.insertHeartbeat({ monitorId: downId, status: 'down', latencyMs: 9_800, time: new Date() })
+
+    const res = await request(app).get('/api/v1/public/status')
+    expect(res.status).toBe(200)
+    expect(res.body.overall).toBe('outage')
+    const down = res.body.services.find((s: { name: string }) => s.name === 'down-api')
+    // The failed check's elapsed time must not render as a latency sample.
+    expect(down.latencyMs).toBeNull()
+  })
+
   it('flags paused services and excludes them from the overall status', async () => {
     const downId = createMonitor(db, 'down-service', { isPublic: true })
     createMonitor(db, 'paused-service', { isPublic: true, active: false })

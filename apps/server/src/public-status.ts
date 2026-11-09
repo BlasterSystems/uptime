@@ -56,7 +56,8 @@ export function buildPublicStatusPayload(
       status: latest?.status ?? 'pending',
       paused: !row.active,
       inMaintenance: maintenance.isUnder(row.id, now),
-      latencyMs: latest?.latencyMs ?? null,
+      // A down beat's elapsed time is failure evidence, not a latency sample.
+      latencyMs: latest?.status === 'down' ? null : latest?.latencyMs ?? null,
       lastBeatAt: latest ? latest.time.toISOString() : null,
       uptimePct: db.getUptime(row.id, 24).uptimePct,
     }

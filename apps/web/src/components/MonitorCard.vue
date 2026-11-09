@@ -24,9 +24,17 @@ const status = computed(() => STATUS_META[props.monitor.latestHeartbeat?.status 
 
 const heartbeat = computed(() => props.monitor.latestHeartbeat)
 
+/** A down beat's elapsed time is failure evidence, not a latency sample. */
+const cardLatency = computed(() =>
+  heartbeat.value?.status === 'down' ? null : heartbeat.value?.latencyMs ?? null,
+)
+
 const lastCheck = computed(() => {
   const time = heartbeat.value?.time
-  return time === undefined ? null : relativeTime(time)
+  if (time === undefined) return null
+  // A last check cannot sit in the future — clamp clock-skewed SSE beats.
+  const timestamp = Date.parse(time)
+  return relativeTime(time, Number.isNaN(timestamp) ? Date.now() : Math.max(Date.now(), timestamp))
 })
 
 const lastCheckExact = computed(() => {
@@ -63,7 +71,7 @@ const failureSnippet = computed(() =>
     <dl class="card-meta">
       <div class="meta-item">
         <dt>Latency</dt>
-        <dd>{{ formatLatency(heartbeat?.latencyMs ?? null) }}</dd>
+        <dd>{{ formatLatency(cardLatency) }}</dd>
       </div>
       <div class="meta-item">
         <dt>Last check</dt>

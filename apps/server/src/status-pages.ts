@@ -194,7 +194,8 @@ export function buildStatusPagePayload(
         states.push({
           monitorId,
           status: state,
-          latencyMs: latest?.latencyMs ?? null,
+          // A down beat's elapsed time is failure evidence, not a latency sample.
+          latencyMs: state === 'down' ? null : latest?.latencyMs ?? null,
           inMaintenance: maintenance.isUnder(monitorId, now),
         })
         monitors.push({
@@ -202,7 +203,7 @@ export function buildStatusPagePayload(
           name: row.name,
           type: row.type,
           status: state,
-          latencyMs: latest?.latencyMs ?? null,
+          latencyMs: state === 'down' ? null : latest?.latencyMs ?? null,
           lastBeatAt: latest ? latest.time.toISOString() : null,
         })
       }
