@@ -33,6 +33,18 @@ All notable, user-visible changes are recorded here. Format follows
   last-admin guards; password resets sign the user out everywhere.
 - Password change (Settings → Profile): `POST /api/v1/auth/change-password` verifies the
   current password and signs out every other session.
+- Uptime-Kuma migration CLI: `node scripts/kuma-import.mjs <kuma.db>` converts a
+  Kuma SQLite export into the `POST /api/v1/import/kuma` body (zero-dependency,
+  uses the built-in `node:sqlite`; maps http/tcp/dns/icmp/push/docker and the
+  database engines, skips paused and unknown monitors, reports the summary).
+  Documented in the in-app `/docs` (Automation section).
+- Reverse-proxy guide: `docs/deploy/proxy.md` — Caddy, Nginx Proxy Manager,
+  Traefik (compose labels) and plain nginx snippets, SSE buffering/timeout
+  notes, `METRICS_ALLOWLIST` advice and the `TRUST_PROXY` setting.
+- The in-app `/docs` gained a **Remote agent** section (deploying the
+  `uptime-agent` image, which monitor types execute only on an agent, token
+  auth, retry-queue semantics), and the README agent compose example now passes
+  `command: agent` (the image's default CMD is the server role).
 - `docker` monitors are now actively scheduled (unix socket, tcp://, or TLS); the DEV
   compose mounts the host Docker socket read-only for them (`DOCKER_GID` in
   `deploy/.env`); the monitor form can pick a saved Docker host by name.

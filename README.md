@@ -117,7 +117,17 @@ Only `deploy/.env.example` (placeholders) is tracked; generate `ENCRYPTION_KEY` 
 
 ## Deployment
 
-Compose-first; TLS is delegated to the reverse proxy in front of the container.
+Compose-first; TLS is delegated to the reverse proxy in front of the container —
+[docs/deploy/proxy.md](docs/deploy/proxy.md) has Caddy/Nginx-Proxy-Manager/Traefik/
+nginx examples and the `TRUST_PROXY` setting (behind a proxy, set `TRUST_PROXY=1` so
+per-IP rate limits and `Secure` cookies see the real client).
+
+Prepare the environment once (compose reads `.env` for `${…}` interpolation), then start:
+
+```bash
+cp deploy/.env.example .env    # then set ENCRYPTION_KEY: openssl rand -hex 32
+docker compose up -d
+```
 
 ```yaml
 services:
@@ -131,12 +141,14 @@ services:
     restart: unless-stopped
 ```
 
-Optional remote agent (same repository, second image):
+Optional remote agent (same repository, second image — `command: agent` selects
+the agent role; the image's default CMD is the server role):
 
 ```yaml
 services:
   uptime-agent:
     image: ghcr.io/blastersystems/uptime-agent:latest
+    command: agent
     environment:
       - UPTIME_SERVER_URL=http://uptime-monitoring:3001
       - UPTIME_AGENT_TOKEN=${UPTIME_AGENT_TOKEN}

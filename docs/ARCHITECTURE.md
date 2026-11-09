@@ -50,5 +50,6 @@ SQLite (WAL) only today; the Drizzle dialect switch to Postgres is planned, not 
 ## Deployment
 
 Compose-first; single image for the server role, same repo builds the agent image
-(ADR-0004). TLS is delegated to the user's existing reverse proxy (documented NPM/
-Caddy/Traefik examples) — the container itself speaks plain HTTP on 3001.
+(ADR-0004). TLS is delegated to the user's existing reverse proxy (see
+[deploy/proxy.md](deploy/proxy.md) for NPM/Caddy/Traefik/nginx examples and
+`TRUST_PROXY`) — the container itself speaks plain HTTP on 3001.
