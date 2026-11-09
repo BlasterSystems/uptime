@@ -80,6 +80,8 @@ First public release.
   indicators (■ up / ◆ down / ○ pending, striped maintenance), mono uppercase
   labels/chips, and a thread response-time chart. Public status pages keep
   user-defined accent colours; all other chrome follows the design system.
+- Uptime is now licensed under the Apache License, Version 2.0 (previously
+  MIT).
 
 ### Fixed
 

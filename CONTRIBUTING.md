@@ -71,4 +71,4 @@ Please use the issue templates. For security-sensitive reports use
 ## License
 
 By contributing you agree that your contributions are licensed under the
-[MIT License](LICENSE).
+[Apache License, Version 2.0](LICENSE).
