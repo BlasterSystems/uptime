@@ -7,6 +7,10 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-11-09
+
+First public release.
+
 ### Added
 
 - `TRUST_PROXY` environment variable (Express `trust proxy`): set it (usually
