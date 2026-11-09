@@ -12,7 +12,9 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
     port: Number.isInteger(port) && port > 0 ? port : 3001,
     dataDir: env.DATA_DIR ?? './data',
     webDist: env.WEB_DIST ?? null,
-    seed: env.SEED !== '0',
+    // Demo seed is opt-in (SEED=1): a fresh production volume must not boot
+    // with a fabricated monitor. `pnpm dev` and the root compose pass SEED=1.
+    seed: env.SEED === '1',
     encryptionKey: env.ENCRYPTION_KEY,
   }
 }

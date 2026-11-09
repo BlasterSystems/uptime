@@ -31,6 +31,23 @@ function isSqliteFile(path: string): boolean {
 export const DEFAULT_RETENTION_DAYS = 180
 
 /**
+ * Prunes heartbeats older than `days` (SPEC §4). Already-aggregated beats go
+ * first; the second sweep removes everything else older than the cutoff, so
+ * `heartbeatsDeleted` counts the part that had not been rolled up yet (total
+ * removed = heartbeatsDeleted + rolledupDeleted). Shared by the admin route
+ * and the server's daily retention tick.
+ */
+export function runRetention(
+  db: Database,
+  days: number,
+): { heartbeatsDeleted: number; rolledupDeleted: number } {
+  const cutoff = new Date(Date.now() - days * 86_400_000)
+  const rolledupDeleted = db.deleteRolledupBefore(cutoff)
+  const heartbeatsDeleted = db.deleteHeartbeatsBefore(cutoff)
+  return { heartbeatsDeleted, rolledupDeleted }
+}
+
+/**
  * `settings` keys describing local rollup/ingest progress rather than human
  * configuration. They never travel in an export — importing a foreign watermark
  * would mark local heartbeats as already aggregated — and are ignored on import.
@@ -330,13 +347,7 @@ export function createLifecycleRouter(deps: LifecycleDeps): Router {
     if (!Number.isInteger(days) || days < 1) {
       return res.status(400).json({ error: 'days must be a positive integer' })
     }
-    const cutoff = new Date(Date.now() - days * 86_400_000)
-    // Already-aggregated beats go first; the second sweep removes everything
-    // else older than the cutoff, so `heartbeatsDeleted` counts the part that
-    // had not been rolled up yet (total removed = heartbeatsDeleted + rolledupDeleted).
-    const rolledupDeleted = db.deleteRolledupBefore(cutoff)
-    const heartbeatsDeleted = db.deleteHeartbeatsBefore(cutoff)
-    res.json({ heartbeatsDeleted, rolledupDeleted })
+    res.json(runRetention(db, days))
   })
 
   // An operator-side CLI converts Kuma's SQLite into exactly this JSON body:

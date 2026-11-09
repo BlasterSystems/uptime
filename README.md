@@ -99,7 +99,7 @@ pnpm build        # core → db → notify → agent → server, then web
 pnpm test         # vitest in every package (server, packages and web unit tests)
 pnpm test:e2e     # Playwright: builds, boots a throwaway server, drives Chromium (e2e/)
 pnpm coverage     # + coverage gate (≥75% lines per package; web baseline gate)
-pnpm dev          # server on :3001 (SQLite in ./data)
+pnpm dev          # server on :3001 (SQLite in ./data; SEED=1 adds an example monitor)
 pnpm --filter @uptime/web dev   # Vite dev server with /api proxied to :3001
 UPTIME_AGENT_TOKEN=... node apps/server/dist/main.js agent   # agent role
 docker compose up --build       # full stack
@@ -145,7 +145,8 @@ services:
 
 `deploy/.env.example` documents the environment variables used by the compose
 deployment (port, seed flag, encryption key, agent token, `DOCKER_GID` for docker
-monitors). Releases are published from `v*` tags via
+monitors, heartbeat retention: `RETENTION_DAYS` — 180 by default, pruned daily —
+and `RETENTION_DISABLE=1` to opt out). Releases are published from `v*` tags via
 `.github/workflows/release.yml`; `dev-*` tags deploy to the development VM.
 
 ## License

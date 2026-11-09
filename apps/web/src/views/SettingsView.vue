@@ -1146,7 +1146,7 @@ onMounted(() => {
             </template>
 
             <template #cell-strategy="{ row }">
-              <span class="text-note">{{ STRATEGY_LABELS[row.strategy] }}</span>
+              <span class="text-note">{{ STRATEGY_LABELS[row.strategy] ?? row.strategy }}</span>
             </template>
 
             <template #cell-active="{ row }">

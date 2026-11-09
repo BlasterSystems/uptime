@@ -38,6 +38,13 @@ const FORGOT_ATTEMPT_LIMIT = 5
 const FORGOT_WINDOW_MS = 60 * 60 * 1000
 const RESET_ATTEMPT_LIMIT = 10
 const RESET_WINDOW_MS = 60 * 60 * 1000
+/**
+ * First-run setup attempts per window; every attempt counts. The endpoint is
+ * pre-auth and each plausible attempt burns an Argon2 hash, so it gets the
+ * same enumeration-safe treatment as password recovery.
+ */
+const SETUP_ATTEMPT_LIMIT = 10
+const SETUP_WINDOW_MS = 60 * 60 * 1000
 
 const API_KEY_SCOPES = ['read', 'write', 'admin'] as const
 type ApiKeyScope = (typeof API_KEY_SCOPES)[number]
@@ -122,6 +129,10 @@ export function createAuthModule(deps: {
   const resetLimiter = new SlidingWindowRateLimiter({
     limit: RESET_ATTEMPT_LIMIT,
     windowMs: RESET_WINDOW_MS,
+  })
+  const setupLimiter = new SlidingWindowRateLimiter({
+    limit: SETUP_ATTEMPT_LIMIT,
+    windowMs: SETUP_WINDOW_MS,
   })
   const router = Router()
 
@@ -264,6 +275,13 @@ export function createAuthModule(deps: {
   })
 
   router.post('/setup', async (req, res) => {
+    const limiterKey = req.ip ?? req.socket.remoteAddress ?? 'unknown'
+    const decision = setupLimiter.check(limiterKey)
+    if (decision.limited) {
+      res.status(429).json({ error: 'too_many_attempts', retryAfterMs: decision.retryAfterMs })
+      return
+    }
+    setupLimiter.recordFailure(limiterKey)
     if (db.countUsers() > 0) {
       res.status(409).json({ error: 'setup_complete' })
       return
