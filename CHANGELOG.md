@@ -47,6 +47,19 @@ All notable, user-visible changes are recorded here. Format follows
   labels/chips, and a thread response-time chart. Public status pages keep
   user-defined accent colours; all other chrome follows the design system.
 
+### Fixed
+
+- Public surfaces no longer display a latency value while a monitor is **down** —
+  the failed check's elapsed time rendered as e.g. "10.00 s" next to a red
+  status on dashboard cards, the monitor header, the public overview and
+  status-page rows (they now show "—"). The dashboard's average latency now
+  averages successful checks only.
+- The monitor header's "Last check" label now ticks every second (it froze
+  between 60 s polls) and can no longer render a future timestamp
+  ("6s from now") on clock skew or a just-arrived SSE event.
+- The status-page *Subscriptions* empty state now links to *Notifications*
+  when the instance has no channels yet, instead of ending in a dead end.
+
 ### Added
 
 - Initial v1 implementation: http/push/group check engine, monitor CRUD, sessions

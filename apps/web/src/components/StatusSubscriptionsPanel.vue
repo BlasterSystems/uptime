@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   createStatusSubscription,
   deleteStatusSubscription,
@@ -31,6 +32,7 @@ const DEFAULT_EVENTS: StatusSubscriptionEvent[] = [
 ]
 
 const toast = useToast()
+const router = useRouter()
 
 const pages = ref<StatusPage[]>([])
 const channels = ref<Channel[]>([])
@@ -295,7 +297,13 @@ onMounted(async () => {
       v-else-if="!loading && channels.length === 0"
       title="No notification channels"
       description="Add a notification channel, then subscribe it to a status page."
-    />
+    >
+      <template #actions>
+        <Button variant="primary" size="sm" @click="router.push({ name: 'notifications' })">
+          Go to notifications
+        </Button>
+      </template>
+    </EmptyState>
 
     <Table
       v-else

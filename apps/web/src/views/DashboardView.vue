@@ -54,7 +54,10 @@ const summary = computed(() => {
     else if (status === 'maintenance') maintenance += 1
     else pending += 1
 
-    const latency = monitor.latestHeartbeat?.latencyMs
+    // Average latency measures successful checks only — a down beat's elapsed
+    // time is failure evidence, not a sample.
+    const beat = monitor.latestHeartbeat
+    const latency = beat !== null && beat.status !== 'down' ? beat.latencyMs : undefined
     if (typeof latency === 'number') {
       latencySum += latency
       latencyCount += 1

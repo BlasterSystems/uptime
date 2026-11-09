@@ -89,6 +89,7 @@ const now = ref(Date.now())
 
 let pollTimer: number | null = null
 let derivedTimer: number | null = null
+let nowTimer: number | null = null
 let unsubscribe: (() => void) | null = null
 let refreshInFlight = false
 
@@ -101,6 +102,11 @@ const monitorId = computed<number | null>(() => {
 /** Latest state for the header; a live SSE heartbeat outranks the polled one. */
 const headerHeartbeat = computed<Heartbeat | null>(
   () => liveHeartbeat.value ?? monitor.value?.latestHeartbeat ?? null,
+)
+
+/** A down beat's elapsed time is failure evidence, not a latency sample. */
+const headerLatency = computed(() =>
+  headerHeartbeat.value?.status === 'down' ? null : headerHeartbeat.value?.latencyMs ?? null,
 )
 
 const statusMeta = computed(() => STATUS_META[headerHeartbeat.value?.status ?? 'pending'])
@@ -118,7 +124,12 @@ const targetMono = computed(() => {
 
 const lastCheckRelative = computed(() => {
   const heartbeat = headerHeartbeat.value
-  return heartbeat === null ? null : relativeTime(heartbeat.time, now.value)
+  if (heartbeat === null) return null
+  // A last check cannot sit in the future — clamp clock-skewed SSE beats
+  // instead of rendering "6s from now".
+  const timestamp = Date.parse(heartbeat.time)
+  const reference = Number.isNaN(timestamp) ? now.value : Math.max(now.value, timestamp)
+  return relativeTime(heartbeat.time, reference)
 })
 
 const lastCheckExact = computed(() => {
@@ -429,6 +440,10 @@ onMounted(() => {
   void load(false)
   unsubscribe = subscribeRealtime(handleRealtime)
   startPolling()
+  // Keep the "last check Xs ago" label live between polls.
+  nowTimer = window.setInterval(() => {
+    now.value = Date.now()
+  }, 1000)
 })
 
 onUnmounted(() => {
@@ -440,6 +455,10 @@ onUnmounted(() => {
   if (derivedTimer !== null) {
     window.clearTimeout(derivedTimer)
     derivedTimer = null
+  }
+  if (nowTimer !== null) {
+    window.clearInterval(nowTimer)
+    nowTimer = null
   }
 })
 </script>
@@ -485,7 +504,7 @@ onUnmounted(() => {
           <dl class="head-meta">
             <div class="meta-item">
               <dt>Latency</dt>
-              <dd>{{ formatLatency(headerHeartbeat?.latencyMs ?? null) }}</dd>
+              <dd>{{ formatLatency(headerLatency) }}</dd>
             </div>
             <div class="meta-item">
               <dt>Last check</dt>
