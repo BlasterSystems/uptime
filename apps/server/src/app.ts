@@ -5,6 +5,7 @@ import { MIN_INTERVAL_S, MONITOR_TYPES, parseMonitorConfig } from '@uptime/core'
 import type { MonitorType, ScheduledMonitor } from '@uptime/core'
 import { parseChannelConfig, type ChannelType } from '@uptime/notify'
 import { metricsAllowlistMiddleware } from './metrics-auth.js'
+import { MAINTENANCE_SCOPES, MAINTENANCE_STRATEGIES } from '@uptime/db'
 import type {
   Database,
   MonitorRow,
@@ -878,13 +879,50 @@ export function createApp(opts: AppOptions): Express {
     return out
   }
 
+  /**
+   * Rejects structurally invalid windows before they reach SQLite: the text
+   * columns carry no CHECK constraint, so an unknown `strategy` would persist
+   * forever and silently disable the window (the engine's switch treats it as
+   * never-active). `partial` (PATCH) validates only the fields the client sent.
+   */
+  const validateWindow = (body: Record<string, unknown>, partial: boolean): string | null => {
+    if (!partial || body.name !== undefined) {
+      if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+        return 'name must be a non-empty string'
+      }
+    }
+    if (!partial || body.scope !== undefined) {
+      if (
+        typeof body.scope !== 'string' ||
+        !(MAINTENANCE_SCOPES as readonly string[]).includes(body.scope)
+      ) {
+        return `scope must be one of: ${MAINTENANCE_SCOPES.join(', ')}`
+      }
+    }
+    if (!partial || body.strategy !== undefined) {
+      if (
+        typeof body.strategy !== 'string' ||
+        !(MAINTENANCE_STRATEGIES as readonly string[]).includes(body.strategy)
+      ) {
+        return `strategy must be one of: ${MAINTENANCE_STRATEGIES.join(', ')}`
+      }
+    }
+    if (body.active !== undefined && typeof body.active !== 'boolean') {
+      return 'active must be a boolean'
+    }
+    return null
+  }
+
   app.get('/api/v1/maintenance-windows', auth.requireAuth('viewer'), (_req, res) => {
     res.json({ windows: db.listMaintenanceWindows() })
   })
 
   app.post('/api/v1/maintenance-windows', auth.requireAuth('admin'), (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const invalid = validateWindow(body, false)
+    if (invalid !== null) return res.status(400).json({ error: invalid })
     try {
-      const row = db.createMaintenanceWindow(coerceWindow(req.body))
+      const row = db.createMaintenanceWindow(coerceWindow(body))
       res.status(201).json({ window: row })
     } catch (err) {
       res
@@ -896,8 +934,11 @@ export function createApp(opts: AppOptions): Express {
   app.patch('/api/v1/maintenance-windows/:id', auth.requireAuth('admin'), (req, res) => {
     const id = monitorId(req)
     if (id === null) return res.status(400).json({ error: 'invalid maintenance window id' })
+    const body = (req.body ?? {}) as Record<string, unknown>
+    const invalid = validateWindow(body, true)
+    if (invalid !== null) return res.status(400).json({ error: invalid })
     try {
-      const updated = db.updateMaintenanceWindow(id, coerceWindow(req.body))
+      const updated = db.updateMaintenanceWindow(id, coerceWindow(body))
       if (!updated) return res.status(404).json({ error: 'maintenance window not found' })
       res.json({ window: updated })
     } catch (err) {

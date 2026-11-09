@@ -8,9 +8,15 @@ describe('readConfig', () => {
       port: 3001,
       dataDir: './data',
       webDist: null,
-      seed: true,
+      seed: false,
       encryptionKey: undefined,
     })
+  })
+
+  it('seeds the demo monitor only when SEED=1', () => {
+    expect(readConfig({ SEED: '1' }).seed).toBe(true)
+    expect(readConfig({ SEED: '0' }).seed).toBe(false)
+    expect(readConfig({ SEED: 'true' }).seed).toBe(false)
   })
 
   it('reads env overrides', () => {

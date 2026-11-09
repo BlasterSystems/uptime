@@ -103,6 +103,26 @@ describe('auth', () => {
     expect(locked.body.retryAfterMs).toBeGreaterThan(0)
   })
 
+  it('rate-limits first-run setup attempts', async () => {
+    const { app } = makeApp()
+
+    // Every attempt counts — the endpoint is pre-auth and each plausible
+    // attempt burns an Argon2 hash, so it is treated like password recovery.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const failure = await request(app)
+        .post('/api/v1/auth/setup')
+        .send({ email: 'admin@example.com', password: 'short' })
+        .expect(400)
+      expect(failure.body.error).toBe('invalid_password')
+    }
+    const limited = await request(app)
+      .post('/api/v1/auth/setup')
+      .send({ email: 'admin@example.com', password: PASSWORD })
+      .expect(429)
+    expect(limited.body.error).toBe('too_many_attempts')
+    expect(limited.body.retryAfterMs).toBeGreaterThan(0)
+  })
+
   it('answers unknown emails exactly like wrong passwords', async () => {
     const { app } = makeApp()
     await setupAdmin(app)

@@ -9,6 +9,17 @@ All notable, user-visible changes are recorded here. Format follows
 
 ### Added
 
+- First-run admin setup (`POST /api/v1/auth/setup`) is now rate-limited like
+  every other pre-auth endpoint (10 attempts/hour/IP) — an internet-exposed
+  fresh volume can no longer be hammered while it waits for an admin.
+- Heartbeat retention now runs daily by default (`RETENTION_DAYS`, 180-day
+  default per SPEC §4; `RETENTION_DISABLE=1` opts out) instead of only on the
+  manual `POST /api/v1/retention/run` endpoint, so unattended instances no
+  longer grow raw heartbeats without bound.
+- Maintenance-window bodies are validated server-side: unknown `strategy` or
+  `scope` values, empty names and non-boolean `active` now answer 400 instead
+  of persisting rows the engine silently ignores (SQLite text columns carry no
+  CHECK constraint).
 - Self-service password recovery: a "reset your password by email" link on the sign-in
   page emails a single-use token (1 h, replaces outstanding tokens); the reset signs
   every session out. The endpoint is enumeration-safe (always 204, per-IP rate
@@ -51,6 +62,9 @@ All notable, user-visible changes are recorded here. Format follows
 
 ### Changed
 
+- The demo seed is opt-in: a fresh instance starts with zero monitors unless
+  `SEED=1` is set (`pnpm dev` and the root compose still pass it). Previously
+  the flag was not consulted at all — every fresh instance was seeded.
 - Adopted the BlasterSystems design system across the web UI: cool-grey paper /
   blue-black ink palette with the vermilion thread as the single accent, Fira
   Sans + DM Mono (self-hosted), square corners (2px controls, 4px panels),

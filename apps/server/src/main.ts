@@ -4,6 +4,7 @@ import { Notifier, type ChannelType } from '@uptime/notify'
 import { Database, SecretBox } from '@uptime/db'
 import { createApp, toScheduled } from './app.js'
 import { createAuthModule } from './auth/index.js'
+import { DEFAULT_RETENTION_DAYS, runRetention } from './lifecycle/index.js'
 import { readConfig } from './env.js'
 import { EventHub } from './events.js'
 import { GroupEngine } from './groups.js'
@@ -183,7 +184,7 @@ const scheduler = new Scheduler({
   },
 })
 
-seedIfEmpty(db, scheduler)
+if (cfg.seed) seedIfEmpty(db, scheduler)
 
 for (const row of db.listMonitors()) {
   if (row.active && (row.type === 'http' || row.type === 'docker')) {
@@ -223,6 +224,29 @@ const runRollup = () => {
 runRollup()
 const rollupTimer = setInterval(runRollup, 15_000)
 rollupTimer.unref?.()
+
+// Daily heartbeat retention (SPEC §4): prune beats older than the retention
+// window. On by default — an unattended instance must not grow unbounded.
+// RETENTION_DAYS overrides the 180-day default (minimum 1);
+// RETENTION_DISABLE=1 opts out entirely.
+const parsedRetentionDays = Number.parseInt(process.env.RETENTION_DAYS ?? '', 10)
+const retentionDays =
+  Number.isInteger(parsedRetentionDays) && parsedRetentionDays >= 1
+    ? parsedRetentionDays
+    : DEFAULT_RETENTION_DAYS
+const runRetentionTick = () => {
+  try {
+    runRetention(db, retentionDays)
+  } catch (err) {
+    console.warn(`retention failed: ${err instanceof Error ? err.message : err}`)
+  }
+}
+let retentionTimer: NodeJS.Timeout | undefined
+if (process.env.RETENTION_DISABLE !== '1') {
+  runRetentionTick()
+  retentionTimer = setInterval(runRetentionTick, 24 * 3600_000)
+  retentionTimer.unref?.()
+}
 
 // Cert-expiry probe (SPEC §3/§11): refresh gauge for https monitors every 6 h.
 const probeCerts = async () => {
@@ -283,6 +307,7 @@ const shutdown = () => {
   groupEngine.stop()
   hub.stop()
   clearInterval(rollupTimer)
+  clearInterval(retentionTimer)
   clearInterval(certTimer)
   clearInterval(tagTimer)
   server.close(() => {

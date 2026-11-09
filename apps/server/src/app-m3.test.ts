@@ -135,6 +135,47 @@ describe('M3 routes', () => {
 
     expect((await del(`/api/v1/maintenance-windows/${created.body.window.id}`)).status).toBe(204)
     expect((await post('/api/v1/maintenance-windows', { name: 'x' })).status).toBe(400)
+
+    // Unknown enum values are rejected before they reach SQLite (the text
+    // columns carry no CHECK — a bad strategy would persist and silently
+    // disable the window, rendering a blank Strategy cell in the UI).
+    const badStrategy = await post('/api/v1/maintenance-windows', {
+      name: 'x',
+      scope: 'all',
+      strategy: 'weekly',
+    })
+    expect(badStrategy.status).toBe(400)
+    expect(badStrategy.body.error).toContain('strategy must be one of')
+    const badScope = await post('/api/v1/maintenance-windows', {
+      name: 'x',
+      scope: 'some',
+      strategy: 'single',
+    })
+    expect(badScope.status).toBe(400)
+    expect(badScope.body.error).toContain('scope must be one of')
+
+    const patchable = await post('/api/v1/maintenance-windows', {
+      name: 'patchable',
+      scope: 'all',
+      strategy: 'single',
+      startAt: '2026-01-01T00:00:00.000Z',
+      endAt: '2026-01-02T00:00:00.000Z',
+    })
+    expect(patchable.status).toBe(201)
+    expect(
+      (
+        await patch(`/api/v1/maintenance-windows/${patchable.body.window.id}`, {
+          strategy: 'cronned',
+        })
+      ).status,
+    ).toBe(400)
+    const switched = await patch(`/api/v1/maintenance-windows/${patchable.body.window.id}`, {
+      strategy: 'cron',
+      cronExpr: '0 3 * * *',
+      cronTz: 'UTC',
+    })
+    expect(switched.status).toBe(200)
+    expect(switched.body.window.strategy).toBe('cron')
   })
 
   it('exposes the events endpoint when a hub is configured', async () => {
