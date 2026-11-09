@@ -172,4 +172,4 @@ Releases are published from `v*` tags via
 
 ## License
 
-[MIT](LICENSE) — © BlasterSystems
+[Apache-2.0](LICENSE) — © BlasterSystems
