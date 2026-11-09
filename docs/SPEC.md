@@ -53,10 +53,10 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
   dispatches on argv — `docker run <image> agent` runs the agent role for remote vantage
   points. Both images are built from the same repo; the agent image currently keeps the
   web bundle (a stripped variant is a documented future optimization).
-- **Check execution**: the server schedules `http` monitors on `setTimeout` schedules with
-  jitter; push and group monitors run in their own engines (silence sweep / member
-  evaluation); the remaining probe types (tcp/dns/icmp/db/docker) execute via the
-  optional agent. I/O-bound checks never block the loop. CPU-bound work (none planned
+- **Check execution**: the server schedules `http` and `docker` monitors on `setTimeout`
+  schedules with jitter; push and group monitors run in their own engines (silence sweep /
+  member evaluation); tcp/dns/icmp/db probes execute via the optional agent. I/O-bound
+  checks never block the loop. CPU-bound work (none planned
   in v1) would use worker threads.
 - **Live updates**: SSE hub (`GET /api/v1/events`, viewer auth) broadcasting heartbeat,
   incident and maintenance events; `EventSource` reconnects natively.
@@ -73,7 +73,7 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
 | `icmp`                                               | host, timeout, packetCount                                                                  | reply within timeout                                                                        | Kuma/Pulse (needs `NET_RAW`)                                                                    |
 | `dns`                                                | host, resolver, port, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue                | resolver answers; if `expectedValue`, match                                                 | Kuma                                                                                            |
 | `push`                                               | token (path), graceSeconds, cron schedule (optional), `expectsBody`                         | heartbeat received within interval+grace; `/start`/`/fail` semantics                        | Healthchecks                                                                                    |
-| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (state query on the monitor interval, via the agent)            | Kuma/Beszel                                                                                     |
+| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (state query on the monitor interval, server-side)              | Kuma/Beszel                                                                                     |
 | `postgres` / `mysql` / `mssql` / `mongodb` / `redis` | connection string, timeout, `query` (default `SELECT 1` / `PING`)                           | connection + query succeed                                                                  | PulseMonitor                                                                                    |
 | `snmp` (v2c/v3)                                      | host, community/version/creds, oid, expectedValue                                           | query within timeout                                                                        | PulseMonitor (phase 2)                                                                          |
 | `group`                                              | member monitor ids, strategy `any-up \| all-up \| percentage: N`                            | per strategy; **suppresses member notifications** when the group itself is down             | PulseMonitor groups                                                                             |
@@ -157,15 +157,16 @@ Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD 
 
 ## 6. Scheduler & check engine (packages/core)
 
-- Each active **http** monitor gets a scheduler entry; drift-corrected (`next = start + n*interval`),
-  ±10 % jitter to avoid thundering herds. Other engine types are not probe-scheduled
-  server-side (§14): push runs in its silence sweep, group in its member evaluation,
-  tcp/dns/icmp/db/docker execute via the agent.
+- Each active **http** and **docker** monitor gets a scheduler entry; drift-corrected
+  (`next = start + n*interval`), ±10 % jitter to avoid thundering herds. Other engine
+  types are not probe-scheduled server-side (§14): push runs in its silence sweep,
+  group in its member evaluation, tcp/dns/icmp/db execute via the agent.
 - While down: probe at `retry_interval` (default 60 s) instead of `interval`; incident
   opens after `retries` consecutive failures; recovery closes it + sends notification.
 - Push monitors: no scheduler — token receiver + expiry sweep every 30 s.
-- Docker monitors: a single state query per probe, executed via the agent on the
-  monitor interval; no event stream.
+- Docker monitors: a single state query per probe, executed by the server on the
+  monitor interval (the configured docker host must be reachable from the container —
+  unix socket, tcp:// or TLS); no event stream.
 - All checks share a global concurrency cap (default 50) and per-host cap (5).
 - Time: monotonic for latency, wall-clock for records; live checks write one
   heartbeat row synchronously per result (imports can batch via
@@ -185,7 +186,8 @@ PagerDuty Events v2, Opsgenie, SMS (Twilio).
 ## 8. Security
 
 - Argon2id password hashing; TOTP 2FA optional; session cookies `httpOnly` `SameSite=Lax`
-  behind whatever TLS the user fronts (docs: NPM/Caddy/Traefik examples + compose labels).
+  behind whatever TLS the user fronts (see [docs/deploy/proxy.md](deploy/proxy.md) for
+  NPM/Caddy/Traefik/nginx examples, compose labels and the `TRUST_PROXY` setting).
 - Self-service password recovery (`POST /auth/forgot-password` → single-use sha256-hashed
   token, 1 h, replaces outstanding tokens; reset revokes all sessions) — enumeration-safe
   (always 204, every attempt rate-counted per IP). The outbound email is sent through
@@ -259,15 +261,15 @@ browser checks (Playwright), SNMP get-walks.
 
 ## 14. Deviations from the spec
 
-Implemented reality as of 2026-10-11 — where sections above describe the original
+Implemented reality as of 2026-11-09 — where sections above describe the original
 design, this section is the contract:
 
 - **Transport**: SSE only (`GET /api/v1/events`, viewer auth). No WebSocket hub, no
   `/socket` route.
 - **Storage**: SQLite only. The Postgres dialect (ADR-0002 `DATABASE_URL` switch) is
   planned, not built.
-- **Scheduling**: the server probe-schedules `http` monitors only. Push monitors run in
-  their 30 s silence sweep, groups in member evaluation; tcp/dns/icmp/db/docker probes
+- **Scheduling**: the server probe-schedules `http` and `docker` monitors. Push monitors
+  run in their 30 s silence sweep, groups in member evaluation; tcp/dns/icmp/db probes
   execute via the agent role.
 - **Dependencies**: `parentId` is stored but has no runtime consumer and the API cannot
   set it; incident suppression is group-membership based. `upsideDown` is stored without

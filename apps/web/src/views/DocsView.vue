@@ -13,6 +13,7 @@ const SECTIONS = [
   { id: 'overview', label: 'Overview' },
   { id: 'auth', label: 'Authentication' },
   { id: 'monitors', label: 'Creating monitors' },
+  { id: 'agent', label: 'Remote agent' },
   { id: 'push', label: 'Push heartbeats' },
   { id: 'reading', label: 'Reading results' },
   { id: 'realtime', label: 'Realtime (SSE)' },
@@ -118,6 +119,33 @@ const configTable: { type: string; config: string }[] = [
   { type: 'docker', config: 'hostUri (unix:// or tcp://), containerNameOrId, expectedState (default "running"), tlsCaPem/tlsCertPem/tlsKeyPem' },
   { type: 'group', config: 'memberIds (≥1), strategy (any-up | all-up | percentage), percentage (required for percentage)' },
 ]
+
+// ---- Remote agent ----------------------------------------------------------
+
+const agentComposeSnippet = `# docker-compose.yml — the agent is the same image, run with the agent role
+services:
+  uptime-agent:
+    image: ghcr.io/blastersystems/uptime-agent:latest
+    command: agent
+    environment:
+      - UPTIME_SERVER_URL=http://uptime-monitoring:3001
+      - UPTIME_AGENT_TOKEN=\${UPTIME_AGENT_TOKEN}   # must match the server's token
+    restart: unless-stopped
+
+# The server disables its agent hub while UPTIME_AGENT_TOKEN is unset.
+# icmp monitors additionally need NET_RAW on the agent container.`
+
+const kumaImportSnippet = `# Convert a Uptime-Kuma SQLite export into the import body, then POST it:
+node scripts/kuma-import.mjs ~/data/kuma.db > kuma.json
+curl -s -X POST ${api('/import/kuma')} \\
+  -H 'Authorization: Bearer uk_…' \\
+  -H 'Content-Type: application/json' \\
+  --data-binary @kuma.json
+
+# Monitors are created unless a monitor with the same type + name exists;
+# heartbeats match by monitor name, and re-running the import adds nothing.
+# Kuma "push" monitors are recreated with a fresh token — repoint your jobs
+# at the new pushUrl. Unknown Kuma types are skipped and reported on stderr.`
 
 // ---- Push heartbeats -------------------------------------------------------
 
@@ -368,6 +396,12 @@ const limitsRows: { limit: string; value: string }[] = [
       <h2>Authentication</h2>
 
       <h3>Sessions (browsers)</h3>
+      <p class="note">
+        Behind a reverse proxy set <code>TRUST_PROXY=1</code> (see
+        <code>deploy/.env.example</code>): the per-IP rate limits below and the
+        <code>Secure</code> cookie flag read <code>req.ip</code>/<code>req.secure</code>,
+        which only reflect the real client when the proxy is trusted.
+      </p>
       <p>
         <code>POST /api/v1/auth/login</code> sets an httpOnly session cookie
         (<code>uptime_session</code>, SameSite=Lax, 7 days) and returns the
@@ -427,8 +461,9 @@ const limitsRows: { limit: string; value: string }[] = [
       <CodeBlock label="Push monitor" :code="createPushSnippet" />
       <p>
         <code>http</code> and <code>docker</code> monitors are actively
-        scheduled; the other engine types (tcp, dns, icmp, databases) validate
-        and store, and are checked by their engines as they come online.
+        scheduled by the server; the other engine types (tcp, dns, icmp,
+        databases) validate and store, and execute on a
+        <a href="#agent">remote agent</a>.
         <code>group</code> monitors derive their status from members:
       </p>
       <CodeBlock label="Group monitor" :code="createGroupSnippet" />
@@ -445,6 +480,36 @@ const limitsRows: { limit: string; value: string }[] = [
           </tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- Agent -->
+    <section id="agent" class="doc-section">
+      <h2>Remote agent</h2>
+      <p>
+        The <code>uptime-agent</code> image is the second role of this
+        repository (same Dockerfile, <code>agent</code> subcommand). It pulls
+        its assignment from <code>GET /api/v1/agent/assigned</code> and pulses
+        results back to <code>POST /api/v1/agent/pulse</code> — batched, with a
+        local retry queue and per-result acks. Auth is the shared
+        <code>x-agent-token</code> header; the hub is disabled while the
+        server's <code>UPTIME_AGENT_TOKEN</code> is unset.
+      </p>
+      <p>
+        <strong>Which types run where.</strong> The server schedules
+        <code>http</code> and <code>docker</code> monitors itself. The agent
+        checks every active non-group monitor from its own vantage point —
+        including <code>http</code>, so an agent is a deliberate second vantage
+        point. The tcp, dns, icmp and database engines (postgres, mysql, mssql,
+        mongodb, redis) execute <em>only</em> on agents: those types stay
+        <code>pending</code> until an agent reports them.
+      </p>
+      <CodeBlock label="Agent compose" :code="agentComposeSnippet" />
+      <p>
+        <code>GET /api/v1/agent/healthz</code> is the link probe. If the link
+        drops, the agent keeps checking and queues pulses; everything flushes
+        when it reconnects. Every agent receives the same assignment (vantage
+        point <code>default</code>) — run one per network or region.
+      </p>
     </section>
 
     <!-- Push -->
@@ -581,6 +646,13 @@ const limitsRows: { limit: string; value: string }[] = [
         restore configuration without touching the database directly:
       </p>
       <CodeBlock label="Export / import / backup" :code="lifecycleSnippet" />
+      <p>
+        Migrating from Uptime-Kuma: the repo ships a converter that turns
+        Kuma's SQLite database into the import body (http, tcp, dns, icmp,
+        push, docker and the database engine types; history comes across as
+        heartbeats):
+      </p>
+      <CodeBlock label="Kuma import" :code="kumaImportSnippet" />
     </section>
 
     <!-- Errors -->
