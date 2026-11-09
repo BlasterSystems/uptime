@@ -9,6 +9,10 @@ All notable, user-visible changes are recorded here. Format follows
 
 ### Added
 
+- `TRUST_PROXY` environment variable (Express `trust proxy`): set it (usually
+  `1`) when the container runs behind a reverse proxy, so `req.ip` — and with
+  it every per-IP rate limit — and `req.secure` (Secure session cookies)
+  reflect the real client and TLS termination.
 - First-run admin setup (`POST /api/v1/auth/setup`) is now rate-limited like
   every other pre-auth endpoint (10 attempts/hour/IP) — an internet-exposed
   fresh volume can no longer be hammered while it waits for an admin.

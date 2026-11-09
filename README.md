@@ -146,7 +146,9 @@ services:
 `deploy/.env.example` documents the environment variables used by the compose
 deployment (port, seed flag, encryption key, agent token, `DOCKER_GID` for docker
 monitors, heartbeat retention: `RETENTION_DAYS` — 180 by default, pruned daily —
-and `RETENTION_DISABLE=1` to opt out). Releases are published from `v*` tags via
+with `RETENTION_DISABLE=1` to opt out, and `TRUST_PROXY` — set it to `1` behind
+a reverse proxy so per-IP rate limits and `Secure` cookies see the real client).
+Releases are published from `v*` tags via
 `.github/workflows/release.yml`; `dev-*` tags deploy to the development VM.
 
 ## License

@@ -4,7 +4,7 @@ import type { Agent } from 'supertest'
 import type { Express } from 'express'
 import { Database, SecretBox } from '@uptime/db'
 import { Notifier } from '@uptime/notify'
-import { createApp } from './app.js'
+import { createApp, normalizeTrustProxy } from './app.js'
 import { createAuthModule } from './auth/index.js'
 import { Metrics } from './metrics.js'
 
@@ -109,6 +109,24 @@ describe('M3 routes', () => {
     expect(saved.status).toBe(200)
     expect(saved.body).toEqual({ title: 'Acme Uptime', timezone: 'Europe/Berlin' })
     expect((await put('/api/v1/settings', { title: '' })).status).toBe(400)
+  })
+
+  it('forwards TRUST_PROXY to express and normalizes it', () => {
+    const db = Database.open({ file: ':memory:' })
+    const secrets = new SecretBox(KEY)
+    const app = createApp({
+      db,
+      secrets,
+      notifier: new Notifier({ channels: () => [], monitorChannelIds: () => [], defaultChannelIds: () => [] }),
+      auth: createAuthModule({ db, secrets }),
+      metrics: new Metrics(),
+      trustProxy: '1',
+    })
+    expect(app.get('trust proxy')).toBe(1)
+    expect(normalizeTrustProxy('true')).toBe(true)
+    expect(normalizeTrustProxy('loopback')).toBe('loopback')
+    expect(normalizeTrustProxy('10.0.0.0/8,192.168.1.5')).toBe('10.0.0.0/8,192.168.1.5')
+    db.close()
   })
 
   it('manages maintenance windows and coerces ISO dates', async () => {
