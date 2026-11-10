@@ -12,7 +12,14 @@ jobs:
     runs-on: ${{ (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true) && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # pnpm/action-setup shells out to the runner's bundled npm, which is
+      # truncated (disk-full during a self-update) and dies with
+      # "Cannot find module '../lib/cli.js'". corepack ships inside the
+      # setup-node toolchain and provisions pnpm from packageManager.
+      - run: corepack enable pnpm
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -34,7 +41,14 @@ jobs:
     runs-on: ${{ (github.actor == 'dependabot[bot]' || github.event.pull_request.head.repo.fork == true) && 'ubuntu-latest' || 'uptime-dev-vm' }}
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # pnpm/action-setup shells out to the runner's bundled npm, which is
+      # truncated (disk-full during a self-update) and dies with
+      # "Cannot find module '../lib/cli.js'". corepack ships inside the
+      # setup-node toolchain and provisions pnpm from packageManager.
+      - run: corepack enable pnpm
       - uses: actions/setup-node@v7
         with:
           node-version: 24
