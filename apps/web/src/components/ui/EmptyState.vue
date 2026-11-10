@@ -29,6 +29,10 @@ withDefaults(
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-6) var(--space-4);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 16px 16px;
   text-align: center;
 }
 
