@@ -29,7 +29,7 @@ const describedBy = computed(() =>
       type="checkbox"
       class="check-input"
       :disabled="disabled"
-      :aria-labelledby="`${checkId}-label`"
+      :aria-labelledby="label !== undefined ? `${checkId}-label` : undefined"
       :aria-describedby="describedBy"
     />
     <span class="check-box" aria-hidden="true"></span>

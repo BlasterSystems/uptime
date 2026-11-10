@@ -113,7 +113,8 @@ withDefaults(
   text-align: right;
 }
 
-.tip-total {
+/* Specificity must beat the nth-child colour rules above. */
+.tip-calc > span.tip-total {
   padding-top: 7px;
   border-top: 1px solid var(--border-2);
   color: var(--ink);
