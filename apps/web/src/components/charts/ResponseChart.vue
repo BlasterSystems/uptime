@@ -112,6 +112,16 @@ function onPointerLeave(): void {
   hoverIndex.value = null
 }
 
+/** v1.1 grid: hairlines with mono labels at the top, middle and baseline. */
+const ticks = computed(() => {
+  if (chart.value.peakLatency === null) return []
+  const yMax = Math.max(1, chart.value.peakLatency * 1.1)
+  return [yMax, yMax / 2, 0].map((value) => ({
+    y: chart.value.yAt(value),
+    label: Math.round(value).toString(),
+  }))
+})
+
 const HOVER_GAP = 8
 
 /** Geometry + label for the hover overlay; `null` hides it. */
@@ -142,6 +152,18 @@ const hover = computed(() => {
       @pointermove="onPointerMove"
       @pointerleave="onPointerLeave"
     >
+      <g v-for="(tick, index) in ticks" :key="index">
+        <line
+          class="chart-gridline"
+          :x1="CHART_PAD_X"
+          :y1="tick.y"
+          :x2="CHART_WIDTH - CHART_PAD_X"
+          :y2="tick.y"
+        />
+        <text class="chart-gridlabel" :x="CHART_PAD_X - 8" :y="tick.y" text-anchor="end" dominant-baseline="middle">
+          {{ tick.label }}
+        </text>
+      </g>
       <line
         class="chart-baseline"
         :x1="CHART_PAD_X"
@@ -151,16 +173,26 @@ const hover = computed(() => {
       />
       <polyline v-if="chart.polyline !== ''" class="chart-line" :points="chart.polyline" />
       <g v-for="(marker, index) in chart.markers" :key="index">
-        <line
-          class="chart-marker"
-          :class="`marker-${marker.status}`"
-          :x1="marker.x"
-          :y1="CHART_PLOT_BOTTOM"
-          :x2="marker.x"
-          :y2="CHART_PLOT_BOTTOM + 10"
+        <rect
+          v-if="marker.status === 'down'"
+          class="marker-pin marker-down"
+          :x="marker.x - 5"
+          :y="CHART_PLOT_BOTTOM - 11"
+          width="10"
+          height="10"
+          :transform="`rotate(45 ${marker.x} ${CHART_PLOT_BOTTOM - 6})`"
         >
           <title>{{ marker.title }}</title>
-        </line>
+        </rect>
+        <circle
+          v-else
+          class="marker-pin marker-maintenance"
+          :cx="marker.x"
+          :cy="CHART_PLOT_BOTTOM - 6"
+          r="4.5"
+        >
+          <title>{{ marker.title }}</title>
+        </circle>
       </g>
       <g v-if="hover !== null" class="chart-hover">
         <line
@@ -201,33 +233,46 @@ const hover = computed(() => {
   display: block;
   width: 100%;
   height: auto;
+  overflow: visible;
   cursor: crosshair;
 }
 
+.chart-gridline {
+  stroke: var(--border-1);
+  stroke-width: 1;
+}
+
+.chart-gridlabel {
+  fill: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-mono);
+}
+
 .chart-baseline {
-  stroke: var(--border);
+  stroke: var(--border-1);
   stroke-width: 1;
 }
 
 .chart-line {
   fill: none;
-  stroke: var(--thread);
+  stroke: var(--ink);
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
 }
 
-.chart-marker {
-  stroke-linecap: round;
-  stroke-width: 2;
+.marker-pin {
+  fill: var(--surface-card);
+  stroke-width: 1.5;
 }
 
 .marker-down {
-  stroke: var(--error);
+  stroke: var(--thread);
 }
 
 .marker-maintenance {
-  stroke: var(--ink-3);
+  stroke: var(--text-3);
 }
 
 .chart-caption {
@@ -235,27 +280,27 @@ const hover = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  color: var(--ink-3);
+  color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-label-sm);
+  letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
 }
 
 .chart-note {
-  color: var(--muted);
-  font-size: 12.5px;
+  color: var(--text-2);
+  font-size: var(--fs-data);
 }
 
 .hover-guide {
-  stroke: var(--border);
+  stroke: var(--border-1);
   stroke-width: 1;
   stroke-dasharray: 3 3;
 }
 
 .hover-dot {
-  fill: var(--thread);
-  stroke: var(--surface);
+  fill: var(--surface-card);
+  stroke: var(--ink);
   stroke-width: 1.5;
 }
 
@@ -264,7 +309,7 @@ const hover = computed(() => {
   font-family: var(--font-mono);
   font-size: 11px;
   paint-order: stroke;
-  stroke: var(--surface);
+  stroke: var(--surface-card);
   stroke-width: 3px;
   stroke-linejoin: round;
 }

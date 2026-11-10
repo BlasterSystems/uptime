@@ -7,7 +7,10 @@ import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
 import Badge from './ui/Badge.vue'
 import Button from './ui/Button.vue'
 
-const props = defineProps<{ monitor: Monitor }>()
+const props = withDefaults(
+  defineProps<{ monitor: Monitor; /** Brief thread-wash flash when a beat just arrived. */ fresh?: boolean }>(),
+  { fresh: false },
+)
 const emit = defineEmits<{ delete: [id: number]; open: [id: number] }>()
 
 const STATUS_META: Record<
@@ -45,225 +48,208 @@ const lastCheckExact = computed(() => {
 const failureSnippet = computed(() =>
   heartbeat.value?.status === 'down' ? heartbeat.value.responseSnippet : null,
 )
+
+/** Non-http targets get their type prefixed so the row reads unambiguously. */
+const targetText = computed(() => {
+  const target = monitorTarget(props.monitor)
+  return props.monitor.type === 'http' ? target : `${MONITOR_TYPE_LABELS[props.monitor.type]} · ${target}`
+})
+
+/** Shape-first state glyph: ■ up, ◆ down, ○ pending/maintenance. */
+const glyphClass = computed(() => {
+  switch (status.value.variant) {
+    case 'success':
+      return 'glyph--recorded tone-ink'
+    case 'error':
+      return 'glyph--decision tone-thread'
+    case 'warning':
+      return 'glyph--estimated tone-muted'
+    default:
+      return 'glyph--estimated tone-faint'
+  }
+})
 </script>
 
 <template>
-  <article class="card" @click="emit('open', monitor.id)">
-    <header class="card-head">
-      <span class="status-dot" :class="`dot-${status.variant}`" aria-hidden="true" />
-      <h3 class="card-name" :title="monitor.name">
+  <article class="row" :class="{ 'row-new': fresh }" @click="emit('open', monitor.id)">
+    <span class="glyph" :class="glyphClass" aria-hidden="true"></span>
+
+    <div class="row-main">
+      <span class="row-name" :title="monitor.name">
         <RouterLink
-          class="card-link"
+          class="row-link"
           :to="{ name: 'monitor-detail', params: { id: monitor.id } }"
           @click.stop
         >
           {{ monitor.name }}
         </RouterLink>
-      </h3>
-      <Badge :variant="status.variant" dot>{{ status.label }}</Badge>
-      <Badge variant="accent" mono>{{ MONITOR_TYPE_LABELS[monitor.type] }}</Badge>
-      <Badge v-if="monitor.isPublic" variant="accent">public</Badge>
-      <Badge v-if="!monitor.active" variant="neutral">paused</Badge>
-    </header>
-
-    <p class="card-target mono" :title="monitorTarget(monitor)">{{ monitorTarget(monitor) }}</p>
-
-    <dl class="card-meta">
-      <div class="meta-item">
-        <dt>Latency</dt>
-        <dd>{{ formatLatency(cardLatency) }}</dd>
-      </div>
-      <div class="meta-item">
-        <dt>Last check</dt>
-        <dd :title="lastCheckExact">{{ lastCheck ?? 'No heartbeats yet' }}</dd>
-      </div>
-      <div class="meta-item">
-        <dt>Interval</dt>
-        <dd>{{ formatInterval(monitor.intervalS) }}</dd>
-      </div>
-      <div class="meta-item">
-        <dt>Retries</dt>
-        <dd>{{ monitor.retries }}</dd>
-      </div>
-    </dl>
-
-    <div v-if="monitor.tags.length > 0" class="card-tags">
-      <span v-for="tag in monitor.tags" :key="tag.id" class="tag-chip">
-        <span class="tag-dot" :style="{ backgroundColor: tag.color }" aria-hidden="true" />
-        {{ tag.name }}
       </span>
+      <span class="row-target" :title="monitorTarget(monitor)">{{ targetText }}</span>
+      <pre v-if="failureSnippet !== null" class="row-snippet">{{ failureSnippet }}</pre>
     </div>
 
-    <pre v-if="failureSnippet !== null" class="card-snippet">{{ failureSnippet }}</pre>
+    <div class="row-lat">
+      <span class="lat-value">{{ formatLatency(cardLatency) }}</span>
+      <span v-if="lastCheck !== null" class="lat-check" :title="lastCheckExact">{{ lastCheck }}</span>
+      <span v-else class="lat-check">No heartbeats yet</span>
+    </div>
 
-    <footer class="card-foot">
-      <span class="card-channels">
-        {{
-          monitor.channelIds.length === 0
-            ? 'Default channels'
-            : `${monitor.channelIds.length} channel${monitor.channelIds.length === 1 ? '' : 's'}`
-        }}
-      </span>
+    <div class="row-chips">
+      <Badge :variant="status.variant" dot>{{ status.label }}</Badge>
+      <Badge v-if="monitor.isPublic" variant="accent">public</Badge>
+      <Badge v-if="!monitor.active" variant="warning">paused</Badge>
+    </div>
+
+    <div class="row-actions">
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         :aria-label="`Delete monitor ${monitor.name}`"
         @click.stop="emit('delete', monitor.id)"
       >
         Delete
       </Button>
-    </footer>
+    </div>
   </article>
 </template>
 
 <style scoped>
-.card {
+/* DS v1.1 data row: hairline-separated, glyph + name/target + tabular figure
+ * + chips. Replaces the boxed monitor card. */
+.row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 11px 2px;
+  border-top: 1px solid var(--border-1);
+  cursor: pointer;
+  transition: background-color var(--dur-press);
+}
+
+.row:hover {
+  background-color: var(--grid);
+}
+
+.row-new {
+  animation: bs-wash 900ms var(--ease-out);
+}
+
+.tone-ink {
+  color: var(--ink);
+}
+
+.tone-thread {
+  color: var(--thread);
+}
+
+.tone-muted {
+  color: var(--text-2);
+}
+
+.tone-faint {
+  color: var(--text-3);
+}
+
+.row-main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  min-width: 0;
-  padding: var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  cursor: pointer;
-  transition: border-color 140ms ease;
-}
-
-.card:hover {
-  border-color: var(--border-strong);
-}
-
-.card-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  gap: 1px;
   min-width: 0;
 }
 
-.status-dot {
-  flex-shrink: 0;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-}
-
-/* Shape-first states: ■ recorded, ◆ alarm, ○ pending. */
-.dot-success {
-  background-color: var(--success);
-  border-radius: 0;
-}
-
-.dot-error {
-  background-color: var(--thread);
-  border-radius: 0;
-  transform: rotate(45deg);
-}
-
-.dot-warning {
-  background-color: var(--warning);
-}
-
-.dot-neutral {
-  background-color: var(--muted);
-}
-
-.card-name {
-  min-width: 0;
+.row-name {
   overflow: hidden;
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-medium);
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-link {
+.row-link {
   color: inherit;
+  text-decoration: none;
 }
 
-.card-target {
+.row-link:hover {
+  color: var(--accent-text);
+}
+
+.row-target {
   overflow: hidden;
-  color: var(--muted);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data-sm);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-2) var(--space-4);
-}
-
-.meta-item {
-  min-width: 0;
-}
-
-.meta-item dt {
-  color: var(--muted);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.meta-item dd {
-  margin-top: 1px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tag-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  background-color: transparent;
-  border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.tag-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.card-snippet {
+.row-snippet {
   max-height: 110px;
-  padding: var(--space-2) var(--space-3);
+  margin: 4px 0 0;
+  padding: 6px 10px;
   overflow: auto;
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
-  border-radius: var(--radius-sm);
-  color: var(--thread-ink);
+  background-color: var(--accent-wash);
+  border-left: 2px solid var(--thread);
+  border-radius: var(--radius-control);
+  color: var(--accent-text);
   font-family: var(--font-mono);
   font-size: 11.5px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.card-foot {
+.row-lat {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: auto;
-  padding-top: var(--space-1);
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
 }
 
-.card-channels {
-  color: var(--muted);
-  font-size: 11.5px;
+.lat-value {
+  font-size: var(--fs-data);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lat-check {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label-sm);
+  white-space: nowrap;
+}
+
+.row-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.row-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: 14px minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+
+  .row-lat {
+    grid-column: 2;
+    align-items: flex-start;
+  }
+
+  .row-chips {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .row-actions {
+    grid-column: 3;
+    grid-row: 2;
+  }
 }
 </style>

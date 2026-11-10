@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { deleteMonitor, errorMessage, fetchMonitors, fetchTags } from '../api.js'
 import type { Monitor, Tag } from '../api.js'
@@ -8,6 +8,7 @@ import MonitorForm from '../components/MonitorForm.vue'
 import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
+import StatCard from '../components/ui/StatCard.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import Icon from '../components/ui/Icon.vue'
@@ -41,6 +42,14 @@ let reconcileTimer: number | null = null
 let unsubscribeRealtime: (() => void) | null = null
 let refreshInFlight = false
 
+/** Monitor ids with a just-arrived beat; drives the row wash flash. */
+const freshIds = reactive(new Set<number>())
+
+function markFresh(id: number): void {
+  freshIds.add(id)
+  window.setTimeout(() => freshIds.delete(id), 950)
+}
+
 const summary = computed(() => {
   let up = 0
   let down = 0
@@ -70,6 +79,7 @@ const summary = computed(() => {
     pending,
     maintenance,
     total: monitors.value.length,
+    latencyCount,
     avgLatency: latencyCount === 0 ? null : Math.round(latencySum / latencyCount),
   }
 })
@@ -129,6 +139,7 @@ async function confirmDelete(): Promise<void> {
 
 function handleCreated(monitor: Monitor): void {
   toast.success('Monitor created', monitor.name)
+  markFresh(monitor.id)
   void refresh()
   void refreshTags()
 }
@@ -136,6 +147,7 @@ function handleCreated(monitor: Monitor): void {
 function applyHeartbeat(event: RealtimeHeartbeatEvent): void {
   const monitor = monitors.value.find((item) => item.id === event.monitorId)
   if (monitor === undefined) return
+  markFresh(monitor.id)
   const previous = monitor.latestHeartbeat
   monitor.latestHeartbeat = {
     status: event.status,
@@ -214,36 +226,60 @@ onUnmounted(() => {
 <template>
   <div class="view">
     <section class="summary" aria-label="Status summary">
-      <div class="stats">
-        <span class="stat">
-          <span class="stat-dot dot-success" aria-hidden="true" />
-          <strong>{{ summary.up }}</strong> up
-        </span>
-        <span class="stat">
-          <span class="stat-dot dot-error" aria-hidden="true" />
-          <strong>{{ summary.down }}</strong> down
-        </span>
-        <span v-if="summary.pending > 0" class="stat">
-          <span class="stat-dot dot-neutral" aria-hidden="true" />
-          <strong>{{ summary.pending }}</strong> pending
-        </span>
-        <span v-if="summary.maintenance > 0" class="stat">
-          <span class="stat-dot dot-warning" aria-hidden="true" />
-          <strong>{{ summary.maintenance }}</strong> maintenance
-        </span>
-        <span class="stat stat-divider" aria-hidden="true" />
-        <span class="stat">
-          avg latency
-          <strong>{{ formatLatency(summary.avgLatency) }}</strong>
-        </span>
-        <span class="stat muted-stat">
-          {{ summary.total }} monitor{{ summary.total === 1 ? '' : 's' }}
-        </span>
+      <div class="stat-grid">
+        <StatCard
+          label="Monitors up"
+          :value="String(summary.up)"
+          :sub="`of ${summary.total} monitor${summary.total === 1 ? '' : 's'}.`"
+          basis="recorded"
+          basis-label="Recorded · latest checks"
+          :explain="{
+            text: 'Monitors whose latest heartbeat is up.',
+            rows: [
+              ['Tracked', String(summary.total)],
+              ['Maintenance', String(summary.maintenance)],
+            ],
+            total: ['Up', String(summary.up)],
+          }"
+        />
+        <StatCard
+          label="Down"
+          :value="String(summary.down)"
+          :sub="summary.down > 0 ? 'At least one check is failing.' : 'No failing checks.'"
+          :basis="summary.down > 0 ? 'decision' : 'recorded'"
+          :basis-label="summary.down > 0 ? 'Decision · needs owner' : 'Recorded · latest checks'"
+          :explain="{
+            text: 'Monitors whose latest heartbeat is down.',
+            rows: [['Tracked', String(summary.total)]],
+            total: ['Down', String(summary.down)],
+          }"
+        />
+        <StatCard
+          label="Avg response"
+          :value="formatLatency(summary.avgLatency)"
+          sub="Successful checks only."
+          basis="estimated"
+          basis-label="Estimated · latest checks"
+          :explain="{
+            text: 'Mean of the latest successful check per monitor. A down beat’s elapsed time is failure evidence, not a sample.',
+            rows: [['Samples', String(summary.latencyCount)]],
+            total: ['Mean', formatLatency(summary.avgLatency)],
+          }"
+        />
+        <StatCard
+          label="Pending"
+          :value="String(summary.pending)"
+          sub="Awaiting the first heartbeat."
+          basis="estimated"
+          basis-label="Estimated · no data yet"
+        />
       </div>
-      <Button variant="primary" @click="formOpen = true">
-        <Icon name="plus" :size="14" />
-        Add monitor
-      </Button>
+      <div class="summary-actions">
+        <Button variant="primary" @click="formOpen = true">
+          <Icon name="plus" :size="14" />
+          Add monitor
+        </Button>
+      </div>
     </section>
 
     <div v-if="tags.length > 0" class="filters" role="group" aria-label="Filter by tag">
@@ -298,14 +334,21 @@ onUnmounted(() => {
       </template>
     </EmptyState>
 
-    <section v-else class="monitor-grid" aria-label="Monitors">
-      <MonitorCard
-        v-for="monitor in visibleMonitors"
-        :key="monitor.id"
-        :monitor="monitor"
-        @open="openMonitor"
-        @delete="requestDelete"
-      />
+    <section v-else class="panel monitors" aria-label="Monitors">
+      <header class="panel-head">
+        <span class="panel-label">Monitors</span>
+        <span class="panel-aside">{{ visibleMonitors.length }} shown</span>
+      </header>
+      <div class="monitor-list">
+        <MonitorCard
+          v-for="monitor in visibleMonitors"
+          :key="monitor.id"
+          :monitor="monitor"
+          :fresh="freshIds.has(monitor.id)"
+          @open="openMonitor"
+          @delete="requestDelete"
+        />
+      </div>
     </section>
 
     <footer v-if="loadedOnce" class="refresh-note">
@@ -352,72 +395,31 @@ onUnmounted(() => {
 
 .summary {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-3);
-  flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 
-.stats {
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 1100px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summary-actions {
   display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-right: auto;
-}
-
-.stat {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-.stat strong {
-  color: var(--fg);
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-/* Shape-first states: ■ recorded, ◆ alarm, ○ pending. */
-.dot-success {
-  background-color: var(--success);
-  border-radius: 0;
-}
-
-.dot-error {
-  background-color: var(--thread);
-  border-radius: 0;
-  transform: rotate(45deg);
-}
-
-.dot-warning {
-  background-color: var(--warning);
-}
-
-.dot-neutral {
-  background-color: var(--muted);
-}
-
-.stat-divider {
-  width: 1px;
-  height: 16px;
-  padding: 0;
-  background-color: var(--border);
-}
-
-.muted-stat {
-  font-variant-numeric: tabular-nums;
+  justify-content: flex-end;
 }
 
 .filters {
@@ -427,33 +429,32 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+/* DS v1.1 .bs-filter: hairline via inset box-shadow, 1.5px ink when active. */
 .filter-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
+  gap: 8px;
+  min-height: var(--control-sm);
+  padding: 0 12px;
   background-color: transparent;
-  border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  border: 0;
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--border-2);
+  color: var(--text-2);
+  font-size: var(--fs-ui);
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    box-shadow var(--dur-press),
+    color var(--dur-press);
 }
 
 .filter-chip:hover {
+  box-shadow: inset 0 0 0 1px var(--ink);
   color: var(--ink);
 }
 
 .filter-chip.is-active {
-  background-color: transparent;
-  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
   color: var(--ink);
 }
 
@@ -469,20 +470,50 @@ onUnmounted(() => {
   gap: var(--space-2);
   padding: var(--space-6);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-small);
 }
 
-.monitor-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--space-4);
+.panel {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 24px;
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+.panel-label {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+
+.panel-aside {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-data);
+}
+
+.monitor-list {
+  padding: 0 var(--space-4) var(--space-3);
 }
 
 .refresh-note {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label-sm);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
 }
 </style>

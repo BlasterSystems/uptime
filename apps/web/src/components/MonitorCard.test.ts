@@ -34,8 +34,7 @@ describe('MonitorCard', () => {
         latestHeartbeat: { monitorId: 1, status: 'up', latencyMs: 120, responseSnippet: null, time: new Date().toISOString() },
       }),
     )
-    const latency = wrapper.findAll('.meta-item').find((item) => item.text().startsWith('Latency'))
-    expect(latency?.text()).toContain('120 ms')
+    expect(wrapper.find('.lat-value').text()).toContain('120 ms')
   })
 
   it('shows no latency while down — the failed check’s elapsed time is not a sample', () => {
@@ -44,9 +43,9 @@ describe('MonitorCard', () => {
         latestHeartbeat: { monitorId: 1, status: 'down', latencyMs: 10_000, responseSnippet: null, time: new Date().toISOString() },
       }),
     )
-    const latency = wrapper.findAll('.meta-item').find((item) => item.text().startsWith('Latency'))
-    expect(latency?.text()).toContain('—')
-    expect(latency?.text()).not.toContain('10.00 s')
+    const latency = wrapper.find('.lat-value').text()
+    expect(latency).toContain('—')
+    expect(latency).not.toContain('10.00 s')
   })
 
   it('never renders a future last check', () => {
@@ -62,7 +61,6 @@ describe('MonitorCard', () => {
         },
       }),
     )
-    const lastCheck = wrapper.findAll('.meta-item').find((item) => item.text().startsWith('Last check'))
-    expect(lastCheck?.text()).not.toContain('from now')
+    expect(wrapper.find('.lat-check').text()).not.toContain('from now')
   })
 })
