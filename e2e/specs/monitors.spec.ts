@@ -31,9 +31,7 @@ test.describe('monitors', () => {
     await dialog.getByLabel('Check interval').fill('1300')
     await dialog.getByLabel('Retries').fill('0')
     await dialog.locator('input[placeholder="production, external"]').fill('production')
-    await dialog
-      .getByRole('switch', { name: 'Show on the public status page' })
-      .click()
+    await dialog.getByLabel('Show on the public status page').check()
     await dialog.getByRole('button', { name: 'Create monitor' }).click()
 
     // Success closes the dialog for non-push monitors and lists the monitor.

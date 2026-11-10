@@ -29,12 +29,12 @@ const describedBy = computed(() =>
       type="checkbox"
       class="check-input"
       :disabled="disabled"
-      :aria-labelledby="checkId"
+      :aria-labelledby="`${checkId}-label`"
       :aria-describedby="describedBy"
     />
     <span class="check-box" aria-hidden="true"></span>
     <span class="check-text">
-      <span v-if="label !== undefined" class="check-label">{{ label }}</span>
+      <span v-if="label !== undefined" :id="`${checkId}-label`" class="check-label">{{ label }}</span>
       <span v-if="hint !== undefined" :id="`${checkId}-hint`" class="check-hint">{{ hint }}</span>
     </span>
   </label>

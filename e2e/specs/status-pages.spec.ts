@@ -13,8 +13,8 @@ test('creates a published status page and renders it publicly', async ({ page })
   const dialog = page.getByRole('dialog', { name: 'Create status page' })
   await dialog.getByLabel('Slug').fill(SLUG)
   await dialog.getByLabel('Title').fill(TITLE)
-  const published = dialog.getByRole('switch', { name: 'Published' })
-  if ((await published.getAttribute('aria-checked')) === 'false') await published.click()
+  // The published control is a DS checkbox row: check() is idempotent.
+  await dialog.getByLabel('Published').check()
   await dialog.getByRole('button', { name: 'Create page' }).click()
 
   await expect(dialog).toBeHidden()
