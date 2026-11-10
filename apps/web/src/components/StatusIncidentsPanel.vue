@@ -736,7 +736,7 @@ onMounted(() => void refresh())
 }
 
 .picker-row input {
-  accent-color: var(--accent);
+  accent-color: var(--ink);
 }
 
 .picker-group {

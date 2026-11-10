@@ -791,7 +791,7 @@ async function submit(): Promise<void> {
 }
 
 .picker-row input {
-  accent-color: var(--accent);
+  accent-color: var(--ink);
 }
 
 .picker-empty {

@@ -212,7 +212,7 @@ tbody tr:hover td {
 .sort-indicator {
   display: inline-block;
   min-width: 8px;
-  color: var(--accent);
+  color: var(--ink);
 }
 
 .table-status {
