@@ -7,6 +7,16 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+### Changed
+
+- License switched from MIT to **Apache-2.0**.
+- Test stack upgraded to vitest 4 (ast-aware coverage remapper; per-package
+  coverage thresholds re-pinned to the vitest-4 baseline).
+- Remaining transitive Dependabot alerts cleared via pinned overrides
+  (`qs`, `minimatch`, `glob`, `esbuild`); the repository now has zero open
+  Dependabot alerts.
+
+
 ## [1.0.0] — 2026-11-09
 
 First public release.
