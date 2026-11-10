@@ -57,7 +57,9 @@ SSE without extra settings.
 ```yaml
 services:
   uptime-monitoring:
-    image: ghcr.io/blastersystems/uptime-monitoring:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     labels:
       - traefik.enable=true
       - traefik.http.routers.uptime.rule=Host(`uptime.example.com`)

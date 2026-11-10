@@ -129,10 +129,15 @@ cp deploy/.env.example .env    # then set ENCRYPTION_KEY: openssl rand -hex 32
 docker compose up -d
 ```
 
+Prebuilt images are **not published publicly** (owner's choice) — build from the
+cloned repository; the first `up` compiles the image locally:
+
 ```yaml
 services:
   uptime-monitoring:
-    image: ghcr.io/blastersystems/uptime-monitoring:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     ports: ['3001:3001']
     environment:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -147,7 +152,9 @@ the agent role; the image's default CMD is the server role):
 ```yaml
 services:
   uptime-agent:
-    image: ghcr.io/blastersystems/uptime-agent:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     command: agent
     environment:
       - UPTIME_SERVER_URL=http://uptime-monitoring:3001
