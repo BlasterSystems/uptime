@@ -1,23 +1,34 @@
 /*
- * BlasterSystems design system (v0.1) — palette, base elements and the
+ * BlasterSystems design system (v1.1) — palette, base elements and the
  * shared control styles.
  *
  * Two layers:
  *   1. DS palette tokens (`--paper`, `--ink`, `--rule`, `--thread`, …) — the
- *      design system's own names, verbatim values.
- *   2. Semantic role tokens (`--bg`, `--surface`, `--fg`, `--accent`, …) that
- *      the components consume, mapped onto the palette.
+ *      design system's own names, identity v0.2 values in oklch, verbatim.
+ *   2. Semantic role tokens. Canonical names follow DS v1.1 (`--surface-*`,
+ *      `--text-*`, `--border-*`, `--action-*`, `--accent-*`). The old uptime
+ *      role names (`--bg`, `--fg`, `--muted`, …) are temporary aliases kept
+ *      for the migration and removed once nothing references them.
  *
  * The light palette is the default; the dark palette is applied either by the
  * OS preference (`prefers-color-scheme`) or by an explicit `data-theme`
  * attribute written by `src/theme.ts` (persisted choice).
  *
- * DS ground rules reflected here: square corners (2px controls, 4px panels),
- * hairlines instead of shadows, one accent only — the thread (vermilion) —
- * used for the active path and alarms, never as decoration or button fill.
+ * DS ground rules: square corners (2px controls, 4px panels), hairlines
+ * instead of shadows, one accent only — the thread (vermilion) — used for the
+ * active path and alarms, never as decoration or button fill. The action
+ * fill is ink (`--action-bg`), not `--accent`.
  */
 
 /* Fonts (self-hosted, latin subset). */
+@font-face {
+  font-family: 'Fira Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/fira-sans-latin-300.woff2') format('woff2');
+}
+
 @font-face {
   font-family: 'Fira Sans';
   font-style: normal;
@@ -58,78 +69,105 @@
   src: url('/fonts/dm-mono-latin-500.woff2') format('woff2');
 }
 
-/* --- 1. DS palette ------------------------------------------------------- */
+/* --- 1. DS palette (v1.1, identity v0.2) ---------------------------------- */
 
 :root {
   color-scheme: light;
 
-  --paper: #f2f4f6;
-  --paper-2: #e8ebee;
-  --card: #fbfcfd;
-  --ink: #22272d;
-  --ink-2: #4d5258;
-  --ink-3: #6a6e75;
-  --rule: #d4d7da;
-  --rule-2: #b8bbc0;
-  --thread: #dc4f37;
-  --thread-ink: #be3827;
-  --thread-wash: rgb(220 79 55 / 0.12);
-  --grid: rgb(34 39 45 / 0.05);
+  --paper: oklch(0.965 0.004 250);
+  --paper-2: oklch(0.935 0.005 250);
+  --card: oklch(0.99 0.002 250);
+  --ink: oklch(0.22 0.015 255);
+  --ink-2: oklch(0.40 0.014 255);
+  --ink-3: oklch(0.51 0.012 255);
+  --rule: oklch(0.87 0.006 255);
+  --rule-2: oklch(0.78 0.008 255);
+  --thread: oklch(0.6 0.19 32);
+  --thread-ink: oklch(0.52 0.18 31);
+  --thread-wash: oklch(0.6 0.19 32 / 0.12);
+  --grid: oklch(0.22 0.015 255 / 0.05);
+  --band: oklch(0.22 0.015 255 / 0.1);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --paper: #1b1e23;
-    --paper-2: #21252a;
-    --card: #23282e;
-    --ink: #edeff2;
-    --ink-2: #bec2c6;
-    --ink-3: #94989e;
-    --rule: #373b41;
-    --rule-2: #4d5258;
-    --thread: #ef7253;
-    --thread-ink: #fa8c6a;
-    --thread-wash: rgb(239 114 83 / 0.16);
-    --grid: rgb(237 239 242 / 0.05);
+    --paper: oklch(0.18 0.012 255);
+    --paper-2: oklch(0.21 0.013 255);
+    --card: oklch(0.225 0.014 255);
+    --ink: oklch(0.95 0.004 250);
+    --ink-2: oklch(0.8 0.008 250);
+    --ink-3: oklch(0.66 0.01 250);
+    --rule: oklch(0.31 0.012 255);
+    --rule-2: oklch(0.4 0.014 255);
+    --thread: oklch(0.68 0.17 35);
+    --thread-ink: oklch(0.74 0.15 38);
+    --thread-wash: oklch(0.68 0.17 35 / 0.16);
+    --grid: oklch(0.95 0.004 250 / 0.05);
+    --band: oklch(0.95 0.004 250 / 0.1);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --paper: #1b1e23;
-  --paper-2: #21252a;
-  --card: #23282e;
-  --ink: #edeff2;
-  --ink-2: #bec2c6;
-  --ink-3: #94989e;
-  --rule: #373b41;
-  --rule-2: #4d5258;
-  --thread: #ef7253;
-  --thread-ink: #fa8c6a;
-  --thread-wash: rgb(239 114 83 / 0.16);
-  --grid: rgb(237 239 242 / 0.05);
+  --paper: oklch(0.18 0.012 255);
+  --paper-2: oklch(0.21 0.013 255);
+  --card: oklch(0.225 0.014 255);
+  --ink: oklch(0.95 0.004 250);
+  --ink-2: oklch(0.8 0.008 250);
+  --ink-3: oklch(0.66 0.01 250);
+  --rule: oklch(0.31 0.012 255);
+  --rule-2: oklch(0.4 0.014 255);
+  --thread: oklch(0.68 0.17 35);
+  --thread-ink: oklch(0.74 0.15 38);
+  --thread-wash: oklch(0.68 0.17 35 / 0.16);
+  --grid: oklch(0.95 0.004 250 / 0.05);
+  --band: oklch(0.95 0.004 250 / 0.1);
 }
 
 /* --- 2. Semantic roles --------------------------------------------------- */
 
 :root {
-  --bg: var(--paper);
-  --surface: var(--card);
-  --surface-2: var(--paper-2);
-  --surface-hover: var(--paper-2);
-  --border: var(--rule);
-  --border-strong: var(--rule-2);
-  --fg: var(--ink);
-  --muted: var(--ink-2);
+  --surface-page: var(--paper);
+  --surface-sunken: var(--paper-2);
+  --surface-card: var(--card);
+  --surface-tooltip: var(--paper-2);
 
-  /* The primary action is ink; the thread is reserved for the active path
-   * and alarms. `--accent-soft` is the thread wash (selection, focus rings). */
-  --accent: var(--ink);
-  --accent-fg: var(--paper);
-  --accent-soft: var(--thread-wash);
+  --text-1: var(--ink);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+
+  --border-1: var(--rule);
+  --border-2: var(--rule-2);
+  --border-strong: var(--ink);
+
+  --action-bg: var(--ink);
+  --action-bg-hover: var(--ink-2);
+  --action-fg: var(--paper);
+
+  --accent: var(--thread);
+  --accent-text: var(--thread-ink);
+  --accent-wash: var(--thread-wash);
+}
+
+/* Temporary aliases — the old uptime role names, kept until no consumer
+ * references them (removed in UP-15). `--accent` deliberately keeps its OLD
+ * uptime meaning (the ink action fill) for existing consumers; new code uses
+ * `--action-bg` for action fills and `--accent` only for the thread. */
+:root {
+  --bg: var(--surface-page);
+  --surface: var(--surface-card);
+  --surface-2: var(--surface-sunken);
+  --surface-hover: var(--surface-sunken);
+  --border: var(--border-1);
+  --fg: var(--text-1);
+  --muted: var(--text-2);
+
+  --accent: var(--action-bg);
+  --accent-fg: var(--action-fg);
+  --accent-soft: var(--accent-wash);
 
   /* States are shapes first, colour second: up = recorded ink, down = thread,
    * pending/degraded = muted. */
@@ -140,7 +178,7 @@
   --error: var(--thread);
   --error-soft: var(--thread-wash);
 
-  --overlay: rgb(34 39 45 / 0.45);
+  --overlay: rgb(5 7 10 / 0.45);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -156,6 +194,8 @@
 /* --- 3. Geometry, depth, type -------------------------------------------- */
 
 :root {
+  --radius-control: 2px;
+  --radius-panel: 4px;
   --radius-sm: 2px;
   --radius: 4px;
   --radius-lg: 4px;
@@ -169,11 +209,57 @@
   --space-5: 24px;
   --space-6: 32px;
   --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+  --space-10: 128px;
+
+  --hit-min: 44px;
+  --control-sm: 36px;
+  --control-md: 44px;
+  --control-lg: 48px;
+  --panel-pad: 16px 18px 18px;
+  --grid-cell: 16px;
+  --grid-cell-lg: 48px;
+  --hairline: 1px;
+  --content-max: 1360px;
 
   --font-sans: 'Fira Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
 
-  --sidebar-width: 236px;
+  /* Product type scale (DS v1.1). */
+  --fs-endorse: 10.5px;
+  --fs-label-sm: 11px;
+  --fs-label: 11.5px;
+  --fs-data-sm: 12px;
+  --fs-data: 12.5px;
+  --fs-small: 13px;
+  --fs-ui: 14px;
+  --fs-nav: 15px;
+  --fs-body: 16px;
+  --fs-stat: 17px;
+  --fs-h3: 22px;
+  --fs-page-title: 30px;
+  --fs-figure-sm: 32px;
+  --fs-figure: 34px;
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --lh-ui: 1.4;
+  --lh-body: 1.5;
+  --lh-heading: 1.1;
+  --tracking-label: 0.08em;
+  --tracking-mono: 0.06em;
+  --tracking-heading: -0.02em;
+
+  /* Effects: depth is hairlines only, no shadows anywhere. */
+  --dur-press: 150ms;
+  --dur-ui: 200ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --blur-header: 12px;
+
+  --sidebar-width: 232px;
   --sidebar-width-collapsed: 68px;
   --topbar-height: 60px;
 }
@@ -201,8 +287,8 @@ body {
   background-color: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
