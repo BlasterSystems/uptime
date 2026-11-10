@@ -113,11 +113,13 @@ describe('MonitorForm create', () => {
     await (await controlByLabel(wrapper, 'Retries')).setValue('0')
     // The tags field has no label; it is announced by its placeholder.
     await wrapper.find('input[placeholder="production, external"]').setValue('production')
-    const visLabel = wrapper
+    // The visibility control is a DS checkbox row: its accessible name comes
+    // from the label span (`<label id>` -> span `<id>-label`).
+    const publicLabel = wrapper
       .findAll('label')
       .find((l) => l.text().includes('Show on the public status page'))
-    if (!visLabel) throw new Error('visibility label not found')
-    await wrapper.find(`[aria-labelledby="${visLabel.attributes('id')}"]`).setValue(true)
+    if (!publicLabel) throw new Error('visibility label not found')
+    await wrapper.find(`[aria-labelledby="${publicLabel.attributes('id')}-label"]`).setValue(true)
 
     await clickButton(wrapper, 'Create monitor')
 

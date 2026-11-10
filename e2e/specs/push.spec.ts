@@ -30,6 +30,6 @@ test('creates a push monitor and accepts its heartbeat', async ({ page, request 
 
   // The heartbeat lands on the dashboard card as an Up badge.
   await page.goto('/')
-  const card = page.locator('article.card', { hasText: NAME })
+  const card = page.locator('article.row', { hasText: NAME })
   await expect(card.getByText('Up', { exact: true })).toBeVisible()
 })
