@@ -214,12 +214,13 @@ async function handleSignOut(): Promise<void> {
   z-index: 20;
   display: flex;
   flex-direction: column;
+  gap: 32px;
   flex-shrink: 0;
   width: var(--sidebar-width);
   height: 100vh;
-  padding: var(--space-4) var(--space-3);
-  background-color: var(--surface);
-  border-right: 1px solid var(--border);
+  padding: 28px 0 18px;
+  background-color: var(--surface-sunken);
+  border-right: 1px solid var(--border-1);
   transition: width 160ms ease;
 }
 
@@ -292,10 +293,10 @@ async function handleSignOut(): Promise<void> {
 
 .brand-endorsement {
   overflow: hidden;
-  color: var(--ink-3);
+  color: color-mix(in oklch, currentColor 62%, transparent);
   font-family: var(--font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  letter-spacing: var(--tracking-mono);
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -309,33 +310,41 @@ async function handleSignOut(): Promise<void> {
 }
 
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 8px 10px;
-  border-left: 1.5px solid transparent;
-  border-radius: var(--radius-sm);
-  color: var(--ink-2);
-  font-size: 13.5px;
-  font-weight: 500;
+  gap: 14px;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 16px 0 22px;
+  color: var(--text-2);
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-medium);
   text-decoration: none;
   white-space: nowrap;
-  transition:
-    background-color 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+  transition: color var(--dur-press);
 }
 
-.nav-item:hover {
-  background-color: var(--paper-2);
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.nav-item:hover,
+.nav-item.router-link-exact-active {
   color: var(--ink);
   text-decoration: none;
 }
 
 /* The active path is the one vermilion line in the composition. */
-.nav-item.router-link-exact-active {
-  border-left-color: var(--thread);
-  color: var(--ink);
+.nav-item.router-link-exact-active::before {
+  background: var(--thread);
 }
 
 .nav-label {
@@ -352,15 +361,15 @@ async function handleSignOut(): Promise<void> {
   padding: 8px 10px;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
-  font-size: 13px;
+  border-radius: var(--radius-control);
+  color: var(--text-2);
+  font-size: var(--fs-small);
   cursor: pointer;
 }
 
 .collapse-button:hover {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  background-color: var(--surface-card);
+  color: var(--ink);
 }
 
 .collapse-icon {
@@ -402,14 +411,13 @@ async function handleSignOut(): Promise<void> {
   gap: var(--space-3);
   height: var(--topbar-height);
   padding: 0 var(--space-5);
-  background-color: color-mix(in srgb, var(--paper) 92%, transparent);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--rule);
+  background-color: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-1);
 }
 
 .page-title {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--fs-stat);
+  font-weight: var(--fw-medium);
 }
 
 .topbar-actions {
@@ -428,14 +436,14 @@ async function handleSignOut(): Promise<void> {
   padding: 0;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   cursor: pointer;
 }
 
 .icon-button:hover {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  background-color: var(--surface-card);
+  color: var(--ink);
 }
 
 .menu-button {
@@ -460,8 +468,8 @@ async function handleSignOut(): Promise<void> {
 }
 
 .user-button:hover {
-  background-color: var(--surface-hover);
-  border-color: var(--border);
+  background-color: var(--surface-card);
+  border-color: var(--border-1);
 }
 
 .user-avatar {
@@ -471,13 +479,13 @@ async function handleSignOut(): Promise<void> {
   flex-shrink: 0;
   width: 26px;
   height: 26px;
-  background-color: var(--ink);
-  border-radius: var(--radius-sm);
-  color: var(--paper);
+  background-color: var(--action-bg);
+  border-radius: var(--radius-control);
+  color: var(--action-fg);
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-endorse);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--tracking-mono);
 }
 
 .user-email {
@@ -494,10 +502,9 @@ async function handleSignOut(): Promise<void> {
   z-index: 30;
   width: 230px;
   padding: var(--space-2);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-panel);
 }
 
 .menu-header {
@@ -526,16 +533,16 @@ async function handleSignOut(): Promise<void> {
   padding: 7px var(--space-3);
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--fs-small);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
 }
 
 .menu-item:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-sunken);
   text-decoration: none;
 }
 
@@ -560,7 +567,7 @@ async function handleSignOut(): Promise<void> {
   position: fixed;
   inset: 0;
   z-index: 19;
-  background-color: var(--overlay);
+  background-color: color-mix(in oklch, var(--paper) 72%, transparent);
 }
 
 @media (max-width: 860px) {
@@ -569,7 +576,7 @@ async function handleSignOut(): Promise<void> {
     left: 0;
     top: 0;
     transform: translateX(-100%);
-    box-shadow: var(--shadow-lg);
+    border-right: 1px solid var(--border-1);
   }
 
   .sidebar.is-open {
