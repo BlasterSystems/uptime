@@ -531,25 +531,25 @@ watch(slug, () => {
 .status-shell[data-theme='light'] {
   color-scheme: light;
 
-  --paper: #f2f4f6;
-  --paper-2: #e8ebee;
-  --card: #fbfcfd;
-  --ink: #22272d;
-  --ink-2: #4d5258;
-  --ink-3: #6a6e75;
-  --rule: #d4d7da;
-  --rule-2: #b8bbc0;
-  --thread: #dc4f37;
-  --thread-ink: #be3827;
-  --thread-wash: rgb(220 79 55 / 0.12);
-  --grid: rgb(34 39 45 / 0.05);
+  --paper: oklch(0.965 0.004 250);
+  --paper-2: oklch(0.935 0.005 250);
+  --card: oklch(0.99 0.002 250);
+  --ink: oklch(0.22 0.015 255);
+  --ink-2: oklch(0.4 0.014 255);
+  --ink-3: oklch(0.51 0.012 255);
+  --rule: oklch(0.87 0.006 255);
+  --rule-2: oklch(0.78 0.008 255);
+  --thread: oklch(0.6 0.19 32);
+  --thread-ink: oklch(0.52 0.18 31);
+  --thread-wash: oklch(0.6 0.19 32 / 0.12);
+  --grid: oklch(0.22 0.015 255 / 0.05);
 
   --bg: var(--paper);
   --surface: var(--card);
   --surface-2: var(--paper-2);
   --surface-hover: var(--paper-2);
   --border: var(--rule);
-  --border-strong: var(--rule-2);
+  --border-strong: var(--ink);
   --fg: var(--ink);
   --muted: var(--ink-2);
   --accent: var(--thread-ink);
@@ -560,35 +560,35 @@ watch(slug, () => {
   --warning-soft: var(--paper-2);
   --error: var(--thread);
   --error-soft: var(--thread-wash);
-  --overlay: rgb(34 39 45 / 0.45);
+  --overlay: rgb(5 7 10 / 0.45);
 }
 
 .status-shell[data-theme='dark'] {
   color-scheme: dark;
 
-  --paper: #1b1e23;
-  --paper-2: #21252a;
-  --card: #23282e;
-  --ink: #edeff2;
-  --ink-2: #bec2c6;
-  --ink-3: #94989e;
-  --rule: #373b41;
-  --rule-2: #4d5258;
-  --thread: #ef7253;
-  --thread-ink: #fa8c6a;
-  --thread-wash: rgb(239 114 83 / 0.16);
-  --grid: rgb(237 239 242 / 0.05);
+  --paper: oklch(0.18 0.012 255);
+  --paper-2: oklch(0.21 0.013 255);
+  --card: oklch(0.225 0.014 255);
+  --ink: oklch(0.95 0.004 250);
+  --ink-2: oklch(0.8 0.008 250);
+  --ink-3: oklch(0.66 0.01 250);
+  --rule: oklch(0.31 0.012 255);
+  --rule-2: oklch(0.4 0.014 255);
+  --thread: oklch(0.68 0.17 35);
+  --thread-ink: oklch(0.74 0.15 38);
+  --thread-wash: oklch(0.68 0.17 35 / 0.16);
+  --grid: oklch(0.95 0.004 250 / 0.05);
 
   --bg: var(--paper);
   --surface: var(--card);
   --surface-2: var(--paper-2);
   --surface-hover: var(--paper-2);
   --border: var(--rule);
-  --border-strong: var(--rule-2);
+  --border-strong: var(--ink);
   --fg: var(--ink);
   --muted: var(--ink-2);
   --accent: var(--thread-ink);
-  --accent-fg: #1b1e23;
+  --accent-fg: oklch(0.18 0.012 255);
   --success: var(--ink);
   --success-soft: var(--grid);
   --warning: var(--ink-2);
