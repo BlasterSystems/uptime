@@ -38,7 +38,8 @@ Decided 2026-11-09 (UP-8) and applied for v1.0.0:
 Release smoke test (after the images publish): on a clean amd64 and arm64
 host, `cp deploy/.env.example .env`, set `ENCRYPTION_KEY`, `docker compose up`
 with the README deployment snippet, then verify `/healthz` and the first-run
-setup flow; confirm an anonymous `docker pull` of the exact `vX.Y.Z` tags.
+setup flow; confirm an authenticated `docker pull` of the exact `vX.Y.Z` tags
+(packages stay private by owner decision — public install is build-from-source).
 
 ## Release checklist
 
