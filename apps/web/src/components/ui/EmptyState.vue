@@ -45,7 +45,7 @@ withDefaults(
   margin-bottom: var(--space-1);
   background-color: var(--paper-2);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink-3);
 }
 
@@ -61,7 +61,7 @@ withDefaults(
 
 .empty-description {
   max-width: 46ch;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 

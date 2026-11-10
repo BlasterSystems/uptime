@@ -190,9 +190,9 @@ onMounted(() => {
 
 .panel {
   overflow: hidden;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -202,7 +202,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-4);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-1);
 }
 
 .panel-title {
@@ -212,7 +212,7 @@ onMounted(() => {
 
 .panel-note {
   margin-top: 2px;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
@@ -235,7 +235,7 @@ onMounted(() => {
 }
 
 .hint {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 </style>

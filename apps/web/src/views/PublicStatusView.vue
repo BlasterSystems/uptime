@@ -252,7 +252,7 @@ function windowRange(startAt: string | null, endAt: string | null): string {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border: 1px solid;
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
   font-size: 13.5px;
   font-weight: 500;
 }
@@ -306,7 +306,7 @@ function windowRange(startAt: string | null, endAt: string | null): string {
 .panel {
   background-color: var(--card);
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
 }
 
 .panel-title {

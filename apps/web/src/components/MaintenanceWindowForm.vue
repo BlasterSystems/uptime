@@ -544,7 +544,7 @@ async function submit(): Promise<void> {
 
 .picker-title {
   padding: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -555,9 +555,9 @@ async function submit(): Promise<void> {
   margin: 0;
   padding: var(--space-1) var(--space-2);
   overflow-y: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
   list-style: none;
 }
 
@@ -566,13 +566,13 @@ async function submit(): Promise<void> {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   font-size: 13px;
   cursor: pointer;
 }
 
 .picker-row:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-sunken);
 }
 
 .picker-row input {
@@ -581,10 +581,10 @@ async function submit(): Promise<void> {
 
 .picker-empty {
   padding: var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  background-color: var(--surface-sunken);
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
@@ -597,10 +597,10 @@ async function submit(): Promise<void> {
 .weekday {
   min-width: 44px;
   padding: 6px 10px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   font: inherit;
   font-size: 12.5px;
   font-weight: 500;
@@ -608,7 +608,7 @@ async function submit(): Promise<void> {
 }
 
 .weekday:hover {
-  color: var(--fg);
+  color: var(--text-1);
 }
 
 .weekday.is-on {

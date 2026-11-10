@@ -710,7 +710,7 @@ const limitsRows: { limit: string; value: string }[] = [
 
 .intro p {
   margin: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13.5px;
   line-height: 1.6;
 }
@@ -719,8 +719,8 @@ const limitsRows: { limit: string; value: string }[] = [
 .doc-section code {
   font-family: var(--font-mono);
   font-size: 12px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
   border-radius: 4px;
   padding: 1px 4px;
 }
@@ -730,9 +730,9 @@ const limitsRows: { limit: string; value: string }[] = [
   flex-wrap: wrap;
   gap: var(--space-2);
   padding: var(--space-3);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -740,7 +740,7 @@ const limitsRows: { limit: string; value: string }[] = [
   padding: var(--space-1) var(--space-3);
   background-color: transparent;
   border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink-2);
   font-size: 12.5px;
   text-decoration: none;
@@ -758,9 +758,9 @@ const limitsRows: { limit: string; value: string }[] = [
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -802,13 +802,13 @@ const limitsRows: { limit: string; value: string }[] = [
 .doc-table th,
 .doc-table td {
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-1);
   text-align: left;
   vertical-align: top;
 }
 
 .doc-table th {
-  background-color: var(--surface-2);
+  background-color: var(--surface-sunken);
   font-weight: 600;
 }
 
@@ -821,7 +821,7 @@ const limitsRows: { limit: string; value: string }[] = [
 }
 
 .note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 

@@ -35,7 +35,7 @@ const emit = defineEmits<{ confirm: []; cancel: [] }>()
 
 <style scoped>
 .confirm-message {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13.5px;
   overflow-wrap: anywhere;
 }

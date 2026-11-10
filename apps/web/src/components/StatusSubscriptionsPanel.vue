@@ -437,7 +437,7 @@ onMounted(async () => {
 
 .banner {
   padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
+  background-color: var(--accent-wash);
   color: var(--thread-ink);
   font-size: 13px;
 }
@@ -455,7 +455,7 @@ onMounted(async () => {
 }
 
 .cell-muted {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -494,13 +494,13 @@ onMounted(async () => {
 
 .picker-title {
   padding: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
 }
 
 .picker-hint {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -509,9 +509,9 @@ onMounted(async () => {
   margin: 0;
   padding: var(--space-1) var(--space-2);
   overflow-y: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
   list-style: none;
 }
 
@@ -520,13 +520,13 @@ onMounted(async () => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   font-size: 13px;
   cursor: pointer;
 }
 
 .picker-row:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-sunken);
 }
 
 .picker-row input {
@@ -534,16 +534,16 @@ onMounted(async () => {
 }
 
 .picker-group {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 11.5px;
 }
 
 .picker-empty {
   padding: var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  background-color: var(--surface-sunken);
+  border: 1px dashed var(--border-1);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 

@@ -655,7 +655,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-6);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
@@ -672,9 +672,9 @@ onUnmounted(() => {
 
 .panel {
   overflow: hidden;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -698,7 +698,7 @@ onUnmounted(() => {
 }
 
 .section-title {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -706,7 +706,7 @@ onUnmounted(() => {
 }
 
 .section-note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -728,13 +728,13 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
   text-decoration: none;
 }
 
 .back-link:hover {
-  color: var(--fg);
+  color: var(--text-1);
   text-decoration: none;
 }
 
@@ -757,7 +757,7 @@ onUnmounted(() => {
 }
 
 .head-target {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -773,7 +773,7 @@ onUnmounted(() => {
 }
 
 .meta-item dt {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 10.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -798,7 +798,7 @@ onUnmounted(() => {
   padding: 2px 8px;
   background-color: transparent;
   border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -816,9 +816,9 @@ onUnmounted(() => {
   max-height: 110px;
   padding: var(--space-2) var(--space-3);
   overflow: auto;
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
-  border-radius: var(--radius-sm);
+  background-color: var(--accent-wash);
+  border: 1px solid color-mix(in srgb, var(--thread) 30%, transparent);
+  border-radius: var(--radius-control);
   color: var(--thread-ink);
   font-family: var(--font-mono);
   font-size: 11.5px;
@@ -840,7 +840,7 @@ onUnmounted(() => {
   padding: 3px 10px;
   background-color: transparent;
   border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -876,7 +876,7 @@ onUnmounted(() => {
 }
 
 .cell-muted {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   overflow-wrap: anywhere;
 }

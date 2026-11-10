@@ -516,11 +516,11 @@ watch(slug, () => {
  * light/dark preference must win regardless of the app-level theme.
  */
 .status-shell {
-  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-wash: color-mix(in oklch, var(--accent) 14%, transparent);
 
   min-height: 100vh;
-  background-color: var(--bg);
-  color: var(--fg);
+  background-color: var(--surface-page);
+  color: var(--text-1);
 }
 
 /* This page renders outside the app layout, so the shell re-declares the
@@ -544,23 +544,17 @@ watch(slug, () => {
   --thread-wash: oklch(0.6 0.19 32 / 0.12);
   --grid: oklch(0.22 0.015 255 / 0.05);
 
-  --bg: var(--paper);
-  --surface: var(--card);
-  --surface-2: var(--paper-2);
-  --surface-hover: var(--paper-2);
-  --border: var(--rule);
+  --surface-page: var(--paper);
+  --surface-sunken: var(--paper-2);
+  --surface-card: var(--card);
+  --text-1: var(--ink);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --border-1: var(--rule);
+  --border-2: var(--rule-2);
   --border-strong: var(--ink);
-  --fg: var(--ink);
-  --muted: var(--ink-2);
   --accent: var(--thread-ink);
   --accent-fg: #ffffff;
-  --success: var(--ink);
-  --success-soft: var(--grid);
-  --warning: var(--ink-2);
-  --warning-soft: var(--paper-2);
-  --error: var(--thread);
-  --error-soft: var(--thread-wash);
-  --overlay: rgb(5 7 10 / 0.45);
 }
 
 .status-shell[data-theme='dark'] {
@@ -579,23 +573,17 @@ watch(slug, () => {
   --thread-wash: oklch(0.68 0.17 35 / 0.16);
   --grid: oklch(0.95 0.004 250 / 0.05);
 
-  --bg: var(--paper);
-  --surface: var(--card);
-  --surface-2: var(--paper-2);
-  --surface-hover: var(--paper-2);
-  --border: var(--rule);
+  --surface-page: var(--paper);
+  --surface-sunken: var(--paper-2);
+  --surface-card: var(--card);
+  --text-1: var(--ink);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --border-1: var(--rule);
+  --border-2: var(--rule-2);
   --border-strong: var(--ink);
-  --fg: var(--ink);
-  --muted: var(--ink-2);
   --accent: var(--thread-ink);
   --accent-fg: oklch(0.18 0.012 255);
-  --success: var(--ink);
-  --success-soft: var(--grid);
-  --warning: var(--ink-2);
-  --warning-soft: var(--paper-2);
-  --error: var(--thread);
-  --error-soft: var(--thread-wash);
-  --overlay: rgb(5 7 10 / 0.62);
 }
 
 .status-main {
@@ -614,14 +602,14 @@ watch(slug, () => {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-7) 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
 .panel {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -641,7 +629,7 @@ watch(slug, () => {
 
 .state-text {
   max-width: 46ch;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13.5px;
 }
 
@@ -676,7 +664,7 @@ watch(slug, () => {
   width: 30px;
   height: 30px;
   background-color: var(--accent);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--accent-fg);
   font-size: 14px;
   font-weight: 500;
@@ -709,35 +697,35 @@ watch(slug, () => {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border: 1px solid;
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
   font-size: 13.5px;
   font-weight: 500;
 }
 
 .overall-banner.is-operational {
-  background-color: var(--success-soft);
-  border-color: var(--success);
-  color: var(--success);
+  background-color: var(--grid);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .overall-banner.is-degraded,
 .overall-banner.is-maintenance {
-  background-color: var(--warning-soft);
-  border-color: var(--warning);
-  color: var(--warning);
+  background-color: var(--surface-sunken);
+  border-color: var(--text-2);
+  color: var(--text-2);
 }
 
 .overall-banner.is-partial_outage,
 .overall-banner.is-major_outage {
-  background-color: var(--error-soft);
-  border-color: var(--error);
-  color: var(--error);
+  background-color: var(--accent-wash);
+  border-color: var(--thread);
+  color: var(--thread);
 }
 
 .overall-banner.is-unknown {
-  background-color: var(--surface-2);
+  background-color: var(--surface-sunken);
   border-color: var(--border-strong);
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 .banner-dot {
@@ -789,9 +777,9 @@ watch(slug, () => {
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -816,7 +804,7 @@ watch(slug, () => {
 }
 
 .component-description {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
   overflow-wrap: anywhere;
 }
@@ -836,9 +824,9 @@ watch(slug, () => {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
   font-size: 12px;
 }
 
@@ -847,23 +835,23 @@ watch(slug, () => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: var(--muted);
+  background-color: var(--text-2);
 }
 
 /* Shape-first states: ■ up, ◆ down, ○ maintenance. */
 .chip-dot.is-up {
-  background-color: var(--success);
+  background-color: var(--ink);
   border-radius: 0;
 }
 
 .chip-dot.is-down {
-  background-color: var(--error);
+  background-color: var(--thread);
   border-radius: 0;
   transform: rotate(45deg);
 }
 
 .chip-dot.is-maintenance {
-  background-color: var(--warning);
+  background-color: var(--text-2);
 }
 
 .chip-name {
@@ -872,7 +860,7 @@ watch(slug, () => {
 }
 
 .chip-metric {
-  color: var(--muted);
+  color: var(--text-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -884,7 +872,7 @@ watch(slug, () => {
 }
 
 .block-caption {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -904,7 +892,7 @@ watch(slug, () => {
 }
 
 .chart-empty {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
@@ -936,9 +924,9 @@ watch(slug, () => {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -966,12 +954,12 @@ watch(slug, () => {
   display: flex;
   flex-wrap: wrap;
   gap: 2px var(--space-3);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
 .maintenance-time {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -981,7 +969,7 @@ watch(slug, () => {
   gap: var(--space-3);
   margin: 0;
   padding: 0 0 0 var(--space-3);
-  border-left: 2px solid var(--border);
+  border-left: 2px solid var(--border-1);
   list-style: none;
 }
 
@@ -1004,7 +992,7 @@ watch(slug, () => {
 }
 
 .timeline-time {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 11.5px;
 }
 
@@ -1019,7 +1007,7 @@ watch(slug, () => {
   flex-direction: column;
   gap: var(--space-2);
   padding-top: var(--space-2);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   text-align: center;
 }

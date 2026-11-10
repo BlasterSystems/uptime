@@ -194,11 +194,11 @@ async function submit(): Promise<void> {
   flex-direction: column;
   gap: var(--space-3);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-1);
 }
 
 .section-title {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -206,7 +206,7 @@ async function submit(): Promise<void> {
 }
 
 .section-note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
