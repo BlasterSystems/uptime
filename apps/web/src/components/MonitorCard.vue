@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { HeartbeatStatus, Monitor } from '../api.js'
-import { formatDateTime, formatInterval, formatLatency, relativeTime } from '../format.js'
+import { formatDateTime, formatLatency, relativeTime } from '../format.js'
 import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
 import Badge from './ui/Badge.vue'
 import Button from './ui/Button.vue'
