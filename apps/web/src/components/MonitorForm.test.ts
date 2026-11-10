@@ -117,7 +117,7 @@ describe('MonitorForm create', () => {
       .findAll('label')
       .find((l) => l.text().includes('Show on the public status page'))
     if (!visLabel) throw new Error('visibility label not found')
-    await wrapper.find(`[aria-labelledby="${visLabel.attributes('id')}"]`).trigger('click')
+    await wrapper.find(`[aria-labelledby="${visLabel.attributes('id')}"]`).setValue(true)
 
     await clickButton(wrapper, 'Create monitor')
 

@@ -48,25 +48,25 @@ const describedBy = computed(() => {
   display: flex;
   align-items: center;
   gap: 3px;
-  color: var(--ink-3);
+  color: var(--text-3);
   font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-label-sm);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--tracking-mono);
   text-transform: uppercase;
 }
 
 .field-required {
-  color: var(--thread-ink);
+  color: var(--accent-text);
 }
 
 .field-hint {
-  color: var(--ink-3);
-  font-size: 12px;
+  color: var(--text-2);
+  font-size: var(--fs-small);
 }
 
 .field-error {
-  color: var(--thread-ink);
-  font-size: 12px;
+  color: var(--accent-text);
+  font-size: var(--fs-small);
 }
 </style>

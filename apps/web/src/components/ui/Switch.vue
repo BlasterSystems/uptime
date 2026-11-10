@@ -14,118 +14,98 @@ const props = withDefaults(
 )
 
 const uid = useId()
-const switchId = computed(() => props.id ?? `switch-${uid}`)
+const checkId = computed(() => props.id ?? `switch-${uid}`)
 const describedBy = computed(() =>
-  props.hint === undefined ? undefined : `${switchId.value}-hint`,
+  props.hint === undefined ? undefined : `${checkId.value}-hint`,
 )
 </script>
 
 <template>
-  <div class="switch-row" :class="{ 'is-disabled': disabled }">
-    <button
-      :id="switchId"
-      type="button"
-      role="switch"
-      class="switch"
-      :class="{ 'is-on': model }"
-      :aria-checked="model"
+  <!-- DS v1.1 .bs-check row. The file keeps its name and API; the control is
+   * a checkbox (the kit has no switch), 44px hit row, ink fill when on. -->
+  <label :id="checkId" class="check" :class="{ 'is-disabled': disabled }">
+    <input
+      v-model="model"
+      type="checkbox"
+      class="check-input"
       :disabled="disabled"
-      :aria-labelledby="label !== undefined ? `${switchId}-label` : undefined"
+      :aria-labelledby="checkId"
       :aria-describedby="describedBy"
-      @click="model = !model"
-    >
-      <span class="switch-track" aria-hidden="true">
-        <span class="switch-thumb" />
-      </span>
-    </button>
-    <span class="switch-text">
-      <label
-        v-if="label !== undefined"
-        class="switch-label"
-        :id="`${switchId}-label`"
-        :for="switchId"
-      >
-        {{ label }}
-      </label>
-      <span v-if="hint !== undefined" :id="`${switchId}-hint`" class="switch-hint">{{ hint }}</span>
+    />
+    <span class="check-box" aria-hidden="true"></span>
+    <span class="check-text">
+      <span v-if="label !== undefined" class="check-label">{{ label }}</span>
+      <span v-if="hint !== undefined" :id="`${checkId}-hint`" class="check-hint">{{ hint }}</span>
     </span>
-  </div>
+  </label>
 </template>
 
 <style scoped>
-.switch-row {
+.check {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.switch-row.is-disabled {
-  opacity: 0.6;
-}
-
-.switch {
-  flex-shrink: 0;
-  padding: 0;
-  background: none;
-  border: 0;
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  min-height: var(--hit-min);
+  padding: 8px 0;
+  color: var(--ink);
+  font-size: var(--fs-nav);
   cursor: pointer;
 }
 
-.switch:disabled {
+.check.is-disabled {
+  color: var(--text-3);
   cursor: not-allowed;
 }
 
-.switch-track {
-  display: block;
-  width: 38px;
-  height: 22px;
-  padding: 3px;
-  background-color: var(--paper-2);
-  border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
-  transition:
-    background-color 140ms ease,
-    border-color 140ms ease;
+.check-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 
-.switch-thumb {
-  display: block;
-  width: 14px;
-  height: 14px;
-  background-color: var(--ink-3);
-  border-radius: 1px;
-  transition:
-    transform 140ms ease,
-    background-color 140ms ease;
+.check-box {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  box-shadow: inset 0 0 0 1.5px var(--border-2);
+  transition: box-shadow var(--dur-press);
 }
 
-.switch.is-on .switch-track {
-  background-color: var(--accent);
-  border-color: var(--accent);
+.check:hover .check-box {
+  box-shadow: inset 0 0 0 1.5px var(--text-2);
 }
 
-.switch.is-on .switch-thumb {
-  background-color: var(--accent-fg);
-  transform: translateX(16px);
+.check-input:checked + .check-box {
+  background-color: var(--ink);
+  box-shadow: none;
 }
 
-.switch-text {
+.check.is-disabled .check-box {
+  opacity: 0.5;
+}
+
+.check-input:focus-visible + .check-box {
+  outline: 2px solid var(--thread);
+  outline-offset: 3px;
+}
+
+.check-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.switch-label {
-  color: var(--fg);
-  font-size: 13px;
-  cursor: pointer;
+.check-label {
+  line-height: var(--lh-ui);
 }
 
-.switch-hint {
-  color: var(--muted);
-  font-size: 12px;
+.check-hint {
+  color: var(--text-2);
+  font-size: var(--fs-small);
+  line-height: 1.4;
 }
 </style>
