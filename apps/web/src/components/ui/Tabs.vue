@@ -62,6 +62,8 @@ function onKeydown(event: KeyboardEvent, index: number): void {
 </template>
 
 <style scoped>
+/* DS v1.1 .bs-tabs: sans 15px, hairline bottom edge, active tab ink + 500
+ * with a 2px inset bar. */
 .tabs {
   display: flex;
   flex-direction: column;
@@ -71,31 +73,30 @@ function onKeydown(event: KeyboardEvent, index: number): void {
 
 .tablist {
   display: flex;
-  gap: var(--space-1);
+  gap: 0 24px;
   overflow-x: auto;
   align-self: flex-start;
   max-width: 100%;
+  border-bottom: 1px solid var(--border-1);
 }
 
 .tab {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  gap: 8px;
+  min-height: var(--control-md);
   min-width: 40px;
-  justify-content: center;
-  padding: 0 12px;
+  padding: 0;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--ink-3);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  color: var(--text-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-regular);
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 120ms ease;
+  transition: color var(--dur-press);
 }
 
 .tab:hover {
@@ -104,9 +105,8 @@ function onKeydown(event: KeyboardEvent, index: number): void {
 
 .tab.is-active {
   color: var(--ink);
-  text-decoration: underline;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 6px;
+  font-weight: var(--fw-medium);
+  box-shadow: inset 0 -2px 0 var(--ink);
 }
 
 .tabpanel {

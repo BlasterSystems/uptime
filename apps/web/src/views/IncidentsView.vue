@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { errorMessage, fetchIncidents, fetchMonitors } from '../api.js'
 import type { Incident } from '../api.js'
+import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import EmptyState from '../components/ui/EmptyState.vue'
 import Icon from '../components/ui/Icon.vue'
@@ -190,7 +191,7 @@ onUnmounted(() => {
       </template>
     </Tabs>
 
-    <p v-if="loadError !== null" class="banner" role="alert">{{ loadError }}</p>
+    <AlertRow v-if="loadError !== null">{{ loadError }}</AlertRow>
 
     <section class="panel">
       <Table :columns="columns" :rows="incidents" :loading="!loadedOnce" :row-key="(row) => row.id">
@@ -295,15 +296,6 @@ onUnmounted(() => {
 
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-.banner {
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  border-radius: var(--radius);
-  color: var(--thread-ink);
-  font-size: 13px;
 }
 
 .refresh-note {

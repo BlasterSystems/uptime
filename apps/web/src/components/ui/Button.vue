@@ -38,66 +38,81 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
 </template>
 
 <style scoped>
+/* DS v1.1 .bs-btn: hairline secondary, ink primary, flush-left verb labels,
+ * 36/44/48 min-heights, 150ms transitions. The thread is never a fill:
+ * danger is an outlined vermilion action. */
 .btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
+  justify-content: flex-start;
+  gap: 10px;
   min-width: 0;
+  min-height: var(--control-md);
+  padding: 0 18px;
   background-color: transparent;
   border: 0;
-  border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px var(--rule-2);
+  border-radius: var(--radius-control);
   color: var(--ink);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-size: var(--fs-nav);
+  font-weight: var(--fw-medium);
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 120ms ease,
-    box-shadow 120ms ease,
-    color 120ms ease,
-    opacity 120ms ease;
+    background-color var(--dur-press),
+    box-shadow var(--dur-press),
+    color var(--dur-press),
+    opacity var(--dur-press);
 }
 
 .btn-sm {
-  padding: 4px 9px;
-  font-size: 12px;
+  min-height: var(--control-sm);
+  padding: 0 14px;
+  font-size: var(--fs-ui);
 }
 
 .btn-md {
-  padding: 7px 13px;
-  font-size: 13px;
+  min-height: var(--control-md);
 }
 
 .btn-lg {
-  padding: 10px 18px;
-  font-size: 14px;
+  min-height: var(--control-lg);
+  padding: 0 20px;
+  font-size: var(--fs-body);
 }
 
 .btn-block {
   width: 100%;
 }
 
-.btn:hover:not(:disabled) {
+.btn:hover:not(:disabled),
+.btn-secondary:hover:not(:disabled) {
   box-shadow: inset 0 0 0 1px var(--ink);
+  color: var(--ink);
 }
 
 .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 .btn-primary {
-  background-color: var(--ink);
+  background-color: var(--action-bg);
   box-shadow: none;
-  color: var(--paper);
+  color: var(--action-fg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--ink-2);
+  background-color: var(--action-bg-hover);
+  box-shadow: none;
+  color: var(--action-fg);
 }
 
-/* The thread is never a fill: danger is an outlined vermilion action. */
+.btn-secondary {
+  box-shadow: inset 0 0 0 1px var(--border-2);
+}
+
 .btn-danger {
   box-shadow: inset 0 0 0 1px var(--thread);
   color: var(--thread-ink);
@@ -106,15 +121,17 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
 .btn-danger:hover:not(:disabled) {
   background-color: var(--thread-wash);
   box-shadow: inset 0 0 0 1px var(--thread);
+  color: var(--thread-ink);
 }
 
 .btn-ghost {
   box-shadow: none;
-  color: var(--ink-2);
+  color: var(--text-2);
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background-color: var(--paper-2);
+  background-color: var(--surface-sunken);
+  box-shadow: none;
   color: var(--ink);
 }
 </style>

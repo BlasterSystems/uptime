@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { deleteChannel, errorMessage, fetchChannels, testChannel } from '../api.js'
 import type { Channel, ChannelType } from '../api.js'
 import ChannelForm from '../components/ChannelForm.vue'
+import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
@@ -100,7 +101,7 @@ onMounted(() => {
         </Button>
       </header>
 
-      <p v-if="loadError !== null" class="banner" role="alert">{{ loadError }}</p>
+      <AlertRow v-if="loadError !== null">{{ loadError }}</AlertRow>
 
       <Table :columns="columns" :rows="channels" :loading="!loadedOnce" :row-key="(row) => row.id">
         <template #empty>
@@ -231,14 +232,6 @@ onMounted(() => {
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
-}
-
-.banner {
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
-  border-bottom: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  color: var(--thread-ink);
-  font-size: 13px;
 }
 
 .hint {
