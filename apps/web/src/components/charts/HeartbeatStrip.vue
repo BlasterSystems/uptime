@@ -44,7 +44,7 @@ withDefaults(
   height: 26px;
   background-color: var(--paper-2);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
 }
 
 .tone-up {

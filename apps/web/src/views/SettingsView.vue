@@ -1643,7 +1643,7 @@ onMounted(() => {
 }
 
 .text-note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
@@ -1658,9 +1658,9 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
 }
 
 .copy-value {
@@ -1675,9 +1675,9 @@ onMounted(() => {
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
 }
 
 .recovery-head {

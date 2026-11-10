@@ -108,9 +108,9 @@ async function submit(): Promise<void> {
 
 .error {
   padding: var(--space-2) var(--space-3);
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  border-radius: var(--radius-sm);
+  background-color: var(--accent-wash);
+  border: 1px solid color-mix(in srgb, var(--thread) 40%, transparent);
+  border-radius: var(--radius-control);
   color: var(--thread-ink);
   font-size: 13px;
 }

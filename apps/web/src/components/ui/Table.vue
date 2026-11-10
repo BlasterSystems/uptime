@@ -172,7 +172,7 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover td {
-  background-color: var(--surface-2);
+  background-color: var(--surface-sunken);
 }
 
 .align-right {
@@ -198,7 +198,7 @@ tbody tr:hover td {
 }
 
 .sort-button:hover {
-  color: var(--fg);
+  color: var(--text-1);
 }
 
 .sort-button.align-right {
@@ -217,7 +217,7 @@ tbody tr:hover td {
 
 .table-status {
   padding: var(--space-5);
-  color: var(--muted);
+  color: var(--text-2);
   text-align: center;
 }
 

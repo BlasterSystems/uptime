@@ -144,8 +144,8 @@ watch(slug, () => void load())
 <style scoped>
 .archive-shell {
   min-height: 100vh;
-  background-color: var(--bg);
-  color: var(--fg);
+  background-color: var(--surface-page);
+  color: var(--text-1);
 }
 
 .archive-main {
@@ -165,13 +165,13 @@ watch(slug, () => void load())
 }
 
 .back-link {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
   text-decoration: none;
 }
 
 .back-link:hover {
-  color: var(--fg);
+  color: var(--text-1);
 }
 
 .archive-title {
@@ -185,14 +185,14 @@ watch(slug, () => void load())
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-7) 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
 .panel {
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -212,7 +212,7 @@ watch(slug, () => void load())
 
 .state-text {
   max-width: 46ch;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13.5px;
 }
 
@@ -239,9 +239,9 @@ watch(slug, () => void load())
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-4);
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -262,7 +262,7 @@ watch(slug, () => void load())
   display: flex;
   flex-wrap: wrap;
   gap: 2px var(--space-3);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 </style>

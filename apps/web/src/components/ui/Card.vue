@@ -44,7 +44,7 @@ withDefaults(
   min-width: 0;
   background-color: var(--card);
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
+  border-radius: var(--radius-panel);
 }
 
 .card-head {

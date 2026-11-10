@@ -1621,11 +1621,11 @@ async function copyPushUrl(): Promise<void> {
   flex-direction: column;
   gap: var(--space-2);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-1);
 }
 
 .section-title {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -1633,7 +1633,7 @@ async function copyPushUrl(): Promise<void> {
 }
 
 .section-note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
@@ -1645,7 +1645,7 @@ async function copyPushUrl(): Promise<void> {
   padding: 0;
   background: none;
   border: 0;
-  color: var(--fg);
+  color: var(--text-1);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -1662,14 +1662,14 @@ async function copyPushUrl(): Promise<void> {
   min-width: 0;
   margin: 0;
   padding: var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
 }
 
 .picker-title {
   padding: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -1701,7 +1701,7 @@ async function copyPushUrl(): Promise<void> {
 }
 
 .picker-empty {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12.5px;
 }
 
@@ -1718,7 +1718,7 @@ async function copyPushUrl(): Promise<void> {
   padding: 3px 10px;
   background-color: transparent;
   border: 1px solid var(--rule-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink-2);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1775,7 +1775,7 @@ async function copyPushUrl(): Promise<void> {
 }
 
 .created-copy {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
@@ -1784,9 +1784,9 @@ async function copyPushUrl(): Promise<void> {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
 }
 
 .copy-value {

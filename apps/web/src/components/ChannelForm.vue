@@ -357,7 +357,7 @@ function textValue(key: string): string {
   flex-direction: column;
   gap: var(--space-4);
   padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border-1);
 }
 
 .form-error {

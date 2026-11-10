@@ -203,7 +203,7 @@ async function handleSignOut(): Promise<void> {
 .shell {
   display: flex;
   min-height: 100vh;
-  background-color: var(--bg);
+  background-color: var(--surface-page);
 }
 
 /* Sidebar */
@@ -232,7 +232,7 @@ async function handleSignOut(): Promise<void> {
   overflow: hidden;
   color: var(--ink);
   text-decoration: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
 }
 
 .brand:hover .brand-name {
@@ -462,7 +462,7 @@ async function handleSignOut(): Promise<void> {
   padding: 4px 8px 4px 4px;
   background: none;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   color: var(--ink);
   cursor: pointer;
 }
@@ -509,7 +509,7 @@ async function handleSignOut(): Promise<void> {
 
 .menu-header {
   padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-1);
   margin-bottom: var(--space-2);
 }
 
@@ -522,7 +522,7 @@ async function handleSignOut(): Promise<void> {
 }
 
 .menu-role {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   text-transform: capitalize;
 }

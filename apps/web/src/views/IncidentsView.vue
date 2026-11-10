@@ -265,15 +265,15 @@ onUnmounted(() => {
 }
 
 .tab-note {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 13px;
 }
 
 .panel {
   overflow: hidden;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 
@@ -289,7 +289,7 @@ onUnmounted(() => {
 }
 
 .cell-muted {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
@@ -302,7 +302,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 </style>

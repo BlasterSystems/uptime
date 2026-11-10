@@ -469,7 +469,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-6);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: var(--fs-small);
 }
 

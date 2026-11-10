@@ -641,7 +641,7 @@ onMounted(() => void refresh())
 
 .banner {
   padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
+  background-color: var(--accent-wash);
   color: var(--thread-ink);
   font-size: 13px;
 }
@@ -661,12 +661,12 @@ onMounted(() => void refresh())
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
 .muted-label {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
 }
 
@@ -705,7 +705,7 @@ onMounted(() => void refresh())
 
 .picker-title {
   padding: 0;
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 12px;
   font-weight: 500;
 }
@@ -715,9 +715,9 @@ onMounted(() => void refresh())
   margin: 0;
   padding: var(--space-1) var(--space-2);
   overflow-y: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
   list-style: none;
 }
 
@@ -726,13 +726,13 @@ onMounted(() => void refresh())
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-control);
   font-size: 13px;
   cursor: pointer;
 }
 
 .picker-row:hover {
-  background-color: var(--surface-hover);
+  background-color: var(--surface-sunken);
 }
 
 .picker-row input {
@@ -740,7 +740,7 @@ onMounted(() => void refresh())
 }
 
 .picker-group {
-  color: var(--muted);
+  color: var(--text-2);
   font-size: 11.5px;
 }
 

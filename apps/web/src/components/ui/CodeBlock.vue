@@ -74,13 +74,13 @@ pre {
   margin: 0;
   padding: var(--space-3) calc(var(--space-4) + 28px) var(--space-3) var(--space-3);
   overflow-x: auto;
-  background-color: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.6;
-  color: var(--fg);
+  color: var(--text-1);
   flex: 1;
   min-width: 0;
 }
@@ -100,15 +100,15 @@ code {
   width: 26px;
   height: 26px;
   padding: 0;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-1);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   cursor: pointer;
 }
 
 .copy-btn:hover {
-  color: var(--fg);
+  color: var(--text-1);
   border-color: var(--border-strong);
 }
 

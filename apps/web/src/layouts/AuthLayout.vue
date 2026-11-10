@@ -124,7 +124,7 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
   padding: var(--space-5);
   background-color: var(--card);
   border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-panel);
 }
 
 .auth-heading {

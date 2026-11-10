@@ -5,10 +5,9 @@
  * Two layers:
  *   1. DS palette tokens (`--paper`, `--ink`, `--rule`, `--thread`, …) — the
  *      design system's own names, identity v0.2 values in oklch, verbatim.
- *   2. Semantic role tokens. Canonical names follow DS v1.1 (`--surface-*`,
- *      `--text-*`, `--border-*`, `--action-*`, `--accent-*`). The old uptime
- *      role names (`--bg`, `--fg`, `--muted`, …) are temporary aliases kept
- *      for the migration and removed once nothing references them.
+ *   2. Semantic role tokens (`--surface-*`, `--text-*`, `--border-*`,
+ *      `--action-*`, `--accent-*`) that the components consume, mapped onto
+ *      the palette.
  *
  * The light palette is the default; the dark palette is applied either by the
  * OS preference (`prefers-color-scheme`) or by an explicit `data-theme`
@@ -152,53 +151,11 @@
   --accent-wash: var(--thread-wash);
 }
 
-/* Temporary aliases — the old uptime role names, kept until no consumer
- * references them (removed in UP-15). `--accent` deliberately keeps its OLD
- * uptime meaning (the ink action fill) for existing consumers; new code uses
- * `--action-bg` for action fills and `--accent` only for the thread. */
-:root {
-  --bg: var(--surface-page);
-  --surface: var(--surface-card);
-  --surface-2: var(--surface-sunken);
-  --surface-hover: var(--surface-sunken);
-  --border: var(--border-1);
-  --fg: var(--text-1);
-  --muted: var(--text-2);
-
-  --accent: var(--action-bg);
-  --accent-fg: var(--action-fg);
-  --accent-soft: var(--accent-wash);
-
-  /* States are shapes first, colour second: up = recorded ink, down = thread,
-   * pending/degraded = muted. */
-  --success: var(--ink);
-  --success-soft: var(--grid);
-  --warning: var(--ink-2);
-  --warning-soft: var(--paper-2);
-  --error: var(--thread);
-  --error-soft: var(--thread-wash);
-
-  --overlay: rgb(5 7 10 / 0.45);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --overlay: rgb(5 7 10 / 0.62);
-  }
-}
-
-:root[data-theme='dark'] {
-  --overlay: rgb(5 7 10 / 0.62);
-}
-
 /* --- 3. Geometry, depth, type -------------------------------------------- */
 
 :root {
   --radius-control: 2px;
   --radius-panel: 4px;
-  --radius-sm: 2px;
-  --radius: 4px;
-  --radius-lg: 4px;
   --shadow: none;
   --shadow-lg: none;
 
@@ -461,7 +418,7 @@ textarea.control {
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-2);
 }
 
 #app {
