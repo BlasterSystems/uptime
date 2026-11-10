@@ -51,6 +51,7 @@ import MaintenanceWindowForm from '../components/MaintenanceWindowForm.vue'
 import StatusPageForm from '../components/StatusPageForm.vue'
 import StatusIncidentsPanel from '../components/StatusIncidentsPanel.vue'
 import StatusSubscriptionsPanel from '../components/StatusSubscriptionsPanel.vue'
+import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import Card from '../components/ui/Card.vue'
@@ -946,7 +947,7 @@ onMounted(() => {
             </Button>
           </template>
 
-          <p v-if="keysError !== null" class="banner" role="alert">{{ keysError }}</p>
+          <AlertRow v-if="keysError !== null">{{ keysError }}</AlertRow>
 
           <Table
             :columns="keyColumns"
@@ -1020,7 +1021,7 @@ onMounted(() => {
             </Button>
           </template>
 
-          <p v-if="statusPagesError !== null" class="banner" role="alert">{{ statusPagesError }}</p>
+          <AlertRow v-if="statusPagesError !== null">{{ statusPagesError }}</AlertRow>
 
           <Table
             :columns="statusPageColumns"
@@ -1122,7 +1123,7 @@ onMounted(() => {
             </Button>
           </template>
 
-          <p v-if="maintenanceError !== null" class="banner" role="alert">{{ maintenanceError }}</p>
+          <AlertRow v-if="maintenanceError !== null">{{ maintenanceError }}</AlertRow>
 
           <Table
             :columns="maintenanceColumns"
@@ -1201,9 +1202,7 @@ onMounted(() => {
             </Button>
           </template>
 
-          <p v-if="dockerHostsError !== null" class="banner" role="alert">
-            {{ dockerHostsError }}
-          </p>
+          <AlertRow v-if="dockerHostsError !== null">{{ dockerHostsError }}</AlertRow>
 
           <Table
             :columns="dockerHostColumns"
@@ -1267,7 +1266,7 @@ onMounted(() => {
           description="Only administrators can manage user access."
         />
         <div v-else class="stack">
-          <p v-if="usersError !== null" class="banner" role="alert">{{ usersError }}</p>
+          <AlertRow v-if="usersError !== null">{{ usersError }}</AlertRow>
 
           <Card title="Users" subtitle="Accounts with dashboard access. Password resets sign the user out everywhere.">
             <template #actions>
@@ -1332,7 +1331,7 @@ onMounted(() => {
         </EmptyState>
 
         <Card v-else title="Application" subtitle="Instance title and reporting timezone.">
-          <p v-if="settingsError !== null" class="banner" role="alert">{{ settingsError }}</p>
+          <AlertRow v-if="settingsError !== null">{{ settingsError }}</AlertRow>
 
           <div v-if="!settingsLoaded" class="loading-row">
             <Spinner size="sm" />
@@ -1376,7 +1375,7 @@ onMounted(() => {
           title="Email delivery"
           subtitle="Transactional email via Resend: password recovery and test sends. The API key is stored encrypted and never returned."
         >
-          <p v-if="mailerError !== null" class="banner" role="alert">{{ mailerError }}</p>
+          <AlertRow v-if="mailerError !== null">{{ mailerError }}</AlertRow>
 
           <div v-if="!mailerLoaded" class="loading-row">
             <Spinner size="sm" />
@@ -1738,13 +1737,6 @@ onMounted(() => {
 
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-.banner {
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
-  color: var(--thread-ink);
-  font-size: 13px;
 }
 
 .form-error {

@@ -33,13 +33,13 @@ import { dismissToast, toasts } from './toast.js'
 <style scoped>
 .toast-stack {
   position: fixed;
-  top: var(--space-4);
-  right: var(--space-4);
+  left: var(--space-4);
+  bottom: var(--space-4);
   z-index: 60;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   gap: var(--space-2);
-  width: min(360px, calc(100vw - var(--space-6)));
+  width: min(340px, calc(100vw - var(--space-6)));
   pointer-events: none;
 }
 
@@ -47,13 +47,13 @@ import { dismissToast, toasts } from './toast.js'
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  background-color: var(--card);
-  border: 1px solid var(--rule);
-  border-left: 2px solid var(--ink-2);
-  border-radius: var(--radius);
+  padding: 14px 16px;
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--border-2);
+  border-left: 2px solid var(--text-2);
+  border-radius: var(--radius-panel);
   pointer-events: auto;
-  animation: toast-in 160ms ease-out;
+  animation: toast-in var(--dur-ui) var(--ease-out);
 }
 
 .toast-success {
@@ -67,18 +67,23 @@ import { dismissToast, toasts } from './toast.js'
 .toast-content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .toast-title {
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label-sm);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
 }
 
 .toast-message {
-  color: var(--muted);
-  font-size: 12.5px;
+  color: var(--ink);
+  font-size: var(--fs-ui);
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
@@ -93,20 +98,19 @@ import { dismissToast, toasts } from './toast.js'
   padding: 0;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   cursor: pointer;
 }
 
 .toast-dismiss:hover {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  color: var(--accent-text);
 }
 
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(4px);
   }
 }
 </style>

@@ -126,17 +126,18 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* DS v1.1 overlays: a paper-wash scrim (not a dark veil) and a card dialog
+ * with a rule-2 hairline, 4px corners and 20px padding. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: var(--space-6) var(--space-4);
+  display: grid;
+  place-items: center;
+  padding: var(--space-5) var(--space-4);
   overflow-y: auto;
-  background-color: var(--overlay);
-  animation: backdrop-in 120ms ease-out;
+  background-color: color-mix(in oklch, var(--paper) 72%, transparent);
+  animation: backdrop-in var(--dur-ui) ease-out;
 }
 
 .modal-panel {
@@ -145,15 +146,14 @@ onBeforeUnmount(() => {
   width: 100%;
   max-height: calc(100vh - var(--space-7));
   margin: auto 0;
-  background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: panel-in 140ms ease-out;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-panel);
+  animation: panel-in var(--dur-ui) var(--ease-out);
 }
 
 .modal-sm {
-  max-width: 420px;
+  max-width: 440px;
 }
 
 .modal-md {
@@ -168,13 +168,15 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-4) 0;
+  padding: var(--space-5) var(--space-5) 0;
 }
 
 .modal-title {
   min-width: 0;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 19px;
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .modal-close {
@@ -187,19 +189,19 @@ onBeforeUnmount(() => {
   padding: 0;
   background: none;
   border: 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  border-radius: var(--radius-control);
+  color: var(--text-2);
   cursor: pointer;
 }
 
 .modal-close:hover {
-  background-color: var(--surface-hover);
-  color: var(--fg);
+  background-color: var(--surface-sunken);
+  color: var(--ink);
 }
 
 .modal-body {
   min-width: 0;
-  padding: var(--space-4);
+  padding: var(--space-5);
   overflow-y: auto;
 }
 
@@ -207,7 +209,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
-  padding: 0 var(--space-4) var(--space-4);
+  padding: 0 var(--space-5) var(--space-5);
 }
 
 @keyframes backdrop-in {
@@ -219,7 +221,7 @@ onBeforeUnmount(() => {
 @keyframes panel-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(4px);
   }
 }
 

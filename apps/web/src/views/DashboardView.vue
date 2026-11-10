@@ -5,6 +5,7 @@ import { deleteMonitor, errorMessage, fetchMonitors, fetchTags } from '../api.js
 import type { Monitor, Tag } from '../api.js'
 import MonitorCard from '../components/MonitorCard.vue'
 import MonitorForm from '../components/MonitorForm.vue'
+import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
@@ -269,7 +270,7 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <p v-if="loadError !== null" class="banner" role="alert">{{ loadError }}</p>
+    <AlertRow v-if="loadError !== null">{{ loadError }}</AlertRow>
 
     <div v-if="!loadedOnce" class="loading">
       <Spinner />
@@ -460,15 +461,6 @@ onUnmounted(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-}
-
-.banner {
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  border-radius: var(--radius);
-  color: var(--thread-ink);
-  font-size: 13px;
 }
 
 .loading {

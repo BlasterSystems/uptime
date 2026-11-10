@@ -24,6 +24,7 @@ import ResponseChart from '../components/charts/ResponseChart.vue'
 import HeartbeatStrip from '../components/charts/HeartbeatStrip.vue'
 import type { ChartMarker, LatencyPoint, StripCell, StripTone } from '../components/charts/types.js'
 import MonitorForm from '../components/MonitorForm.vue'
+import AlertRow from '../components/ui/AlertRow.vue'
 import Badge from '../components/ui/Badge.vue'
 import Button from '../components/ui/Button.vue'
 import ConfirmDialog from '../components/ui/ConfirmDialog.vue'
@@ -472,7 +473,7 @@ onUnmounted(() => {
 
     <template v-else>
       <div v-if="loadError !== null" class="banner-row">
-        <p class="banner" role="alert">{{ loadError }}</p>
+        <AlertRow class="banner-grow">{{ loadError }}</AlertRow>
         <Button variant="secondary" size="sm" @click="retry">Retry</Button>
       </div>
 
@@ -664,14 +665,9 @@ onUnmounted(() => {
   gap: var(--space-3);
 }
 
-.banner {
-  flex-grow: 1;
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--error-soft);
-  border: 1px solid color-mix(in srgb, var(--error) 40%, transparent);
-  border-radius: var(--radius);
-  color: var(--thread-ink);
-  font-size: 13px;
+.banner-grow {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .panel {
