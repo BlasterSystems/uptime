@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import {
-  DOCKER_CONTAINER_STATES,
   DNS_RECORD_TYPES,
   GROUP_STRATEGIES,
   HTTP_METHODS,
@@ -10,15 +9,12 @@ import {
   createMonitor,
   errorMessage,
   fetchChannels,
-  fetchDockerHosts,
   fetchMonitors,
   fetchTags,
   updateMonitor,
 } from '../api.js'
 import type {
   Channel,
-  DockerContainerState,
-  DockerHost,
   DnsRecordType,
   GroupStrategy,
   HttpMethod,
@@ -77,10 +73,6 @@ const TYPE_GROUPS = [
     ],
   },
   {
-    label: 'Docker',
-    options: [{ value: 'docker', label: 'Docker — watch a container' }],
-  },
-  {
     label: 'Group',
     options: [{ value: 'group', label: 'Group — combine other monitors' }],
   },
@@ -94,10 +86,6 @@ const ACCEPTED_STATUS_OPTIONS = [
 const DNS_RECORD_OPTIONS = DNS_RECORD_TYPES.map((recordType) => ({
   value: recordType,
   label: recordType,
-}))
-const DOCKER_STATE_OPTIONS = DOCKER_CONTAINER_STATES.map((state) => ({
-  value: state,
-  label: state,
 }))
 const GROUP_STRATEGY_OPTIONS = [
   { value: 'any-up', label: 'Any member up' },
@@ -156,14 +144,6 @@ function defaultFormState() {
     redisConnectionString: '',
     redisQuery: 'PING',
     redisTimeoutMs: '10000',
-    dockerHostUri: '',
-    dockerContainer: '',
-    dockerExpectedState: 'running' as DockerContainerState,
-    dockerTlsOpen: false,
-    dockerTlsCa: '',
-    dockerTlsCert: '',
-    dockerTlsKey: '',
-    dockerTimeoutMs: '10000',
     groupMemberIds: [] as number[],
     groupStrategy: 'any-up' as GroupStrategy,
     groupPercentage: '80',
@@ -177,15 +157,6 @@ const optionsLoading = ref(false)
 const optionsError = ref<string | null>(null)
 const tags = ref<Tag[]>([])
 const channels = ref<Channel[]>([])
-const dockerHosts = ref<DockerHost[]>([])
-
-const dockerHostOptions = computed(() =>
-  dockerHosts.value.map((host) => ({ value: host.uri, label: host.name })),
-)
-
-function applyDockerHost(uri: string): void {
-  if (uri !== '') form.dockerHostUri = uri
-}
 const monitors = ref<Monitor[]>([])
 const selectedChannelIds = ref<number[]>([])
 const submitting = ref(false)
@@ -301,16 +272,6 @@ function isValidCron(value: string): boolean {
   return fields.every((field) => /^[0-9*/,-]+$/.test(field))
 }
 
-function isDockerHostUri(value: string): boolean {
-  if (value.startsWith('unix://')) return value.length > 'unix://'.length
-  if (!value.startsWith('tcp://')) return false
-  try {
-    return new URL(value).hostname !== ''
-  } catch {
-    return false
-  }
-}
-
 function timeoutValue(value: number | undefined): string {
   return value === undefined ? '10000' : String(value)
 }
@@ -332,11 +293,6 @@ function setAcceptedMode(value: string): void {
 function setDnsRecordType(value: string): void {
   const next = pickOption(DNS_RECORD_TYPES, value)
   if (next !== null) form.dnsRecordType = next
-}
-
-function setDockerState(value: string): void {
-  const next = pickOption(DOCKER_CONTAINER_STATES, value)
-  if (next !== null) form.dockerExpectedState = next
 }
 
 function setGroupStrategy(value: string): void {
@@ -586,39 +542,6 @@ function buildRedisConfig(): Record<string, unknown> | null {
   }
 }
 
-function buildDockerConfig(): Record<string, unknown> | null {
-  const hostUri = form.dockerHostUri.trim()
-  errors.dockerHostUri = isDockerHostUri(hostUri)
-    ? null
-    : 'Enter a unix:// path or a tcp://host:port URL.'
-
-  const container = form.dockerContainer.trim()
-  errors.dockerContainer = container === '' ? 'Enter the container name or id.' : null
-  const timeoutMs = integerAtLeast(form.dockerTimeoutMs, 1)
-  errors.dockerTimeoutMs = timeoutMs === null ? 'Enter a timeout of at least 1 ms.' : null
-
-  if (
-    errors.dockerHostUri !== null ||
-    errors.dockerContainer !== null ||
-    errors.dockerTimeoutMs !== null
-  ) {
-    return null
-  }
-
-  const tlsCaPem = form.dockerTlsCa.trim()
-  const tlsCertPem = form.dockerTlsCert.trim()
-  const tlsKeyPem = form.dockerTlsKey.trim()
-  return {
-    hostUri,
-    containerNameOrId: container,
-    expectedState: form.dockerExpectedState,
-    timeoutMs,
-    ...(tlsCaPem === '' ? {} : { tlsCaPem }),
-    ...(tlsCertPem === '' ? {} : { tlsCertPem }),
-    ...(tlsKeyPem === '' ? {} : { tlsKeyPem }),
-  }
-}
-
 function buildGroupConfig(): Record<string, unknown> | null {
   errors.groupMembers =
     form.groupMemberIds.length === 0 ? 'Select at least one member monitor.' : null
@@ -676,8 +599,6 @@ function buildConfig(): Record<string, unknown> | null {
       return buildMongodbConfig()
     case 'redis':
       return buildRedisConfig()
-    case 'docker':
-      return buildDockerConfig()
     case 'group':
       return buildGroupConfig()
   }
@@ -785,21 +706,6 @@ function prefillFrom(monitor: Monitor): void {
       form.redisTimeoutMs = timeoutValue(config.timeoutMs)
       break
     }
-    case 'docker': {
-      const config = monitor.config
-      form.dockerHostUri = config.hostUri
-      form.dockerContainer = config.containerNameOrId
-      form.dockerExpectedState = config.expectedState ?? 'running'
-      form.dockerTlsOpen =
-        config.tlsCaPem !== undefined ||
-        config.tlsCertPem !== undefined ||
-        config.tlsKeyPem !== undefined
-      form.dockerTlsCa = config.tlsCaPem ?? ''
-      form.dockerTlsCert = config.tlsCertPem ?? ''
-      form.dockerTlsKey = config.tlsKeyPem ?? ''
-      form.dockerTimeoutMs = timeoutValue(config.timeoutMs)
-      break
-    }
     case 'group': {
       const config = monitor.config
       form.groupMemberIds = [...config.memberIds]
@@ -822,14 +728,12 @@ async function loadOptions(): Promise<void> {
   optionsLoading.value = true
   optionsError.value = null
   try {
-    const [loadedTags, loadedChannels, loadedMonitors, loadedDockerHosts] = await Promise.all([
+    const [loadedTags, loadedChannels, loadedMonitors] = await Promise.all([
       fetchTags(),
       fetchChannels(),
       fetchMonitors(),
-      fetchDockerHosts(),
     ])
     tags.value = loadedTags
-    dockerHosts.value = loadedDockerHosts
     channels.value = loadedChannels
     monitors.value = loadedMonitors
   } catch (error) {
@@ -1373,92 +1277,6 @@ async function copyPushUrl(): Promise<void> {
             mono
             hint="Command sent after connecting."
           />
-        </div>
-      </template>
-
-      <template v-else-if="form.type === 'docker'">
-        <div class="form-grid">
-          <Select
-            v-if="dockerHosts.length > 0"
-            label="Registered Docker hosts"
-            :options="dockerHostOptions"
-            placeholder="Pick a saved host…"
-            hint="Fills the URI from a host saved under Settings → Docker hosts."
-            @update:model-value="applyDockerHost"
-          />
-          <Input
-            v-model="form.dockerHostUri"
-            label="Docker host"
-            placeholder="unix:///var/run/docker.sock"
-            autocomplete="off"
-            mono
-            hint="unix:///path/to/docker.sock or tcp://host:2376."
-            :error="errors.dockerHostUri"
-            required
-          />
-          <Input
-            v-model="form.dockerContainer"
-            label="Container"
-            placeholder="web"
-            autocomplete="off"
-            :error="errors.dockerContainer"
-            required
-          />
-        </div>
-        <div class="form-grid">
-          <Select
-            :model-value="form.dockerExpectedState"
-            label="Expected state"
-            :options="DOCKER_STATE_OPTIONS"
-            @update:model-value="setDockerState"
-          />
-          <Input
-            v-model="form.dockerTimeoutMs"
-            label="Timeout"
-            type="number"
-            min="1"
-            step="500"
-            hint="Inspect timeout in milliseconds."
-            :error="errors.dockerTimeoutMs"
-          />
-        </div>
-        <div class="section">
-          <button
-            type="button"
-            class="disclosure"
-            :aria-expanded="form.dockerTlsOpen"
-            @click="form.dockerTlsOpen = !form.dockerTlsOpen"
-          >
-            <Icon :name="form.dockerTlsOpen ? 'chevron-down' : 'chevron-right'" :size="14" />
-            TLS certificates
-          </button>
-          <div v-if="form.dockerTlsOpen" class="stack-sm">
-            <p class="section-note">
-              Only needed for TLS-protected tcp:// endpoints. All PEM values are stored encrypted at
-              rest.
-            </p>
-            <Textarea
-              v-model="form.dockerTlsCa"
-              label="CA bundle (PEM)"
-              :rows="3"
-              mono
-              hint="Stored encrypted at rest."
-            />
-            <Textarea
-              v-model="form.dockerTlsCert"
-              label="Client certificate (PEM)"
-              :rows="3"
-              mono
-              hint="Stored encrypted at rest."
-            />
-            <Textarea
-              v-model="form.dockerTlsKey"
-              label="Client key (PEM)"
-              :rows="3"
-              mono
-              hint="Stored encrypted at rest."
-            />
-          </div>
         </div>
       </template>
 

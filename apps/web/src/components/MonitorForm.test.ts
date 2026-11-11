@@ -11,7 +11,6 @@ vi.mock('../api.js', async (importOriginal) => {
     updateMonitor: vi.fn(),
     fetchTags: vi.fn(async () => []),
     fetchChannels: vi.fn(async () => []),
-    fetchDockerHosts: vi.fn(async () => []),
     fetchMonitors: vi.fn(async () => []),
   }
 })

@@ -7,14 +7,12 @@ import {
   createApiKey,
   createUser,
   deleteApiKey,
-  deleteDockerHost,
   deleteUser,
   deleteMaintenanceWindow,
   deleteStatusPage,
   disableTotp,
   errorMessage,
   fetchApiKeys,
-  fetchDockerHosts,
   fetchMailer,
   fetchMaintenanceWindows,
   fetchMonitors,
@@ -32,7 +30,6 @@ import {
 import type {
   ApiKey,
   ApiKeyScope,
-  DockerHost,
   MailerSettings,
   MaintenanceScope,
   MaintenanceStrategy,
@@ -46,7 +43,6 @@ import type {
 import { useAuth } from '../auth.js'
 import { copyText } from '../clipboard.js'
 import { formatDateTime } from '../format.js'
-import DockerHostForm from '../components/DockerHostForm.vue'
 import MaintenanceWindowForm from '../components/MaintenanceWindowForm.vue'
 import StatusPageForm from '../components/StatusPageForm.vue'
 import StatusIncidentsPanel from '../components/StatusIncidentsPanel.vue'
@@ -84,7 +80,6 @@ const TABS = [
   { id: 'status-incidents', label: 'Status incidents' },
   { id: 'subscriptions', label: 'Subscriptions' },
   { id: 'maintenance', label: 'Maintenance' },
-  { id: 'docker-hosts', label: 'Docker hosts' },
   { id: 'general', label: 'General' },
 ] as const
 
@@ -452,66 +447,6 @@ async function confirmMaintenanceDelete(): Promise<void> {
   }
 }
 
-/* Docker hosts */
-
-const dockerHosts = ref<DockerHost[]>([])
-const dockerHostsLoaded = ref(false)
-const dockerHostsError = ref<string | null>(null)
-const dockerHostFormOpen = ref(false)
-const editingDockerHost = ref<DockerHost | null>(null)
-const pendingDockerHostDelete = ref<DockerHost | null>(null)
-const deletingDockerHost = ref(false)
-
-const dockerHostColumns: TableColumn<DockerHost>[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'uri', label: 'URI' },
-  { key: 'hasTls', label: 'TLS', width: '110px' },
-  { key: 'createdAt', label: 'Created', sortable: true, width: '170px' },
-  { key: 'actions', label: '', align: 'right', width: '150px' },
-]
-
-async function loadDockerHosts(): Promise<void> {
-  try {
-    dockerHosts.value = await fetchDockerHosts()
-    dockerHostsError.value = null
-  } catch (error) {
-    dockerHostsError.value = errorMessage(error, 'Could not load Docker hosts.')
-  } finally {
-    dockerHostsLoaded.value = true
-  }
-}
-
-function openDockerHostForm(host: DockerHost | null): void {
-  editingDockerHost.value = host
-  dockerHostFormOpen.value = true
-}
-
-function closeDockerHostForm(): void {
-  dockerHostFormOpen.value = false
-  editingDockerHost.value = null
-}
-
-async function onDockerHostSaved(): Promise<void> {
-  toast.success(editingDockerHost.value === null ? 'Docker host added' : 'Docker host updated')
-  await loadDockerHosts()
-}
-
-async function confirmDockerHostDelete(): Promise<void> {
-  if (pendingDockerHostDelete.value === null) return
-  const host = pendingDockerHostDelete.value
-  deletingDockerHost.value = true
-  try {
-    await deleteDockerHost(host.id)
-    toast.success('Docker host deleted', host.name)
-    pendingDockerHostDelete.value = null
-    await loadDockerHosts()
-  } catch (error) {
-    toast.error('Could not delete the Docker host', errorMessage(error, 'Try again.'))
-  } finally {
-    deletingDockerHost.value = false
-  }
-}
-
 /* Users (admin) */
 
 const users = ref<ManagedUser[]>([])
@@ -755,7 +690,6 @@ watch(tab, (value) => {
   if (value === 'api-keys' && isAdmin.value && !keysLoaded.value) void loadApiKeys()
   if (value === 'status-pages' && isAdmin.value && !statusPagesLoaded.value) void loadStatusPages()
   if (value === 'maintenance' && isAdmin.value && !maintenanceLoaded.value) void loadMaintenance()
-  if (value === 'docker-hosts' && isAdmin.value && !dockerHostsLoaded.value) void loadDockerHosts()
   if (value === 'users' && isAdmin.value && !usersLoaded.value) void loadUsers()
   if (value === 'general' && isAdmin.value) {
     if (!settingsLoaded.value) void loadSettings()
@@ -1180,85 +1114,6 @@ onMounted(() => {
         </Card>
       </template>
 
-      <template #tab-docker-hosts>
-        <EmptyState
-          v-if="!isAdmin"
-          title="Administrator role required"
-          description="Only administrators can manage Docker hosts."
-        >
-          <template #icon><Icon name="settings" :size="18" /></template>
-        </EmptyState>
-
-        <Card
-          v-else
-          title="Docker hosts"
-          subtitle="Reusable Docker endpoints with optional TLS material."
-          padding="none"
-        >
-          <template #actions>
-            <Button variant="primary" size="sm" @click="openDockerHostForm(null)">
-              <Icon name="plus" :size="14" />
-              Add host
-            </Button>
-          </template>
-
-          <AlertRow v-if="dockerHostsError !== null">{{ dockerHostsError }}</AlertRow>
-
-          <Table
-            :columns="dockerHostColumns"
-            :rows="dockerHosts"
-            :loading="!dockerHostsLoaded"
-            :row-key="(row) => row.id"
-          >
-            <template #empty>
-              <EmptyState
-                title="No Docker hosts"
-                description="Add a host so container monitors can inspect it over the Docker API."
-              />
-            </template>
-
-            <template #cell-name="{ row }">
-              <span class="cell-strong">{{ row.name }}</span>
-            </template>
-
-            <template #cell-uri="{ row }">
-              <code class="mono">{{ row.uri }}</code>
-            </template>
-
-            <template #cell-hasTls="{ row }">
-              <Badge :variant="row.hasTls ? 'success' : 'neutral'" dot>
-                {{ row.hasTls ? 'TLS' : 'Plain' }}
-              </Badge>
-            </template>
-
-            <template #cell-createdAt="{ row }">
-              <span class="tabular">{{ formatDateTime(row.createdAt) }}</span>
-            </template>
-
-            <template #cell-actions="{ row }">
-              <div class="row-actions">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  :aria-label="`Edit Docker host ${row.name}`"
-                  @click="openDockerHostForm(row)"
-                >
-                  Edit
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  :aria-label="`Delete Docker host ${row.name}`"
-                  @click="pendingDockerHostDelete = row"
-                >
-                  Delete
-                </Button>
-              </div>
-            </template>
-          </Table>
-        </Card>
-      </template>
-
       <template #tab-users>
         <EmptyState
           v-if="!isAdmin"
@@ -1516,13 +1371,6 @@ onMounted(() => {
       @close="closeMaintenanceForm"
     />
 
-    <DockerHostForm
-      :open="dockerHostFormOpen"
-      :host="editingDockerHost"
-      @saved="onDockerHostSaved"
-      @close="closeDockerHostForm"
-    />
-
     <ConfirmDialog
       :open="pendingStatusPageDelete !== null"
       title="Delete status page"
@@ -1551,21 +1399,6 @@ onMounted(() => {
       :loading="deletingMaintenance"
       @confirm="confirmMaintenanceDelete"
       @cancel="pendingMaintenanceDelete = null"
-    />
-
-    <ConfirmDialog
-      :open="pendingDockerHostDelete !== null"
-      title="Delete Docker host"
-      :message="
-        pendingDockerHostDelete === null
-          ? undefined
-          : `Monitors using “${pendingDockerHostDelete.name}” keep their inline host URI; the stored host and its TLS material are removed.`
-      "
-      confirm-label="Delete host"
-      danger
-      :loading="deletingDockerHost"
-      @confirm="confirmDockerHostDelete"
-      @cancel="pendingDockerHostDelete = null"
     />
 
     <Modal
