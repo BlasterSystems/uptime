@@ -1,7 +1,7 @@
 # Uptime Monitoring
 
 Self-hosted service monitoring in **one repository and one Docker image** (an optional
-second image adds remote agents): scheduled HTTP/docker probes, push heartbeats,
+second image adds remote agents): scheduled HTTP probes, push heartbeats,
 incidents with alerting, an embedded admin UI, public status pages and Prometheus
 metrics — SQLite-first, private by default.
 
@@ -34,15 +34,14 @@ Inspired by [Uptime-Kuma](https://github.com/louislam/uptime-kuma),
 
 ## Expectations
 
-- **Shipped (v1):** `http`, `push` and `group` monitors scheduled server-side, plus
-  `docker` monitors (unix socket, `tcp://`, TLS); probe engines for `tcp`, `dns`,
-  `icmp`, `postgres`, `mysql`, `mssql`, `mongodb` and `redis` (run by the optional
-  agent over WS-attempt/HTTP-fallback); auth with Argon2id + TOTP 2FA + recovery
-  codes + self-service email recovery (Resend); 8 notification channels (Telegram,
-  Discord, Slack, Email/SMTP, Email/Resend, ntfy, Gotify, webhook); incidents,
-  maintenance windows, realtime UI (SSE), status pages with manual/auto incidents,
-  Prometheus metrics, uptime rollups (hourly/daily), backup/restore, retention,
-  export/import and Uptime-Kuma import.
+- **Shipped (v1):** `http`, `push` and `group` monitors scheduled server-side; probe
+  engines for `tcp`, `dns`, `icmp`, `postgres`, `mysql`, `mssql`, `mongodb` and
+  `redis` (run by the optional agent over WS-attempt/HTTP-fallback); auth with
+  Argon2id + TOTP 2FA + recovery codes + self-service email recovery (Resend); 8
+  notification channels (Telegram, Discord, Slack, Email/SMTP, Email/Resend, ntfy,
+  Gotify, webhook); incidents, maintenance windows, realtime UI (SSE), status pages
+  with manual/auto incidents, Prometheus metrics, uptime rollups (hourly/daily),
+  backup/restore, retention, export/import and Uptime-Kuma import.
 - **Not yet (tracked in SPEC §14):** Postgres dialect, WebSocket hub,
   parent-dependency suppression, `upsideDown` semantics, server-side scheduling of
   the remaining engine types (they validate, store and run via the agent today).
@@ -163,8 +162,8 @@ services:
 ```
 
 `deploy/.env.example` documents the environment variables used by the compose
-deployment (port, seed flag, encryption key, agent token, `DOCKER_GID` for docker
-monitors, heartbeat retention: `RETENTION_DAYS` — 180 by default, pruned daily —
+deployment (port, seed flag, encryption key, agent token, heartbeat retention:
+`RETENTION_DAYS` — 180 by default, pruned daily —
 with `RETENTION_DISABLE=1` to opt out, and `TRUST_PROXY` — set it to `1` behind
 a reverse proxy so per-IP rate limits and `Secure` cookies see the real client).
 Releases are published from `v*` tags via
