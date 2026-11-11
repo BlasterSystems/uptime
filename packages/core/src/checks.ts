@@ -1,7 +1,5 @@
 import { execFile, type ExecFileException } from 'node:child_process'
 import { Resolver } from 'node:dns/promises'
-import { request as httpRequest, type ClientRequest, type RequestOptions } from 'node:http'
-import { request as httpsRequest } from 'node:https'
 import { Socket } from 'node:net'
 // mssql is CommonJS with dynamically built exports: only a default import resolves at runtime.
 import mssql from 'mssql'
