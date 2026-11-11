@@ -41,7 +41,6 @@ describe('monitorTarget', () => {
     expect(
       monitorTarget(monitor('postgres', { connectionString: 'postgres://u:p@db/svc' })),
     ).toBe('postgres://***@db/svc')
-    expect(monitorTarget(monitor('docker', { containerNameOrId: 'api-1' }))).toBe('api-1')
     expect(monitorTarget(monitor('group', { memberIds: [1, 2] }))).toBe('2 members')
     expect(monitorTarget(monitor('group', { memberIds: [1] }))).toBe('1 member')
   })

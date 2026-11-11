@@ -12,7 +12,6 @@ export const MONITOR_TYPE_LABELS: Record<MonitorType, string> = {
   mssql: 'SQL Server',
   mongodb: 'MongoDB',
   redis: 'Redis',
-  docker: 'Docker',
   group: 'Group',
 }
 
@@ -46,8 +45,6 @@ export function monitorTarget(monitor: Monitor): string {
     case 'mongodb':
     case 'redis':
       return maskConnectionString(monitor.config.connectionString)
-    case 'docker':
-      return monitor.config.containerNameOrId
     case 'group': {
       const count = monitor.config.memberIds.length
       return `${count} member${count === 1 ? '' : 's'}`

@@ -17,7 +17,6 @@ export type MonitorType =
   | 'mssql'
   | 'mongodb'
   | 'redis'
-  | 'docker'
   | 'group'
 export type HeartbeatStatus = 'up' | 'down' | 'pending' | 'maintenance'
 export type ChannelType =
@@ -52,25 +51,12 @@ export const MONITOR_TYPES: readonly MonitorType[] = [
   'mssql',
   'mongodb',
   'redis',
-  'docker',
   'group',
 ]
 
 /** Record types a `dns` monitor can resolve. */
 export const DNS_RECORD_TYPES = ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV'] as const
 export type DnsRecordType = (typeof DNS_RECORD_TYPES)[number]
-
-/** Container states a `docker` monitor can expect (`State.Status`). */
-export const DOCKER_CONTAINER_STATES = [
-  'running',
-  'exited',
-  'paused',
-  'created',
-  'restarting',
-  'removing',
-  'dead',
-] as const
-export type DockerContainerState = (typeof DOCKER_CONTAINER_STATES)[number]
 
 /** Strategies a `group` monitor can combine its members with. */
 export const GROUP_STRATEGIES = ['any-up', 'all-up', 'percentage'] as const
@@ -451,16 +437,6 @@ export interface RedisMonitorConfig {
   query?: string
 }
 
-export interface DockerMonitorConfig {
-  hostUri: string
-  containerNameOrId: string
-  expectedState?: DockerContainerState
-  tlsCaPem?: string
-  tlsCertPem?: string
-  tlsKeyPem?: string
-  timeoutMs?: number
-}
-
 export interface GroupMonitorConfig {
   memberIds: number[]
   strategy: GroupStrategy
@@ -479,7 +455,6 @@ export interface MonitorConfigMap {
   mssql: DatabaseMonitorConfig
   mongodb: MongodbMonitorConfig
   redis: RedisMonitorConfig
-  docker: DockerMonitorConfig
   group: GroupMonitorConfig
 }
 
@@ -516,25 +491,6 @@ export interface MonitorInput {
   tagIds?: number[]
   tags?: string[]
   channelIds?: number[]
-}
-
-/** A reusable Docker endpoint (`GET /docker-hosts`); TLS material is write-only. */
-export interface DockerHost {
-  id: number
-  name: string
-  uri: string
-  hasTls: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-/** Body of `POST /docker-hosts` / `PATCH /docker-hosts/:id`. */
-export interface DockerHostInput {
-  name?: string
-  uri?: string
-  tlsCa?: string
-  tlsCert?: string
-  tlsKey?: string
 }
 
 export interface Channel {
@@ -875,36 +831,6 @@ export async function fetchHeartbeats(id: number, limit = 100): Promise<Heartbea
 export async function fetchTags(): Promise<Tag[]> {
   const body = await request<{ tags?: Tag[] }>('/tags')
   return body.tags ?? []
-}
-
-/* Docker hosts */
-
-export async function fetchDockerHosts(): Promise<DockerHost[]> {
-  const body = await request<{ dockerHosts?: DockerHost[] }>('/docker-hosts')
-  return body.dockerHosts ?? []
-}
-
-export async function createDockerHost(input: DockerHostInput): Promise<DockerHost> {
-  const body = await request<{ dockerHost: DockerHost }>('/docker-hosts', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  })
-  return body.dockerHost
-}
-
-export async function updateDockerHost(id: number, input: DockerHostInput): Promise<DockerHost> {
-  const body = await request<{ dockerHost: DockerHost }>(
-    `/docker-hosts/${encodeURIComponent(String(id))}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify(input),
-    },
-  )
-  return body.dockerHost
-}
-
-export function deleteDockerHost(id: number): Promise<void> {
-  return request(`/docker-hosts/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
 }
 
 /* Notification channels */

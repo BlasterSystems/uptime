@@ -116,7 +116,6 @@ const configTable: { type: string; config: string }[] = [
   { type: 'dns', config: 'host, resolver?, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue?, timeoutMs' },
   { type: 'icmp', config: 'host, timeoutMs, packetCount (1-10) — container needs NET_RAW' },
   { type: 'postgres / mysql / mssql / mongodb / redis', config: 'connectionString, timeoutMs, query (default SELECT 1 / PING)' },
-  { type: 'docker', config: 'hostUri (unix:// or tcp://), containerNameOrId, expectedState (default "running"), tlsCaPem/tlsCertPem/tlsKeyPem' },
   { type: 'group', config: 'memberIds (≥1), strategy (any-up | all-up | percentage), percentage (required for percentage)' },
 ]
 
@@ -460,10 +459,9 @@ const limitsRows: { limit: string; value: string }[] = [
       </p>
       <CodeBlock label="Push monitor" :code="createPushSnippet" />
       <p>
-        <code>http</code> and <code>docker</code> monitors are actively
-        scheduled by the server; the other engine types (tcp, dns, icmp,
-        databases) validate and store, and execute on a
-        <a href="#agent">remote agent</a>.
+        <code>http</code> monitors are actively scheduled by the server; the
+        other engine types (tcp, dns, icmp, databases) validate and store, and
+        execute on a <a href="#agent">remote agent</a>.
         <code>group</code> monitors derive their status from members:
       </p>
       <CodeBlock label="Group monitor" :code="createGroupSnippet" />
@@ -496,10 +494,10 @@ const limitsRows: { limit: string; value: string }[] = [
       </p>
       <p>
         <strong>Which types run where.</strong> The server schedules
-        <code>http</code> and <code>docker</code> monitors itself. The agent
-        checks every active non-group monitor from its own vantage point —
-        including <code>http</code>, so an agent is a deliberate second vantage
-        point. The tcp, dns, icmp and database engines (postgres, mysql, mssql,
+        <code>http</code> monitors itself. The agent checks every active
+        non-group monitor from its own vantage point — including
+        <code>http</code>, so an agent is a deliberate second vantage point.
+        The tcp, dns, icmp and database engines (postgres, mysql, mssql,
         mongodb, redis) execute <em>only</em> on agents: those types stay
         <code>pending</code> until an agent reports them.
       </p>
@@ -649,8 +647,8 @@ const limitsRows: { limit: string; value: string }[] = [
       <p>
         Migrating from Uptime-Kuma: the repo ships a converter that turns
         Kuma's SQLite database into the import body (http, tcp, dns, icmp,
-        push, docker and the database engine types; history comes across as
-        heartbeats):
+        push and the database engine types; Kuma docker monitors are skipped;
+        history comes across as heartbeats):
       </p>
       <CodeBlock label="Kuma import" :code="kumaImportSnippet" />
     </section>
