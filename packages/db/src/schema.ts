@@ -64,18 +64,6 @@ export const settings = sqliteTable('settings', {
   value: text('value').notNull(),
 })
 
-/** `docker_hosts` — Docker endpoint credentials for `docker` monitors (SPEC §4). */
-export const dockerHosts = sqliteTable('docker_hosts', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
-  uri: text('uri').notNull(),
-  tlsCaEnc: text('tls_ca_enc'),
-  tlsCertEnc: text('tls_cert_enc'),
-  tlsKeyEnc: text('tls_key_enc'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-})
-
 export const USER_ROLES = ['admin', 'editor', 'viewer'] as const
 export type UserRole = (typeof USER_ROLES)[number]
 

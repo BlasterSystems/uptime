@@ -30,9 +30,6 @@ const ENCRYPTED_COLUMNS: readonly EncryptedColumn[] = [
   { table: 'users', column: 'totp_secret_enc' },
   { table: 'users', column: 'recovery_codes_enc' },
   { table: 'push_tokens', column: 'token_enc' },
-  { table: 'docker_hosts', column: 'tls_ca_enc' },
-  { table: 'docker_hosts', column: 'tls_cert_enc' },
-  { table: 'docker_hosts', column: 'tls_key_enc' },
 ]
 
 export interface RotateEncryptionKeyArgs {
@@ -118,7 +115,7 @@ const USAGE = [
   'Usage: rotate-key --db <database> --from <old-key> --to <new-key>',
   '',
   'Re-encrypts every secret column (notification configs, TOTP secrets, recovery',
-  'codes, push tokens, Docker TLS material) from the old key to the new one.',
+  'codes, push tokens) from the old key to the new one.',
   'Stop the server before rotating. Keys are 32 bytes: 64 hex chars, 44-char',
   'base64url/base64, or 32 raw bytes.',
 ].join('\n')

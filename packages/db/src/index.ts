@@ -29,7 +29,6 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import * as schema from './schema.js'
 import {
   apiKeys,
-  dockerHosts,
   heartbeats,
   heartbeatsDaily,
   heartbeatsHourly,
@@ -361,17 +360,6 @@ export interface MailerSettingsRow {
   updatedAt: Date
 }
 
-export interface DockerHostRow {
-  id: number
-  name: string
-  uri: string
-  tlsCaEnc: string | null
-  tlsCertEnc: string | null
-  tlsKeyEnc: string | null
-  createdAt: Date
-  updatedAt: Date
-}
-
 type MailerSettingsSelect = typeof mailerSettings.$inferSelect
 
 function toMailerSettingsRow(row: MailerSettingsSelect): MailerSettingsRow {
@@ -381,21 +369,6 @@ function toMailerSettingsRow(row: MailerSettingsSelect): MailerSettingsRow {
     apiKeyEnc: row.apiKeyEnc,
     fromAddress: row.fromAddress,
     enabled: row.enabled,
-    updatedAt: row.updatedAt,
-  }
-}
-
-type DockerHostSelect = typeof dockerHosts.$inferSelect
-
-function toDockerHostRow(row: DockerHostSelect): DockerHostRow {
-  return {
-    id: row.id,
-    name: row.name,
-    uri: row.uri,
-    tlsCaEnc: row.tlsCaEnc,
-    tlsCertEnc: row.tlsCertEnc,
-    tlsKeyEnc: row.tlsKeyEnc,
-    createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
 }
@@ -1931,77 +1904,6 @@ export class Database {
       .orderBy(asc(heartbeats.time), asc(heartbeats.id))
       .limit(limit)
       .all()
-  }
-
-  // ---- Docker hosts (SPEC §4) ----
-
-  createDockerHost(input: {
-    name: string
-    uri: string
-    tlsCaEnc?: string
-    tlsCertEnc?: string
-    tlsKeyEnc?: string
-  }): DockerHostRow {
-    const now = new Date()
-    const row = this.#db
-      .insert(dockerHosts)
-      .values({
-        name: input.name,
-        uri: input.uri,
-        tlsCaEnc: input.tlsCaEnc ?? null,
-        tlsCertEnc: input.tlsCertEnc ?? null,
-        tlsKeyEnc: input.tlsKeyEnc ?? null,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning()
-      .all()[0]
-    if (row === undefined) throw new Error('createDockerHost: insert returned no row')
-    return toDockerHostRow(row)
-  }
-
-  listDockerHosts(): DockerHostRow[] {
-    return this.#db
-      .select()
-      .from(dockerHosts)
-      .orderBy(asc(dockerHosts.id))
-      .all()
-      .map(toDockerHostRow)
-  }
-
-  getDockerHost(id: number): DockerHostRow | null {
-    const row = this.#db.select().from(dockerHosts).where(eq(dockerHosts.id, id)).all()[0]
-    return row === undefined ? null : toDockerHostRow(row)
-  }
-
-  updateDockerHost(
-    id: number,
-    patch: Partial<{
-      name: string
-      uri: string
-      tlsCaEnc: string | null
-      tlsCertEnc: string | null
-      tlsKeyEnc: string | null
-    }>,
-  ): DockerHostRow | null {
-    const values: Partial<typeof dockerHosts.$inferSelect> = { updatedAt: new Date() }
-    if (patch.name !== undefined) values.name = patch.name
-    if (patch.uri !== undefined) values.uri = patch.uri
-    if (patch.tlsCaEnc !== undefined) values.tlsCaEnc = patch.tlsCaEnc
-    if (patch.tlsCertEnc !== undefined) values.tlsCertEnc = patch.tlsCertEnc
-    if (patch.tlsKeyEnc !== undefined) values.tlsKeyEnc = patch.tlsKeyEnc
-    const row = this.#db
-      .update(dockerHosts)
-      .set(values)
-      .where(eq(dockerHosts.id, id))
-      .returning()
-      .all()[0]
-    return row === undefined ? null : toDockerHostRow(row)
-  }
-
-  deleteDockerHost(id: number): boolean {
-    const result = this.#db.delete(dockerHosts).where(eq(dockerHosts.id, id)).run()
-    return result.changes > 0
   }
 
   // ---- Snapshot backup, retention, Uptime-Kuma import (SPEC §4/§9, M6) ----

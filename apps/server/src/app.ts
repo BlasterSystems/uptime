@@ -95,7 +95,7 @@ export function normalizeTrustProxy(raw: string): string | number | boolean {
 }
 
 export function toScheduled(row: MonitorRow): ScheduledMonitor {
-  if (row.type !== 'http' && row.type !== 'docker') {
+  if (row.type !== 'http') {
     throw new Error(`unsupported monitor type: ${row.type}`)
   }
   return {
@@ -1091,82 +1091,6 @@ export function createApp(opts: AppOptions): Express {
     res.status(204).send()
   })
 
-  // ---- Docker hosts (SPEC §4) ----
-  const dockerHostApi = (row: {
-    id: number
-    name: string
-    uri: string
-    createdAt: Date
-    updatedAt: Date
-  }) => ({
-    id: row.id,
-    name: row.name,
-    uri: row.uri,
-    hasTls: false as boolean,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
-  })
-
-  app.get('/api/v1/docker-hosts', auth.requireAuth('viewer'), (_req, res) => {
-    res.json({
-      dockerHosts: db
-        .listDockerHosts()
-        .map((row) => ({ ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null })),
-    })
-  })
-
-  app.post('/api/v1/docker-hosts', auth.requireAuth('admin'), (req, res) => {
-    const b = req.body as Record<string, unknown>
-    if (typeof b.name !== 'string' || b.name.trim().length === 0) {
-      return res.status(400).json({ error: 'name must be a non-empty string' })
-    }
-    if (typeof b.uri !== 'string' || b.uri.length === 0) {
-      return res.status(400).json({ error: 'uri must be a non-empty string' })
-    }
-    const row = db.createDockerHost({
-      name: b.name,
-      uri: b.uri,
-      tlsCaEnc: typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : undefined,
-      tlsCertEnc: typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : undefined,
-      tlsKeyEnc: typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : undefined,
-    })
-    res.status(201).json({ dockerHost: { ...dockerHostApi(row), hasTls: row.tlsCaEnc !== null } })
-  })
-
-  app.patch('/api/v1/docker-hosts/:id', auth.requireAuth('admin'), (req, res) => {
-    const id = monitorId(req)
-    if (id === null) return res.status(400).json({ error: 'invalid docker host id' })
-    const b = req.body as Record<string, unknown>
-    const patch: Record<string, string | null> = {}
-    if (b.name !== undefined) {
-      if (typeof b.name !== 'string' || b.name.trim().length === 0) {
-        return res.status(400).json({ error: 'name must be a non-empty string' })
-      }
-      patch.name = b.name
-    }
-    if (b.uri !== undefined) {
-      if (typeof b.uri !== 'string' || b.uri.length === 0)
-        return res.status(400).json({ error: 'uri must be a non-empty string' })
-      patch.uri = b.uri
-    }
-    if (b.tlsCa !== undefined)
-      patch.tlsCaEnc = typeof b.tlsCa === 'string' ? secrets.encrypt(b.tlsCa) : null
-    if (b.tlsCert !== undefined)
-      patch.tlsCertEnc = typeof b.tlsCert === 'string' ? secrets.encrypt(b.tlsCert) : null
-    if (b.tlsKey !== undefined)
-      patch.tlsKeyEnc = typeof b.tlsKey === 'string' ? secrets.encrypt(b.tlsKey) : null
-    const updated = db.updateDockerHost(id, patch)
-    if (!updated) return res.status(404).json({ error: 'docker host not found' })
-    res.json({ dockerHost: { ...dockerHostApi(updated), hasTls: updated.tlsCaEnc !== null } })
-  })
-
-  app.delete('/api/v1/docker-hosts/:id', auth.requireAuth('admin'), (req, res) => {
-    const id = monitorId(req)
-    if (id === null) return res.status(400).json({ error: 'invalid docker host id' })
-    if (!db.deleteDockerHost(id)) return res.status(404).json({ error: 'docker host not found' })
-    res.status(204).send()
-  })
-
   // ---- Monitors ----
   const tagMap = (): Map<number, TagRow> => new Map(db.listTags().map((t) => [t.id, t]))
 
@@ -1267,7 +1191,7 @@ export function createApp(opts: AppOptions): Express {
     const tagIds = resolveTagIds(parsed.tagIds, parsed.tags)
     if (tagIds.length > 0) db.setMonitorTags(row.id, tagIds)
     if (parsed.channelIds) db.setMonitorChannels(row.id, parsed.channelIds)
-    if ((row.type === 'http' || row.type === 'docker') && row.active) {
+    if (row.type === 'http' && row.active) {
       scheduler?.upsert(toScheduled(row))
     }
     const { tagById } = apiContextFor([row])
@@ -1294,7 +1218,7 @@ export function createApp(opts: AppOptions): Express {
       db.setMonitorTags(id, resolveTagIds(parsed.tagIds, parsed.tags))
     }
     if (parsed.channelIds !== undefined) db.setMonitorChannels(id, parsed.channelIds)
-    const schedulable = updated.type === 'http' || updated.type === 'docker'
+    const schedulable = updated.type === 'http'
     if (schedulable && updated.active) {
       scheduler?.upsert(toScheduled(updated))
     } else if (!updated.active || existing.type !== updated.type) {

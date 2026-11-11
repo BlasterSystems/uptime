@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import {
-  dockerMonitorConfigSchema,
   dnsMonitorConfigSchema,
   icmpMonitorConfigSchema,
   mongodbMonitorConfigSchema,
@@ -102,8 +101,6 @@ export function parseMonitorConfig(type: MonitorType, raw: unknown): MonitorConf
       return mongodbMonitorConfigSchema.parse(raw)
     case 'redis':
       return redisMonitorConfigSchema.parse(raw)
-    case 'docker':
-      return dockerMonitorConfigSchema.parse(raw)
     default:
       throw new Error(`unsupported monitor type: ${String(type)}`)
   }

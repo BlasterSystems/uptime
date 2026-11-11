@@ -13,7 +13,6 @@ import {
 import { Client as PostgresClient } from 'pg'
 import { createClient as createRedisClient } from 'redis'
 import type {
-  DockerMonitorConfig,
   DnsMonitorConfig,
   IcmpMonitorConfig,
   MongodbMonitorConfig,
@@ -39,7 +38,7 @@ const SNIPPET_BYTES = 1024
  * schema), `push` monitors (heartbeat-driven, never probed) and unsupported
  * types.
  *
- * `signal` cancels the transports that accept one (http, tcp, icmp, docker);
+ * `signal` cancels the transports that accept one (http, tcp, icmp);
  * the DNS and database probes rely on their driver timeouts.
  */
 export async function runCheck(
@@ -68,8 +67,6 @@ export async function runCheck(
       return runMongodbCheck(parseMonitorConfig('mongodb', config))
     case 'redis':
       return runRedisCheck(parseMonitorConfig('redis', config))
-    case 'docker':
-      return runDockerCheck(parseMonitorConfig('docker', config), signal)
     default:
       throw new Error(`unsupported monitor type: ${String(type)}`)
   }
@@ -423,120 +420,6 @@ async function runRedisCheck(config: RedisMonitorConfig): Promise<CheckResult> {
     if (client.isOpen) await client.quit().catch(() => undefined)
     else client.destroy()
   }
-}
-
-/** Docker probe: `GET /containers/{name}/json` and compare `State.Status` (SPEC §3). */
-async function runDockerCheck(
-  config: DockerMonitorConfig,
-  signal?: AbortSignal,
-): Promise<CheckResult> {
-  const startedAt = performance.now()
-  const timeoutSignal = AbortSignal.timeout(config.timeoutMs)
-  const combined = AbortSignal.any(signal === undefined ? [timeoutSignal] : [timeoutSignal, signal])
-  const requestOptions: RequestOptions = {
-    path: `/containers/${encodeURIComponent(config.containerNameOrId)}/json`,
-    method: 'GET',
-    headers: { accept: 'application/json' },
-    // No keep-alive: a probe must not leave an idle socket behind.
-    agent: false,
-    signal: combined,
-  }
-  const tls =
-    config.tlsCaPem !== undefined ||
-    config.tlsCertPem !== undefined ||
-    config.tlsKeyPem !== undefined
-
-  let request: ClientRequest
-  if (config.hostUri.startsWith('unix://')) {
-    request = httpRequest({ ...requestOptions, socketPath: config.hostUri.slice('unix://'.length) })
-  } else {
-    const url = new URL(config.hostUri)
-    // `URL.hostname` keeps the brackets on IPv6 literals; `net`/`http` want them bare.
-    const host = url.hostname.startsWith('[') ? url.hostname.slice(1, -1) : url.hostname
-    const port = url.port === '' ? (tls ? 2376 : 2375) : Number(url.port)
-    request = tls
-      ? httpsRequest({
-          ...requestOptions,
-          host,
-          port,
-          ca: config.tlsCaPem,
-          cert: config.tlsCertPem,
-          key: config.tlsKeyPem,
-        })
-      : httpRequest({ ...requestOptions, host, port })
-  }
-
-  return new Promise<CheckResult>((resolve) => {
-    request.on('error', (error) => {
-      resolve(
-        downResult(
-          Math.round(performance.now() - startedAt),
-          describeFailure(error, timeoutSignal, signal, config.timeoutMs),
-        ),
-      )
-    })
-    request.on('response', (response) => {
-      const chunks: Buffer[] = []
-      response.on('data', (chunk: Buffer) => chunks.push(chunk))
-      response.on('error', (error: Error) => {
-        resolve(
-          downResult(
-            Math.round(performance.now() - startedAt),
-            describeFailure(error, timeoutSignal, signal, config.timeoutMs),
-          ),
-        )
-      })
-      response.on('end', () => {
-        const latencyMs = Math.round(performance.now() - startedAt)
-        const body = Buffer.concat(chunks).toString('utf8')
-        const statusCode = response.statusCode ?? 0
-        if (statusCode === 404) {
-          resolve(downResult(latencyMs, 'container not found'))
-          return
-        }
-        if (statusCode !== 200) {
-          resolve(downResult(latencyMs, `docker API responded with status ${statusCode}: ${body}`))
-          return
-        }
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(body)
-        } catch (error) {
-          resolve(downResult(latencyMs, `invalid docker response: ${errorMessage(error)}`))
-          return
-        }
-        if (parsed === null || typeof parsed !== 'object') {
-          resolve(downResult(latencyMs, 'docker response is not an object'))
-          return
-        }
-        const container = 'State' in parsed ? parsed.State : undefined
-        const state =
-          container !== null && typeof container === 'object' && 'Status' in container
-            ? container.Status
-            : undefined
-        if (typeof state !== 'string') {
-          resolve(downResult(latencyMs, 'docker response has no State.Status'))
-          return
-        }
-        if (state !== config.expectedState) {
-          resolve(
-            downResult(
-              latencyMs,
-              `container state "${state}" != expected "${config.expectedState}"`,
-            ),
-          )
-          return
-        }
-        resolve({
-          status: 'up',
-          latencyMs,
-          responseSnippet: snippet(`state ${state}`),
-          details: { state },
-        })
-      })
-    })
-    request.end()
-  })
 }
 
 function downResult(latencyMs: number, reason: string): CheckResult {

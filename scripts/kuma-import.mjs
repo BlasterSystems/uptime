@@ -20,7 +20,7 @@
  *   ping   → icmp (host, timeoutMs)
  *   dns    → dns (host, resolver, recordType, timeoutMs)
  *   push   → push (schedule only — the ping token is regenerated; repoint jobs)
- *   docker → docker (containerNameOrId; hostUri from Kuma's docker_host)
+ *   docker → skipped (docker monitors were cut from uptime-monitoring, ADR-0008)
  *   mysql / postgres / mssql / mongodb / redis → same-named engines
  *            (connectionString from database_connection_string)
  *
@@ -140,7 +140,7 @@ function timeoutMsOf(row) {
  * Returns `{ type, config }` for a supported type, `'unsupported'` for types
  * with no mapping, or `'incomplete'` when required fields are missing.
  */
-function convertMonitor(row, dockerHosts) {
+function convertMonitor(row) {
   const timeoutMs = timeoutMsOf(row)
   const config = {}
   switch (row.type) {
@@ -191,19 +191,10 @@ function convertMonitor(row, dockerHosts) {
       // The Kuma ping token cannot be reused (different URL scheme); the
       // server generates a fresh pushUrl. Schedule fields still carry over.
       return { type: 'push', config }
-    case 'docker': {
-      if (typeof row.docker_container !== 'string' || row.docker_container.trim() === '') {
-        return 'incomplete'
-      }
-      config.containerNameOrId = row.docker_container.trim()
-      const hostRow = dockerHosts.get(Number(row.docker_host))
-      const daemon = hostRow === undefined ? undefined : hostRow.docker_daemon
-      config.hostUri =
-        typeof daemon === 'string' && daemon.trim() !== ''
-          ? daemon.trim()
-          : 'unix:///var/run/docker.sock'
-      return { type: 'docker', config }
-    }
+    case 'docker':
+      // Docker monitors were cut from uptime-monitoring (ADR-0008); the server
+      // would reject the config, so skip them like any other unmapped type.
+      return 'unsupported'
     case 'mysql':
     case 'postgres':
     case 'mssql':
@@ -246,15 +237,6 @@ try {
   )
 }
 
-let dockerHosts = new Map()
-try {
-  dockerHosts = new Map(
-    kuma.prepare('SELECT id, docker_daemon FROM docker_host').all().map((row) => [row.id, row]),
-  )
-} catch {
-  // Older exports may lack the table; docker monitors fall back to the socket.
-}
-
 const monitors = []
 const skipped = { paused: 0, unsupported: 0, incomplete: 0 }
 const importedIds = new Set()
@@ -263,7 +245,7 @@ for (const row of monitorRows) {
     skipped.paused += 1
     continue
   }
-  const converted = convertMonitor(row, dockerHosts)
+  const converted = convertMonitor(row)
   if (typeof converted === 'string') {
     skipped[converted] += 1
     continue

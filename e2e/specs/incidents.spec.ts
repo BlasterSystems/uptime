@@ -11,8 +11,8 @@ test('opens an incident when a monitor fails past its retries', async ({ page })
     .click()
   const dialog = page.getByRole('dialog', { name: 'Add monitor' })
   await dialog.getByLabel('Name').fill(NAME)
-  // Only http (and docker) monitors are probe-scheduled, so use an http check
-  // against a refused port; retries 0 opens the incident on the first failure.
+  // Only http monitors are probe-scheduled, so use an http check against a
+  // refused port; retries 0 opens the incident on the first failure.
   await dialog.getByLabel('URL').fill('http://127.0.0.1:1')
   await dialog.getByLabel('Retries').fill('0')
   await dialog.getByRole('button', { name: 'Create monitor' }).click()

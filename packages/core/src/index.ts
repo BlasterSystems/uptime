@@ -3,7 +3,6 @@ export { getCertExpiryDays } from './cert.js'
 export { runCheck } from './checks.js'
 export { MIN_INTERVAL_S, parseMonitorConfig } from './config.js'
 export type {
-  DockerMonitorConfig,
   DnsMonitorConfig,
   DnsRecordType,
   IcmpMonitorConfig,

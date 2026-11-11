@@ -18,21 +18,6 @@ const hostSchema = z
 
 const portSchema = z.int().min(1).max(65_535)
 
-/** Docker host URI: `unix:///var/run/docker.sock` or `tcp://host:port`. */
-const dockerHostUriSchema = z
-  .string()
-  .refine(
-    (value) =>
-      (value.startsWith('unix://') && value.length > 'unix://'.length) ||
-      value.startsWith('tcp://'),
-    'hostUri must be a unix:// path or a tcp://host:port URL',
-  )
-  .refine((value) => {
-    if (!value.startsWith('tcp://')) return true
-    if (!URL.canParse(value)) return false
-    return new URL(value).hostname !== ''
-  }, 'hostUri must be a valid tcp:// URL')
-
 // --- tcp -------------------------------------------------------------------
 
 /** Validated configuration of a `tcp` monitor (SPEC §3). */
@@ -178,32 +163,4 @@ export const redisMonitorConfigSchema = z.object({
   connectionString: z.string().min(1),
   timeoutMs: z.int().positive().default(10_000),
   query: z.string().min(1).default('PING'),
-})
-
-// --- docker ----------------------------------------------------------------
-
-/** Validated configuration of a `docker` monitor (SPEC §3). */
-export interface DockerMonitorConfig {
-  /** Docker host URI (`unix:///var/run/docker.sock` or `tcp://host:port`). */
-  hostUri: string
-  /** Container name or id used in the inspect request path. */
-  containerNameOrId: string
-  /** Container state (`State.Status`) the monitor expects. */
-  expectedState: string
-  /** PEM CA bundle; when any TLS material is set the probe talks TLS. */
-  tlsCaPem?: string
-  tlsCertPem?: string
-  tlsKeyPem?: string
-  timeoutMs: number
-}
-
-/** Zod schema for {@link DockerMonitorConfig}: `expectedState` defaults to `running`. */
-export const dockerMonitorConfigSchema = z.object({
-  hostUri: dockerHostUriSchema,
-  containerNameOrId: z.string().min(1),
-  expectedState: z.string().min(1).default('running'),
-  tlsCaPem: z.string().optional(),
-  tlsCertPem: z.string().optional(),
-  tlsKeyPem: z.string().optional(),
-  timeoutMs: z.int().positive().default(10_000),
 })
