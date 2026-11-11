@@ -17,7 +17,7 @@ import {
   formatLatency,
   relativeTime,
 } from '../format.js'
-import { MONITOR_TYPE_LABELS, monitorTarget } from '../monitorDisplay.js'
+import { MONITOR_TYPE_LABELS, downSnippetOf, monitorTarget } from '../monitorDisplay.js'
 import { realtimeState, subscribeRealtime } from '../realtime.js'
 import type { RealtimeEvent } from '../realtime.js'
 import ResponseChart from '../components/charts/ResponseChart.vue'
@@ -138,11 +138,8 @@ const lastCheckExact = computed(() => {
   return heartbeat === null ? undefined : formatDateTime(heartbeat.time)
 })
 
-/** Newest down heartbeat carries the response body that explains the failure. */
-const downSnippet = computed(() => {
-  const heartbeat = heartbeats.value.find((item) => item.status === 'down')
-  return heartbeat === undefined ? null : heartbeat.responseSnippet
-})
+/** The response body explains the failure only while the outage is current. */
+const downSnippet = computed(() => downSnippetOf(headerHeartbeat.value, heartbeats.value))
 
 /* Response-time chart: heartbeats from the trailing 24 hours, oldest first. */
 const recentHeartbeats = computed(() => {
