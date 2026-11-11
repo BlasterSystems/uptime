@@ -1,4 +1,4 @@
-import type { Monitor, MonitorType } from './api.js'
+import type { HeartbeatStatus, Monitor, MonitorType } from './api.js'
 
 /** Short human label for each monitor type, used in badges and pickers. */
 export const MONITOR_TYPE_LABELS: Record<MonitorType, string> = {
@@ -53,4 +53,24 @@ export function monitorTarget(monitor: Monitor): string {
       return `${count} member${count === 1 ? '' : 's'}`
     }
   }
+}
+
+/**
+ * Response body of the current outage for the detail header: shown only while
+ * the newest heartbeat is a failure, so a recovered monitor no longer presents
+ * stale failure text — the resolved incident row keeps it. `header` is the
+ * current-state beat (live SSE beat or `latestHeartbeat`); `beats` is the
+ * newest-first heartbeat window, consulted only when the header beat carries
+ * no snippet itself (a fresh SSE beat inherits the previous one).
+ */
+export function downSnippetOf(
+  header: { status: HeartbeatStatus; responseSnippet: string | null } | null | undefined,
+  beats: ReadonlyArray<{ status: string; responseSnippet: string | null }>,
+): string | null {
+  if (header === null || header === undefined || header.status !== 'down') return null
+  return (
+    header.responseSnippet ??
+    beats.find((beat) => beat.status === 'down')?.responseSnippet ??
+    null
+  )
 }
