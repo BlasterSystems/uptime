@@ -53,7 +53,7 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
   dispatches on argv — `docker run <image> agent` runs the agent role for remote vantage
   points. Both images are built from the same repo; the agent image currently keeps the
   web bundle (a stripped variant is a documented future optimization).
-- **Check execution**: the server schedules `http` and `docker` monitors on `setTimeout`
+- **Check execution**: the server schedules `http` monitors on `setTimeout`
   schedules with jitter; push and group monitors run in their own engines (silence sweep /
   member evaluation); tcp/dns/icmp/db probes execute via the optional agent. I/O-bound
   checks never block the loop. CPU-bound work (none planned
@@ -73,7 +73,6 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
 | `icmp`                                               | host, timeout, packetCount                                                                  | reply within timeout                                                                        | Kuma/Pulse (needs `NET_RAW`)                                                                    |
 | `dns`                                                | host, resolver, port, recordType (A/AAAA/CNAME/MX/TXT/NS/SRV), expectedValue                | resolver answers; if `expectedValue`, match                                                 | Kuma                                                                                            |
 | `push`                                               | token (path), graceSeconds, cron schedule (optional), `expectsBody`                         | heartbeat received within interval+grace; `/start`/`/fail` semantics                        | Healthchecks                                                                                    |
-| `docker`                                             | docker host URI (socket/tcp + TLS), container name/id filter, `expectedState`               | container state == expected (state query on the monitor interval, server-side)              | Kuma/Beszel                                                                                     |
 | `postgres` / `mysql` / `mssql` / `mongodb` / `redis` | connection string, timeout, `query` (default `SELECT 1` / `PING`)                           | connection + query succeed                                                                  | PulseMonitor                                                                                    |
 | `snmp` (v2c/v3)                                      | host, community/version/creds, oid, expectedValue                                           | query within timeout                                                                        | PulseMonitor (phase 2)                                                                          |
 | `group`                                              | member monitor ids, strategy `any-up \| all-up \| percentage: N`                            | per strategy; **suppresses member notifications** when the group itself is down             | PulseMonitor groups                                                                             |
@@ -120,7 +119,6 @@ status_incidents(id, page_id, title, status investigating|identified|monitoring|
              monitor_id, created_at, updated_at, resolved_at)
 status_incident_updates(id, incident_id, status, body, created_at)
 status_subscriptions(id, page_id, channel_id, component_ids[], events[], created_at)
-docker_hosts(id, name, uri, tls_ca_enc, tls_cert_enc, tls_key_enc)  -- for docker monitors
 password_reset_tokens(id, user_id→users, token_hash UNIQUE sha256, expires_at, used_at, created_at)
 mailer_settings(id, provider 'resend', api_key_enc, from_address, enabled, updated_at)  -- singleton
 settings(key, value)                                   -- instance-level (title, timezone)
@@ -141,7 +139,7 @@ GET    /monitors/:id/heartbeats?limit=1..1000 (default 100, newest first)
 GET    /monitors/:id/uptime?hours=24|7|30|365
 GET    /api/v1/push/:token[/start|/fail]      (no auth — token IS the secret)
 CRUD   /notifications       (+ POST /notifications/:id/test)
-CRUD   /maintenance-windows | /status-pages | /docker-hosts
+CRUD   /maintenance-windows | /status-pages
 POST   /status-incidents/:id/updates · PATCH /status-incidents/:id
 CRUD   /status-pages/:id/subscriptions (admin) · POST /status-subscriptions/:id/test
 GET    /tags (read-only; tags are created implicitly via monitor `tags` names)
@@ -157,16 +155,13 @@ Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD 
 
 ## 6. Scheduler & check engine (packages/core)
 
-- Each active **http** and **docker** monitor gets a scheduler entry; drift-corrected
+- Each active **http** monitor gets a scheduler entry; drift-corrected
   (`next = start + n*interval`), ±10 % jitter to avoid thundering herds. Other engine
   types are not probe-scheduled server-side (§14): push runs in its silence sweep,
   group in its member evaluation, tcp/dns/icmp/db execute via the agent.
 - While down: probe at `retry_interval` (default 60 s) instead of `interval`; incident
   opens after `retries` consecutive failures; recovery closes it + sends notification.
 - Push monitors: no scheduler — token receiver + expiry sweep every 30 s.
-- Docker monitors: a single state query per probe, executed by the server on the
-  monitor interval (the configured docker host must be reachable from the container —
-  unix socket, tcp:// or TLS); no event stream.
 - All checks share a global concurrency cap (default 50) and per-host cap (5).
 - Time: monotonic for latency, wall-clock for records; live checks write one
   heartbeat row synchronously per result (imports can batch via
@@ -194,7 +189,7 @@ PagerDuty Events v2, Opsgenie, SMS (Twilio).
   Resend; the API key is configured in Settings → General and encrypted at rest
   (`mailer_settings`, ADR-0002). With no mailer the flow is inert but still 204.
 - API keys hashed (SHA-256), scoped, expirable; shown once.
-- Secrets (notification configs, docker TLS, DB URLs) encrypted at rest (ADR-0002).
+- Secrets (notification configs, DB URLs) encrypted at rest (ADR-0002).
 - Container: non-root UID 1001, `read_only: true` compatible (tmpfs `/tmp`), runtime
   stage on `node:24-alpine` (busybox shell present — there is no shell entrypoint or
   script in the image).
@@ -245,7 +240,7 @@ it). Instead:
 - Status pages: public, slug-based, component groups, live-reloading admin views,
   incident banner + archive, feeds + badge.
 - Settings: profile, security (2FA), api keys, status pages, status incidents,
-  subscriptions, maintenance windows, docker hosts, general (title/timezone plus the
+  subscriptions, maintenance windows, general (title/timezone plus the
   encrypted Resend email settings with a test send). Password recovery is self-service
   (login link → emailed single-use token → reset form). Notifications live on their own
   page. Backup/restore/retention/export are admin API endpoints (POST /backup,
@@ -272,7 +267,7 @@ design, this section is the contract:
   `/socket` route.
 - **Storage**: SQLite only. The Postgres dialect (ADR-0002 `DATABASE_URL` switch) is
   planned, not built.
-- **Scheduling**: the server probe-schedules `http` and `docker` monitors. Push monitors
+- **Scheduling**: the server probe-schedules `http` monitors. Push monitors
   run in their 30 s silence sweep, groups in member evaluation; tcp/dns/icmp/db probes
   execute via the agent role.
 - **Dependencies**: `parentId` is stored but has no runtime consumer and the API cannot

@@ -16,6 +16,25 @@ All notable, user-visible changes are recorded here. Format follows
   (`qs`, `minimatch`, `glob`, `esbuild`); the repository now has zero open
   Dependabot alerts.
 
+### Removed
+
+- **Docker monitors and docker hosts are cut end-to-end** (UP-21, ADR-0008).
+  This is a breaking change riding the next major release:
+  - `type: "docker"` monitors are no longer accepted — `POST /api/v1/monitors`
+    with a docker config answers 400, and existing docker monitors are deleted by
+    the `0007` migration together with their heartbeats, incidents, notification
+    routing, tags and hourly/daily rollups. `docker_hosts` (including its stored
+    TLS material) is dropped. Data is unrecoverable after the migration.
+  - The `/api/v1/docker-hosts` endpoints are gone (404), along with the Settings →
+    Docker hosts tab and the Docker monitor form. Watch container health with an
+    `http` monitor against a healthcheck endpoint (or a reverse-proxied Docker
+    API) instead.
+  - Scheduling is `http`-only server-side; push/group engines and agent-executed
+    types are unchanged.
+  - The DEV/deploy compose no longer mounts the host Docker socket and no longer
+    takes `DOCKER_GID` — **recreate the container** (`docker compose up -d`) after
+    pulling this release; a plain restart keeps the stale mount.
+
 
 ## [1.0.0] — 2026-11-09
 
@@ -120,7 +139,7 @@ First public release.
 ### Added
 
 - Initial v1 implementation: http/push/group check engine, monitor CRUD, sessions
-  (Argon2id + TOTP 2FA + scoped API keys), 7 notification providers, incidents,
+  (Argon2id + TOTP 2FA + scoped API keys), 8 notification providers, incidents,
   SSE live UI, status pages (components, managed incidents, RSS/Atom feeds, SVG
   badge, subscriptions, password pages), maintenance windows, Prometheus metrics,
   uptime rollups, optional agent (WS attempt + HTTP fallback), Docker packaging,
