@@ -80,27 +80,6 @@ describe('M3 routes', () => {
     expect((await post('/api/v1/status-pages', { slug: 'BAD SLUG', title: 'x' })).status).toBe(400)
   })
 
-  it('manages docker hosts with encrypted TLS material', async () => {
-    const created = await post('/api/v1/docker-hosts', {
-      name: 'build-1',
-      uri: 'unix:///var/run/docker.sock',
-      tlsCa: '-----BEGIN CERTIFICATE-----',
-    })
-    expect(created.status).toBe(201)
-    expect(created.body.dockerHost.hasTls).toBe(true)
-
-    const list = await agent.get('/api/v1/docker-hosts')
-    expect(list.body.dockerHosts[0].tlsCaEnc).toBeUndefined()
-    expect(list.body.dockerHosts[0].hasTls).toBe(true)
-
-    expect(
-      (await patch(`/api/v1/docker-hosts/${created.body.dockerHost.id}`, { name: 'build-2' }))
-        .status,
-    ).toBe(200)
-    expect((await del(`/api/v1/docker-hosts/${created.body.dockerHost.id}`)).status).toBe(204)
-    expect((await post('/api/v1/docker-hosts', { name: '', uri: 'x' })).status).toBe(400)
-  })
-
   it('reads and writes instance settings', async () => {
     const initial = await agent.get('/api/v1/settings')
     expect(initial.body).toEqual({ title: 'Uptime Monitoring', timezone: 'UTC' })

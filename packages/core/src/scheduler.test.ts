@@ -322,7 +322,7 @@ describe('Scheduler', () => {
   it('accepts every assigned type when the agent widens allowedTypes', async () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.5)
     const { scheduler, check, onResult } = createHarness(stubCheck(), {
-      allowedTypes: ['http', 'push', 'tcp', 'dns', 'icmp', 'postgres', 'mysql', 'mssql', 'mongodb', 'redis', 'docker'],
+      allowedTypes: ['http', 'push', 'tcp', 'dns', 'icmp', 'postgres', 'mysql', 'mssql', 'mongodb', 'redis'],
     })
 
     scheduler.upsert(monitor({ type: 'tcp', config: {} as unknown as HttpMonitorConfig, intervalS: 60 }))

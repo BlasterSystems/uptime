@@ -1,5 +1,4 @@
 import { once } from 'node:events'
-import { mkdtemp, rm } from 'node:fs/promises'
 import {
   createServer as createHttpServer,
   type IncomingMessage,
@@ -7,8 +6,6 @@ import {
   type ServerResponse,
 } from 'node:http'
 import { createServer as createNetServer, type Server as NetServer, type Socket } from 'node:net'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import { runCheck } from './checks.js'
@@ -19,7 +16,6 @@ import type { MonitorType } from './types.js'
 
 const servers: Array<Server | NetServer> = []
 const sockets: Socket[] = []
-const tempDirs: string[] = []
 
 /** HTTP server on an ephemeral loopback port; returns the port. */
 async function listenHttp(
@@ -76,7 +72,6 @@ afterEach(async () => {
         }),
     ),
   )
-  for (const dir of tempDirs.splice(0)) await rm(dir, { recursive: true, force: true })
 })
 
 describe('runCheck dispatch', () => {
@@ -236,118 +231,4 @@ describe('runCheck database probes', () => {
     },
     15_000,
   )
-})
-
-describe('runCheck docker', () => {
-  it('reports up when the container state matches', async () => {
-    const requests: string[] = []
-    const port = await listenHttp((req, res) => {
-      requests.push(req.url ?? '')
-      res.writeHead(200, { 'content-type': 'application/json' })
-      res.end(JSON.stringify({ State: { Status: 'running' } }))
-    })
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('up')
-    expect(result.responseSnippet).toBe('state running')
-    expect(result.details).toEqual({ state: 'running' })
-    expect(requests).toEqual(['/containers/web/json'])
-  })
-
-  it('reports down when the state does not match', async () => {
-    const port = await listenHttp((_req, res) => {
-      res.writeHead(200)
-      res.end(JSON.stringify({ State: { Status: 'exited' } }))
-    })
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('down')
-    expect(result.responseSnippet).toBe('container state "exited" != expected "running"')
-  })
-
-  it('reports down when the container is missing', async () => {
-    const port = await listenHttp((_req, res) => {
-      res.writeHead(404)
-      res.end('no such container')
-    })
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('down')
-    expect(result.responseSnippet).toBe('container not found')
-  })
-
-  it('percent-encodes the container name in the inspect path', async () => {
-    const requests: string[] = []
-    const port = await listenHttp((req, res) => {
-      requests.push(req.url ?? '')
-      res.writeHead(200)
-      res.end(JSON.stringify({ State: { Status: 'running' } }))
-    })
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web api',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('up')
-    expect(requests).toEqual(['/containers/web%20api/json'])
-  })
-
-  it('reports down for an invalid docker payload', async () => {
-    const port = await listenHttp((_req, res) => {
-      res.writeHead(200)
-      res.end('not json')
-    })
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('down')
-    expect(result.responseSnippet).toMatch(/invalid docker response/)
-  })
-
-  it('reports down when the docker host is unreachable', async () => {
-    const port = await closedPort()
-    const result = await runCheck('docker', {
-      hostUri: `tcp://127.0.0.1:${port}`,
-      containerNameOrId: 'web',
-      timeoutMs: 1000,
-    })
-    expect(result.status).toBe('down')
-    expect(result.responseSnippet).toMatch(/ECONNREFUSED/)
-  })
-
-  it('inspects over a unix socket when the platform allows it', async () => {
-    if (process.platform === 'win32') return
-    const dir = await mkdtemp(join(tmpdir(), 'uptime-docker-'))
-    tempDirs.push(dir)
-    const socketPath = join(dir, 'docker.sock')
-    // macOS caps `sun_path` at ~104 bytes.
-    if (socketPath.length > 100) return
-    const server = createHttpServer((_req, res) => {
-      res.writeHead(200)
-      res.end(JSON.stringify({ State: { Status: 'paused' } }))
-    })
-    servers.push(server)
-    server.listen(socketPath)
-    await once(server, 'listening')
-
-    const result = await runCheck('docker', {
-      hostUri: `unix://${socketPath}`,
-      containerNameOrId: 'db',
-      expectedState: 'paused',
-      timeoutMs: 2000,
-    })
-    expect(result.status).toBe('up')
-    expect(result.details).toEqual({ state: 'paused' })
-  })
 })

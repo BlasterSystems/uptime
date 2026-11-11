@@ -166,7 +166,7 @@ export class UptimeAgent {
     this.log = opts.log ?? ((message) => console.log(message))
     this.scheduler = new Scheduler({
       // The agent executes every assigned type (tcp/dns/icmp/db included) —
-      // the server-side default filter (http/docker) must not drop them.
+      // the server-side default filter (http) must not drop them.
       allowedTypes: MONITOR_TYPES,
       check: (monitor) => this.check(monitor),
       onResult: (monitor, result, time) => this.enqueue(monitor, result, time),

@@ -4,7 +4,7 @@ import type { CheckResult, MonitorType, ScheduledMonitor } from './types.js'
 /** Monitor types the server probe-schedules (SPEC §6): push is heartbeat-driven,
  * and tcp/dns/icmp/db run on agents — which construct their scheduler with the
  * full type list via `allowedTypes`. */
-const SERVER_SCHEDULED_TYPES = ['http', 'docker'] as const
+const SERVER_SCHEDULED_TYPES = ['http'] as const
 
 /** Scheduler wiring and limits; the concurrency defaults follow SPEC §6. */
 export interface SchedulerOptions {
@@ -12,8 +12,8 @@ export interface SchedulerOptions {
   onResult: (monitor: ScheduledMonitor, result: CheckResult, time: Date) => void
   /**
    * Monitor types this scheduler accepts. Defaults to the server's
-   * probe-scheduled set (`http`, `docker`); the agent passes every type it
-   * can execute so its assignments are not silently dropped.
+   * probe-scheduled set (`http`); the agent passes every type it can
+   * execute so its assignments are not silently dropped.
    */
   allowedTypes?: readonly MonitorType[]
   /** Maximum number of checks running at once across all monitors (default 50). */

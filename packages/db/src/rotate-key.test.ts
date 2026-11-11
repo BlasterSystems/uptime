@@ -22,7 +22,6 @@ afterEach(() => {
 interface Seeded {
   dbFile: string
   monitorId: number
-  dockerHostId: number
   userId: number
   channelId: number
   pushToken: string
@@ -48,14 +47,6 @@ function seed(): Seeded {
   const pushToken = 'push-token-123'
   db.setPushToken(monitor.id, pushToken, from.encrypt(pushToken))
 
-  const dockerHost = db.createDockerHost({
-    name: 'dockerd',
-    uri: 'tcp://10.0.0.9:2376',
-    tlsCaEnc: from.encrypt('CA'),
-    tlsCertEnc: from.encrypt('CERT'),
-    tlsKeyEnc: from.encrypt('KEY'),
-  })
-
   const channel = db.createChannel({
     type: 'telegram',
     name: 'ops',
@@ -75,7 +66,6 @@ function seed(): Seeded {
   return {
     dbFile,
     monitorId: monitor.id,
-    dockerHostId: dockerHost.id,
     userId: user.id,
     channelId: channel.id,
     pushToken,
@@ -98,9 +88,6 @@ describe('rotateEncryptionKey', () => {
       { table: 'users', column: 'totp_secret_enc', rows: 1 },
       { table: 'users', column: 'recovery_codes_enc', rows: 1 },
       { table: 'push_tokens', column: 'token_enc', rows: 1 },
-      { table: 'docker_hosts', column: 'tls_ca_enc', rows: 1 },
-      { table: 'docker_hosts', column: 'tls_cert_enc', rows: 1 },
-      { table: 'docker_hosts', column: 'tls_key_enc', rows: 1 },
     ])
 
     const to = new SecretBox(TO_KEY)
@@ -109,11 +96,6 @@ describe('rotateEncryptionKey', () => {
       const pushTokenEnc = db.getPushToken(seeded.monitorId)
       expect(to.decrypt(pushTokenEnc ?? '')).toBe(seeded.pushToken)
       expect(() => new SecretBox(FROM_KEY).decrypt(pushTokenEnc ?? '')).toThrow()
-
-      const host = db.getDockerHost(seeded.dockerHostId)
-      expect(to.decrypt(host?.tlsCaEnc ?? '')).toBe('CA')
-      expect(to.decrypt(host?.tlsCertEnc ?? '')).toBe('CERT')
-      expect(to.decrypt(host?.tlsKeyEnc ?? '')).toBe('KEY')
 
       const channel = db.getChannel(seeded.channelId)
       expect(to.decryptJson(channel?.configEnc ?? '')).toEqual({ botToken: 'bot' })
@@ -134,14 +116,14 @@ describe('rotateEncryptionKey', () => {
     await rotateEncryptionKey({ dbFile: seeded.dbFile, fromKey: FROM_KEY, toKey: TO_KEY })
 
     // Rotating again with the same from-key: every value now fails to decrypt
-    // (2 channels + 2 user columns + 1 push token + 3 docker TLS values).
+    // (2 channels + 2 user columns + 1 push token).
     const again = await rotateEncryptionKey({
       dbFile: seeded.dbFile,
       fromKey: FROM_KEY,
       toKey: OTHER_KEY,
     })
     expect(again.reencrypted).toEqual([])
-    expect(again.failed).toBe(8)
+    expect(again.failed).toBe(5)
   })
 
   it('rejects a missing database file instead of creating one', async () => {
@@ -164,7 +146,7 @@ describe('runRotateCli', () => {
       failed: number
     }
     expect(printed.failed).toBe(1)
-    expect(printed.reencrypted).toHaveLength(7)
+    expect(printed.reencrypted).toHaveLength(4)
     expect(printed.reencrypted).toContainEqual({
       table: 'notification_channels',
       column: 'config_enc',

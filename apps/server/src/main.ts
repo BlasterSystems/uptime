@@ -203,7 +203,7 @@ const scheduler = new Scheduler({
 if (cfg.seed) seedIfEmpty(db, scheduler)
 
 for (const row of db.listMonitors()) {
-  if (row.active && (row.type === 'http' || row.type === 'docker')) {
+  if (row.active && row.type === 'http') {
     scheduler.upsert(toScheduled(row))
   }
 }

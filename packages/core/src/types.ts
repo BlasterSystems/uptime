@@ -1,5 +1,4 @@
 import type {
-  DockerMonitorConfig,
   DnsMonitorConfig,
   IcmpMonitorConfig,
   MongodbMonitorConfig,
@@ -26,7 +25,6 @@ export type MonitorType =
   | 'mssql'
   | 'mongodb'
   | 'redis'
-  | 'docker'
 
 /** Runtime list of the types above (server-side validation, UI selects). */
 export const MONITOR_TYPES = [
@@ -40,7 +38,6 @@ export const MONITOR_TYPES = [
   'mssql',
   'mongodb',
   'redis',
-  'docker',
 ] as const
 
 /** Validated configuration of an `http` monitor (SPEC §3). */
@@ -81,7 +78,6 @@ export interface MonitorConfigMap {
   mssql: MssqlMonitorConfig
   mongodb: MongodbMonitorConfig
   redis: RedisMonitorConfig
-  docker: DockerMonitorConfig
 }
 
 /** Outcome of a single check execution. */
