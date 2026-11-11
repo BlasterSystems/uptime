@@ -229,6 +229,10 @@ it). Instead:
 - CI: eslint, typecheck, vitest unit + integration (SQLite migrations + supertest),
   75 % coverage gate, and a multi-arch **build-only** image job (no publish, no e2e).
   Multi-arch buildx → GHCR runs on `v*` tags in `release.yml`.
+- The web footer stamps the deployment: the `VITE_DEPLOY_TAG` build arg (the git
+  tag the image was built from — `dev-*` / `v*`) is baked into the bundle by
+  `cd-dev.yml` (git describe on the deploy ref) and `release.yml` (`github.ref_name`);
+  builds without it (CI image job, source builds) render `source`.
 - Resource envelope target: idle < 256 MB RSS, 100 monitors/30 s ≈ < 5 % of one core.
 
 ## 11. Web UI (apps/web, Vue 3 + Vite)

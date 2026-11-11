@@ -40,6 +40,8 @@ jobs:
           push: true
           tags: ${{ steps.meta_server.outputs.tags }}
           labels: ${{ steps.meta_server.outputs.labels }}
+          build-args: |
+            VITE_DEPLOY_TAG=${{ github.ref_name }}
           sbom: true
           provenance: mode=max
 
@@ -61,5 +63,7 @@ jobs:
           push: true
           tags: ${{ steps.meta_agent.outputs.tags }}
           labels: ${{ steps.meta_agent.outputs.labels }}
+          build-args: |
+            VITE_DEPLOY_TAG=${{ github.ref_name }}
           sbom: true
           provenance: mode=max
