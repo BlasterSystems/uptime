@@ -1,5 +1,7 @@
 <script setup lang="ts">
 /** Centered card shell for the two signed-out screens (login, first-run setup). */
+import AppFooter from '../components/AppFooter.vue'
+
 withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
 </script>
 
@@ -29,6 +31,8 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
       <p v-if="$slots.footer" class="auth-footer">
         <slot name="footer" />
       </p>
+
+      <AppFooter class="auth-build" />
     </div>
   </div>
 </template>
@@ -146,6 +150,11 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
 .auth-footer {
   color: var(--ink-2);
   font-size: 13px;
+  text-align: center;
+}
+
+.auth-build {
+  margin-top: 2px;
   text-align: center;
 }
 </style>

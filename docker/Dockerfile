@@ -17,6 +17,10 @@ COPY apps/web/package.json apps/web/
 RUN pnpm install --frozen-lockfile
 
 COPY . .
+
+# Deployment stamp for the web footer; injected by cd-dev.yml / release.yml.
+ARG VITE_DEPLOY_TAG=
+ENV VITE_DEPLOY_TAG=$VITE_DEPLOY_TAG
 RUN pnpm --filter @uptime/core --filter @uptime/db --filter @uptime/notify --filter @uptime/agent --filter @uptime/server build \
     && pnpm --filter @uptime/web build \
     && pnpm --filter @uptime/server --prod deploy --legacy /out

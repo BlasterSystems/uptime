@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../auth.js'
+import AppFooter from '../components/AppFooter.vue'
 import Icon from '../components/ui/Icon.vue'
 import { useToast } from '../components/ui/toast.js'
 import { useTheme } from '../theme.js'
@@ -195,6 +196,8 @@ async function handleSignOut(): Promise<void> {
       <main class="content">
         <RouterView />
       </main>
+
+      <AppFooter class="layout-foot" />
     </div>
   </div>
 </template>
@@ -400,6 +403,10 @@ async function handleSignOut(): Promise<void> {
   flex-direction: column;
   flex-grow: 1;
   min-width: 0;
+}
+
+.layout-foot {
+  padding: 2px var(--space-5) var(--space-4);
 }
 
 .topbar {
