@@ -4,13 +4,13 @@ import type { CheckResult } from '@uptime/core'
 import { IncidentEngine, type MonitorRef, type NotifierLike } from './incidents.js'
 
 class StubNotifier implements NotifierLike {
-  calls: { monitorId: number; title: string; status: string }[] = []
+  calls: { monitorId: number; title: string; status: string; failures?: number }[] = []
 
   async notifyMonitor(
     monitorId: number,
-    payload: { title: string; status: string },
+    payload: { title: string; status: string; failures?: number },
   ): Promise<unknown> {
-    this.calls.push({ monitorId, title: payload.title, status: payload.status })
+    this.calls.push({ monitorId, title: payload.title, status: payload.status, failures: payload.failures })
     return []
   }
 }
@@ -110,7 +110,24 @@ describe('IncidentEngine', () => {
 
     await engine.onPushDown(ref(m), 'push deadline missed', new Date('2026-01-01T00:05:00Z'))
     expect(notifier.calls).toHaveLength(1)
+    expect(notifier.calls[0]?.failures).toBe(3)
     expect(db.getOpenIncident(m.id)).not.toBeNull()
+    db.close()
+  })
+
+  it('reports consecutive failures on down alerts but not on recovery', async () => {
+    const db = Database.open({ file: ':memory:' })
+    const notifier = new StubNotifier()
+    const engine = new IncidentEngine({ db, notifier, tags: () => [] })
+    const m = makeMonitor(db, { retries: 3 })
+
+    const t0 = new Date('2026-01-01T00:00:00Z')
+    await engine.onResult(ref(m), down, t0)
+    await engine.onResult(ref(m), down, new Date(t0.getTime() + 60_000))
+    await engine.onResult(ref(m), down, new Date(t0.getTime() + 120_000)) // opens
+    await engine.onResult(ref(m), down, new Date(t0.getTime() + 240_000)) // resend due
+    await engine.onResult(ref(m), up, new Date(t0.getTime() + 300_000))
+    expect(notifier.calls.map((c) => c.failures)).toEqual([3, 4, undefined])
     db.close()
   })
 })

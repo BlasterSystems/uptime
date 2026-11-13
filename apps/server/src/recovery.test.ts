@@ -105,6 +105,11 @@ describe('password recovery', () => {
     expect(sent).toHaveLength(1)
     expect(sent[0]?.to).toBe('admin@example.com')
     expect(sent[0]?.subject).toBe('Reset your password')
+    // Branded frame (UP-26): the single-use link appears exactly once in the
+    // button href and once in the mono fallback line.
+    expect((sent[0]?.html ?? '').match(/token=/g)).toHaveLength(2)
+    expect(sent[0]?.html).toContain('Choose a new password')
+    expect(sent[0]?.text).toContain('Choose a new password:')
 
     const token = resetTokenFrom(sent[0]!)
     const reset = await request(app)

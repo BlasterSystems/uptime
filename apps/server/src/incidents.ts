@@ -1,5 +1,6 @@
 import type { Database } from '@uptime/db'
 import type { CheckResult } from '@uptime/core'
+import { humanDuration } from '@uptime/notify'
 
 /** Minimal monitor shape the engine needs — decoupled from the scheduler's type. */
 export interface MonitorRef {
@@ -18,6 +19,8 @@ export interface NotificationPayload {
   latencyMs: number | null
   downtimeMs: number | null
   tags: string[]
+  /** Consecutive failed checks at send time; set on down alerts, absent on recovery. */
+  failures?: number
 }
 
 export interface NotifierLike {
@@ -44,16 +47,6 @@ export interface IncidentEngineDeps {
 interface MonitorState {
   consecutiveFails: number
   lastNotifiedAt: number
-}
-
-function humanDuration(ms: number): string {
-  const totalS = Math.max(0, Math.round(ms / 1000))
-  const h = Math.floor(totalS / 3600)
-  const m = Math.floor((totalS % 3600) / 60)
-  const s = totalS % 60
-  if (h > 0) return `${h}h ${m}m ${s}s`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
 }
 
 /**
@@ -132,6 +125,7 @@ export class IncidentEngine {
         status: 'down',
         latencyMs: result.latencyMs ?? null,
         downtimeMs: null,
+        failures: st.consecutiveFails,
         tags: this.deps.tags(m.id),
       })
       st.lastNotifiedAt = time.getTime()
@@ -146,6 +140,7 @@ export class IncidentEngine {
           status: 'down',
           latencyMs: result.latencyMs ?? null,
           downtimeMs: time.getTime() - open.openedAt.getTime(),
+          failures: st.consecutiveFails,
           tags: this.deps.tags(m.id),
         })
         st.lastNotifiedAt = time.getTime()
@@ -156,7 +151,9 @@ export class IncidentEngine {
   /** Push monitor went down out-of-band (/fail or missed grace) — incident opens immediately. */
   async onPushDown(m: MonitorRef, reason: string, time: Date): Promise<void> {
     const st = this.state(m.id)
-    st.consecutiveFails = m.retries
+    // onResult's += 1 then lands exactly on m.retries, so the "consecutive
+    // failures" figure on the opened incident stays truthful.
+    st.consecutiveFails = Math.max(0, m.retries - 1)
     await this.onResult(m, { status: 'down', latencyMs: 0, responseSnippet: reason }, time)
   }
 
