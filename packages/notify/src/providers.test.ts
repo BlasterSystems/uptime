@@ -91,7 +91,8 @@ describe('resend provider', () => {
         from: 'uptime@example.com',
         to: ['ops@example.com'],
         subject: 'Example is down',
-        text: 'Connection refused',
+        text: expect.stringContaining('Connection refused'),
+        html: expect.stringContaining('<table'),
       })
     })
   })
@@ -106,7 +107,8 @@ describe('resend provider', () => {
       from: 'uptime@example.com',
       to: ['ops@example.com'],
       subject: 'Example is down',
-      text: 'Connection refused',
+      text: expect.stringContaining('Connection refused'),
+      html: expect.stringContaining('<table'),
     })
   })
 
