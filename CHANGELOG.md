@@ -34,6 +34,22 @@ All notable, user-visible changes are recorded here. Format follows
   - The DEV/deploy compose no longer mounts the host Docker socket and no longer
     takes `DOCKER_GID` — **recreate the container** (`docker compose up -d`) after
     pulling this release; a plain restart keeps the stale mount.
+- **Notification channels are pruned to Email (Resend)** (UP-17, ADR-0007). This
+  is a breaking change riding the same major release:
+  - The `telegram`, `discord`, `slack`, `email` (SMTP), `ntfy`, `gotify` and
+    `webhook` channel types are removed. `POST`/`PATCH /api/v1/notifications`
+    with a removed type answers 400 (`unsupported channel type`), and existing
+    channels of those types are deleted by the `0008` migration together with
+    their `monitor_notifications` routing and `status_subscriptions` rows —
+    including rows left dangling under historical `PRAGMA foreign_keys = OFF`
+    runs. Encrypted configs are unrecoverable after the migration:
+    **re-create your channels as Email (Resend)**.
+  - The `resend` channel config is unchanged (`apiKey`, `from`, `to`), and the
+    optional instance mailer behind password recovery (`mailer_settings`) is
+    untouched. The webhook-only notification templating is gone with the
+    webhook provider.
+  - Status-page RSS/Atom feeds are unchanged — still one feed per published
+    status page (pull-based); email via Resend remains the push path.
 
 
 ## [1.0.0] — 2026-11-09
