@@ -38,7 +38,8 @@ Inspired by [Uptime-Kuma](https://github.com/louislam/uptime-kuma),
   engines for `tcp`, `dns`, `icmp`, `postgres`, `mysql`, `mssql`, `mongodb` and
   `redis` (run by the optional agent over WS-attempt/HTTP-fallback); auth with
   Argon2id + TOTP 2FA + recovery codes + self-service email recovery (Resend); email
-  notifications via Resend; incidents, maintenance windows, realtime UI (SSE), status pages
+  notifications via Resend on a branded design-system email template; incidents,
+  maintenance windows, realtime UI (SSE), status pages
   with manual/auto incidents, Prometheus metrics, uptime rollups (hourly/daily),
   backup/restore, retention, export/import and Uptime-Kuma import.
 - **Not yet (tracked in SPEC §14):** Postgres dialect, WebSocket hub,

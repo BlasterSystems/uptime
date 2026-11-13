@@ -7,6 +7,16 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Branded email notifications** (UP-26): every outbound email — monitor
+  down/still-down/recovery alerts, status-page subscriptions, channel and
+  mailer test sends, and the password reset — renders a shared BlasterSystems
+  design-system HTML frame (tables + inline styles, fixed light palette, a
+  vermilion status line on down states) next to a structured plain-text part;
+  down alerts also report consecutive failed checks. Subject lines are
+  unchanged. (UP-27, UP-28)
+
 ### Fixed
 
 - The mailer test-send (`Settings → General → Send test email`) now distinguishes
