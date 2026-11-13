@@ -19,11 +19,9 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "nodemailer": "^10.1.4",
     "zod": "^4.6.6"
   },
   "devDependencies": {
-    "@types/nodemailer": "^6.4.0",
     "vitest": "^4.1.12"
   }
 }

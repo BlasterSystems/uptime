@@ -24,68 +24,6 @@ interface ChannelField {
 
 /** Mirrors the server-side config schemas in `@uptime/notify`. */
 const CHANNEL_FIELDS: Record<ChannelType, readonly ChannelField[]> = {
-  telegram: [
-    { key: 'botToken', label: 'Bot token', kind: 'password', required: true },
-    {
-      key: 'chatId',
-      label: 'Chat ID',
-      kind: 'text',
-      required: true,
-      placeholder: '-1001234567890',
-    },
-  ],
-  discord: [
-    {
-      key: 'webhookUrl',
-      label: 'Webhook URL',
-      kind: 'text',
-      required: true,
-      placeholder: 'https://discord.com/api/webhooks/…',
-    },
-  ],
-  slack: [
-    {
-      key: 'webhookUrl',
-      label: 'Webhook URL',
-      kind: 'text',
-      required: true,
-      placeholder: 'https://hooks.slack.com/services/…',
-    },
-  ],
-  email: [
-    {
-      key: 'smtpHost',
-      label: 'SMTP host',
-      kind: 'text',
-      required: true,
-      placeholder: 'smtp.example.com',
-    },
-    {
-      key: 'smtpPort',
-      label: 'SMTP port',
-      kind: 'number',
-      required: true,
-      numeric: true,
-      default: '587',
-    },
-    { key: 'secure', label: 'Use implicit TLS', kind: 'switch', default: false },
-    { key: 'username', label: 'Username', kind: 'text' },
-    { key: 'password', label: 'Password', kind: 'password' },
-    {
-      key: 'from',
-      label: 'From address',
-      kind: 'text',
-      required: true,
-      placeholder: 'alerts@example.com',
-    },
-    {
-      key: 'to',
-      label: 'To address',
-      kind: 'text',
-      required: true,
-      placeholder: 'oncall@example.com',
-    },
-  ],
   resend: [
     { key: 'apiKey', label: 'API key', kind: 'password', required: true, placeholder: 're_…' },
     {
@@ -103,60 +41,16 @@ const CHANNEL_FIELDS: Record<ChannelType, readonly ChannelField[]> = {
       placeholder: 'oncall@example.com',
     },
   ],
-  ntfy: [
-    { key: 'topic', label: 'Topic', kind: 'text', required: true, placeholder: 'uptime-alerts' },
-    { key: 'server', label: 'Server', kind: 'text', default: 'https://ntfy.sh' },
-    { key: 'token', label: 'Access token', kind: 'password' },
-  ],
-  gotify: [
-    {
-      key: 'server',
-      label: 'Server',
-      kind: 'text',
-      required: true,
-      placeholder: 'https://gotify.example.com',
-    },
-    { key: 'token', label: 'Application token', kind: 'password', required: true },
-    { key: 'priority', label: 'Priority', kind: 'number', numeric: true, default: '5' },
-  ],
-  webhook: [
-    {
-      key: 'url',
-      label: 'URL',
-      kind: 'text',
-      required: true,
-      placeholder: 'https://example.com/hooks/uptime',
-    },
-    {
-      key: 'method',
-      label: 'Method',
-      kind: 'select',
-      default: 'POST',
-      options: [
-        { value: 'POST', label: 'POST' },
-        { value: 'PUT', label: 'PUT' },
-      ],
-    },
-  ],
 }
 
-const TYPE_OPTIONS = [
-  { value: 'telegram', label: 'Telegram' },
-  { value: 'discord', label: 'Discord' },
-  { value: 'slack', label: 'Slack' },
-  { value: 'email', label: 'Email (SMTP)' },
-  { value: 'resend', label: 'Email (Resend)' },
-  { value: 'ntfy', label: 'ntfy' },
-  { value: 'gotify', label: 'Gotify' },
-  { value: 'webhook', label: 'Webhook' },
-]
+const TYPE_OPTIONS = [{ value: 'resend', label: 'Email (Resend)' }]
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ created: []; close: [] }>()
 
 const toast = useToast()
 
-const type = ref<string>('telegram')
+const type = ref<string>('resend')
 const name = ref('')
 const isDefault = ref(false)
 const submitting = ref(false)
@@ -170,11 +64,11 @@ function isChannelType(value: string): value is ChannelType {
 }
 
 const fields = computed(() =>
-  isChannelType(type.value) ? CHANNEL_FIELDS[type.value] : CHANNEL_FIELDS.telegram,
+  isChannelType(type.value) ? CHANNEL_FIELDS[type.value] : CHANNEL_FIELDS.resend,
 )
 
 function reset(): void {
-  type.value = 'telegram'
+  type.value = 'resend'
   name.value = ''
   isDefault.value = false
   submitting.value = false
@@ -248,7 +142,7 @@ async function submit(): Promise<void> {
   formError.value = null
   try {
     await createChannel({
-      type: isChannelType(type.value) ? type.value : 'telegram',
+      type: isChannelType(type.value) ? type.value : 'resend',
       name: trimmedName,
       config,
       isDefault: isDefault.value,

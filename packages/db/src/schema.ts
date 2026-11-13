@@ -305,7 +305,7 @@ export type StatusSubscriptionEvent = (typeof STATUS_SUBSCRIPTION_EVENTS)[number
 
 /**
  * `status_subscriptions` — a page's subscribers, one per notification channel
- * (Slack/Telegram/email/webhook/ntfy/gotify). `componentIds` is a JSON array of
+ * (email via Resend). `componentIds` is a JSON array of
  * component ids (`[]` = the whole page); `events` is a JSON array of
  * {@link STATUS_SUBSCRIPTION_EVENTS}. Delivery settings live on the channel.
  */

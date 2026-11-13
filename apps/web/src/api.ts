@@ -19,27 +19,10 @@ export type MonitorType =
   | 'redis'
   | 'group'
 export type HeartbeatStatus = 'up' | 'down' | 'pending' | 'maintenance'
-export type ChannelType =
-  | 'telegram'
-  | 'discord'
-  | 'slack'
-  | 'email'
-  | 'resend'
-  | 'ntfy'
-  | 'gotify'
-  | 'webhook'
+export type ChannelType = 'resend'
 
 export const API_KEY_SCOPES: readonly ApiKeyScope[] = ['read', 'write', 'admin']
-export const CHANNEL_TYPES: readonly ChannelType[] = [
-  'telegram',
-  'discord',
-  'slack',
-  'email',
-  'resend',
-  'ntfy',
-  'gotify',
-  'webhook',
-]
+export const CHANNEL_TYPES: readonly ChannelType[] = ['resend']
 export const MONITOR_TYPES: readonly MonitorType[] = [
   'http',
   'push',

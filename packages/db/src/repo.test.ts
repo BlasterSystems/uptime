@@ -282,20 +282,20 @@ describe('notification channels', () => {
   })
 
   it('round-trips channels with defaults and patches updates', () => {
-    const created = db.createChannel({ type: 'slack', name: 'ops', configEnc: 'enc:slack' })
+    const created = db.createChannel({ type: 'resend', name: 'ops', configEnc: 'enc:resend' })
     expect(created).toMatchObject({
-      type: 'slack',
+      type: 'resend',
       name: 'ops',
-      configEnc: 'enc:slack',
+      configEnc: 'enc:resend',
       isDefault: false,
       active: true,
     })
     expect(created.createdAt.getTime()).toBe(created.updatedAt.getTime())
 
     const explicit = db.createChannel({
-      type: 'email',
+      type: 'resend',
       name: 'mail',
-      configEnc: 'enc:email',
+      configEnc: 'enc:resend-explicit',
       isDefault: true,
       active: false,
     })
@@ -307,15 +307,15 @@ describe('notification channels', () => {
 
     const updated = db.updateChannel(created.id, {
       name: 'ops-renamed',
-      configEnc: 'enc:slack-2',
+      configEnc: 'enc:resend-2',
       isDefault: true,
       active: false,
     })
     expect(updated).toMatchObject({
       id: created.id,
-      type: 'slack',
+      type: 'resend',
       name: 'ops-renamed',
-      configEnc: 'enc:slack-2',
+      configEnc: 'enc:resend-2',
       isDefault: true,
       active: false,
     })
@@ -343,9 +343,9 @@ describe('monitor-channel routing', () => {
   it('replaces the monitor channel set and groups lookups', () => {
     const first = createPushMonitor(db, 'first')
     const second = createPushMonitor(db, 'second')
-    const a = db.createChannel({ type: 'slack', name: 'a', configEnc: 'enc:a' })
-    const b = db.createChannel({ type: 'email', name: 'b', configEnc: 'enc:b' })
-    const c = db.createChannel({ type: 'webhook', name: 'c', configEnc: 'enc:c' })
+    const a = db.createChannel({ type: 'resend', name: 'a', configEnc: 'enc:a' })
+    const b = db.createChannel({ type: 'resend', name: 'b', configEnc: 'enc:b' })
+    const c = db.createChannel({ type: 'resend', name: 'c', configEnc: 'enc:c' })
 
     db.setMonitorChannels(first.id, [a.id, b.id])
     expect(db.listMonitorChannelIds(first.id)).toEqual([a.id, b.id])

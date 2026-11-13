@@ -14,14 +14,7 @@ import type { TableColumn } from '../components/ui/table.js'
 import { useToast } from '../components/ui/toast.js'
 
 const TYPE_LABELS: Record<ChannelType, string> = {
-  telegram: 'Telegram',
-  discord: 'Discord',
-  slack: 'Slack',
-  email: 'Email',
   resend: 'Email (Resend)',
-  ntfy: 'ntfy',
-  gotify: 'Gotify',
-  webhook: 'Webhook',
 }
 
 const channels = ref<Channel[]>([])
@@ -107,7 +100,7 @@ onMounted(() => {
         <template #empty>
           <EmptyState
             title="No notification channels"
-            description="Add Telegram, Slack, email or webhook delivery so incidents reach the on-call team."
+            description="Add an Email (Resend) channel so incidents reach the on-call team."
           >
             <template #icon><Icon name="notifications" :size="18" /></template>
             <template #actions>

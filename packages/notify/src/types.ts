@@ -1,14 +1,5 @@
 /** Notification provider types (SPEC §7). */
-export const CHANNEL_TYPES = [
-  'telegram',
-  'discord',
-  'slack',
-  'email',
-  'resend',
-  'ntfy',
-  'gotify',
-  'webhook',
-] as const
+export const CHANNEL_TYPES = ['resend'] as const
 
 export type ChannelType = (typeof CHANNEL_TYPES)[number]
 
