@@ -229,7 +229,11 @@ export function renderNotifyEmail(payload: NotifyPayload): { html: string; text:
   }
   const chips = isStatusPage ? (event === undefined ? [] : [EVENT_LABELS[event] ?? event]) : payload.tags
   return renderEmailFrame({
-    eyebrow: isStatusPage ? 'Status page' : payload.downtimeMs !== null ? 'Uptime monitor · repeat' : 'Uptime monitor',
+    eyebrow: isStatusPage
+      ? 'Status page'
+      : payload.status === 'down' && payload.downtimeMs !== null
+        ? 'Uptime monitor · repeat'
+        : 'Uptime monitor',
     heading: payload.title,
     accent,
     body: isStatusPage || payload.status === 'up' ? payload.body : undefined,
