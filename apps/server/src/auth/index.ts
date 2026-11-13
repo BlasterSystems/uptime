@@ -3,6 +3,7 @@ import type { Request, RequestHandler, Response } from 'express'
 import { hash as argon2Hash, verify as argon2Verify } from '@node-rs/argon2'
 import type { Algorithm } from '@node-rs/argon2'
 import type { ApiKeyRow, Database, SecretBox, UserRole, UserRow } from '@uptime/db'
+import { renderEmailFrame } from '@uptime/notify'
 import { SlidingWindowRateLimiter } from './rate-limit.js'
 import { generateTotpSecret, otpauthUrl, verifyTotp } from './totp.js'
 import type { MailerLike } from '../mailer.js'
@@ -381,8 +382,18 @@ export function createAuthModule(deps: {
         await mailer.sendMail({
           to: user.email,
           subject: 'Reset your password',
-          text: `Use this link within one hour to choose a new password:\n\n${link}\n\nIf you did not request a reset, ignore this email.`,
-          html: `<p>Use this link within one hour to choose a new password:</p><p><a href="${link}">${link}</a></p><p>If you did not request a reset, ignore this email.</p>`,
+          ...renderEmailFrame({
+            eyebrow: 'Security',
+            heading: 'Reset your password',
+            body: 'A password reset was requested for your account. Use the button below within one hour to choose a new password.',
+            action: {
+              label: 'Choose a new password',
+              url: link,
+              fallbackUrl: link,
+              note: 'The link expires in one hour. If you did not request a reset, you can ignore this email.',
+            },
+            preheader: 'Reset your password — the link works for one hour.',
+          }),
         })
       } catch (error) {
         console.warn(

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { MIN_INTERVAL_S, MONITOR_TYPES, parseMonitorConfig } from '@uptime/core'
 import type { MonitorType, ScheduledMonitor } from '@uptime/core'
-import { parseChannelConfig, type ChannelType } from '@uptime/notify'
+import { parseChannelConfig, renderEmailFrame, type ChannelType } from '@uptime/notify'
 import { metricsAllowlistMiddleware } from './metrics-auth.js'
 import { MAINTENANCE_SCOPES, MAINTENANCE_STRATEGIES } from '@uptime/db'
 import type {
@@ -1082,8 +1082,11 @@ export function createApp(opts: AppOptions): Express {
       await mailer.sendMail({
         to,
         subject: `Test email from ${title}`,
-        text: 'Delivery from the mailer settings works. No action needed.',
-        html: '<p>Delivery from the mailer settings works. No action needed.</p>',
+        ...renderEmailFrame({
+          eyebrow: 'Email delivery',
+          heading: 'Delivery works',
+          body: 'Delivery from the mailer settings works. No action needed.',
+        }),
       })
     } catch (err) {
       return res.status(502).json({
