@@ -127,7 +127,7 @@ describe('dispatchStatusEvent', () => {
       },
     }
     const page = db.createStatusPage({ slug: 'p', title: 'Page', published: true, monitorIds: [], structure: '{}' })
-    const channel = db.createChannel({ type: 'webhook', name: 'hook', configEnc: secrets.encryptJson({ url: 'https://x' }) })
+    const channel = db.createChannel({ type: 'resend', name: 'hook', configEnc: secrets.encryptJson({ apiKey: 're_test' }) })
     return { db, secrets, notifier, page, channel, sent }
   }
 

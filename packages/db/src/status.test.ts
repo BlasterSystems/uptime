@@ -417,8 +417,8 @@ describe('status subscriptions', () => {
     })
     expect(created.createdAt).toBeInstanceOf(Date)
 
-    const slack = db.createChannel({ type: 'slack', name: 'Slack', configEnc: 'enc' })
-    const defaults = db.createStatusSubscription({ pageId: page.id, channelId: slack.id })
+    const resend = db.createChannel({ type: 'resend', name: 'Resend', configEnc: 'enc' })
+    const defaults = db.createStatusSubscription({ pageId: page.id, channelId: resend.id })
     expect(defaults).toMatchObject({ componentIds: [], events: [] })
 
     expect(db.listStatusSubscriptions(page.id).map((row) => row.id)).toEqual([
@@ -444,7 +444,7 @@ describe('status subscriptions', () => {
   })
 
   it('joins subscriptions with their channel for delivery', () => {
-    const slack = db.createChannel({ type: 'slack', name: 'Slack', configEnc: 'enc' })
+    const resend = db.createChannel({ type: 'resend', name: 'Resend', configEnc: 'enc' })
     db.createStatusSubscription({
       pageId: page.id,
       channelId: channel.id,
@@ -452,7 +452,7 @@ describe('status subscriptions', () => {
     })
     db.createStatusSubscription({
       pageId: page.id,
-      channelId: slack.id,
+      channelId: resend.id,
       componentIds: ['api'],
     })
 
@@ -462,12 +462,12 @@ describe('status subscriptions', () => {
         .map((row) => [row.channelId, row.channel.id, row.channel.name]),
     ).toEqual([
       [channel.id, channel.id, 'Ops'],
-      [slack.id, slack.id, 'Slack'],
+      [resend.id, resend.id, 'Resend'],
     ])
     expect(db.listSubscriptionsForPage(page.id + 1000)).toEqual([])
 
     // Deleting the channel cascades away its subscription only.
-    expect(db.deleteChannel(slack.id)).toBe(true)
+    expect(db.deleteChannel(resend.id)).toBe(true)
     expect(db.listSubscriptionsForPage(page.id).map((row) => row.channel.name)).toEqual(['Ops'])
   })
 

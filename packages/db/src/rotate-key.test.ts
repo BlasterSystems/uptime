@@ -48,13 +48,13 @@ function seed(): Seeded {
   db.setPushToken(monitor.id, pushToken, from.encrypt(pushToken))
 
   const channel = db.createChannel({
-    type: 'telegram',
+    type: 'resend',
     name: 'ops',
-    configEnc: from.encryptJson({ botToken: 'bot' }),
+    configEnc: from.encryptJson({ apiKey: 're_123' }),
   })
   // A second channel written with a key rotation does not know about: it must
   // come back untouched and counted as failed.
-  db.createChannel({ type: 'ntfy', name: 'legacy', configEnc: other.encrypt('legacy') })
+  db.createChannel({ type: 'resend', name: 'legacy', configEnc: other.encrypt('legacy') })
 
   const user = db.createUser({ email: 'admin@example.com', passwordHash: 'hash' })
   db.updateUser(user.id, {
@@ -98,7 +98,7 @@ describe('rotateEncryptionKey', () => {
       expect(() => new SecretBox(FROM_KEY).decrypt(pushTokenEnc ?? '')).toThrow()
 
       const channel = db.getChannel(seeded.channelId)
-      expect(to.decryptJson(channel?.configEnc ?? '')).toEqual({ botToken: 'bot' })
+      expect(to.decryptJson(channel?.configEnc ?? '')).toEqual({ apiKey: 're_123' })
 
       const user = db.getUser(seeded.userId)
       expect(to.decrypt(user?.totpSecretEnc ?? '')).toBe('TOTP')

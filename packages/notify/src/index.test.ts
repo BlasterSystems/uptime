@@ -14,7 +14,7 @@ const payload: NotifyPayload = {
 }
 
 function makeChannel(id: number, overrides: Partial<ChannelLike> = {}): ChannelLike {
-  return { id, type: 'webhook', name: `channel-${id}`, config: { id }, active: true, ...overrides }
+  return { id, type: 'resend', name: `channel-${id}`, config: { id }, active: true, ...overrides }
 }
 
 function makeOptions(overrides: Partial<NotifierOptions> = {}): NotifierOptions {
@@ -45,7 +45,7 @@ function makeRecorder(): { calls: SentCall[]; send: SendFn } {
 describe('Notifier.notifyMonitor', () => {
   it("sends to the monitor's routed channels", async () => {
     const { calls, send } = makeRecorder()
-    const channels = [makeChannel(1), makeChannel(2, { type: 'telegram' })]
+    const channels = [makeChannel(1), makeChannel(2)]
     const notifier = new Notifier(
       makeOptions({
         channels: () => channels,
@@ -55,7 +55,7 @@ describe('Notifier.notifyMonitor', () => {
       }),
     )
     await expect(notifier.notifyMonitor(7, payload)).resolves.toEqual([])
-    expect(calls).toEqual([{ type: 'telegram', config: { id: 2 }, payload }])
+    expect(calls).toEqual([{ type: 'resend', config: { id: 2 }, payload }])
   })
 
   it('falls back to the default channels when the monitor has no routing', async () => {
@@ -70,8 +70,8 @@ describe('Notifier.notifyMonitor', () => {
     )
     await notifier.notifyMonitor(7, payload)
     expect(calls).toEqual([
-      { type: 'webhook', config: { id: 1 }, payload },
-      { type: 'webhook', config: { id: 2 }, payload },
+      { type: 'resend', config: { id: 1 }, payload },
+      { type: 'resend', config: { id: 2 }, payload },
     ])
   })
 
@@ -85,7 +85,7 @@ describe('Notifier.notifyMonitor', () => {
       }),
     )
     await notifier.notifyMonitor(7, payload)
-    expect(calls).toEqual([{ type: 'webhook', config: { id: 3 }, payload }])
+    expect(calls).toEqual([{ type: 'resend', config: { id: 3 }, payload }])
   })
 
   it('does not fall back when the routed channels are all inactive', async () => {
@@ -124,21 +124,21 @@ describe('Notifier.notifyMonitor', () => {
 
   it('isolates failures and reports one error per failed channel', async () => {
     const attempted: ChannelType[] = []
-    const send: SendFn = async (type) => {
+    const send: SendFn = async (type, config) => {
       attempted.push(type)
-      if (type === 'telegram') throw new Error('telegram exploded')
+      if ((config as { fail?: boolean }).fail === true) throw new Error('resend exploded')
     }
     const notifier = new Notifier(
       makeOptions({
-        channels: () => [makeChannel(1, { type: 'telegram' }), makeChannel(2, { type: 'discord' })],
+        channels: () => [makeChannel(1, { config: { fail: true } }), makeChannel(2)],
         monitorChannelIds: () => [1, 2],
         send,
       }),
     )
     await expect(notifier.notifyMonitor(7, payload)).resolves.toEqual([
-      { channelId: '1', error: 'telegram exploded' },
+      { channelId: '1', error: 'resend exploded' },
     ])
-    expect(attempted).toEqual(['telegram', 'discord'])
+    expect(attempted).toEqual(['resend', 'resend'])
   })
 
   it('stringifies non-Error rejections', async () => {
@@ -168,14 +168,14 @@ describe('Notifier.notifyMonitor', () => {
     }
     const notifier = new Notifier(
       makeOptions({
-        channels: () => [makeChannel(1, { type: 'telegram' }), makeChannel(2, { type: 'discord' })],
+        channels: () => [makeChannel(1), makeChannel(2)],
         monitorChannelIds: () => [1, 2],
         send,
       }),
     )
     await notifier.notifyMonitor(7, payload)
     expect(maxInFlight).toBe(2)
-    expect(ends).toEqual(['end telegram', 'end discord'])
+    expect(ends).toEqual(['end resend', 'end resend'])
   })
 })
 
@@ -183,11 +183,9 @@ describe('Notifier.testChannel', () => {
   it('sends a test payload mentioning the channel name', async () => {
     const { calls, send } = makeRecorder()
     const notifier = new Notifier(makeOptions({ send }))
-    await notifier.testChannel(
-      makeChannel(5, { type: 'ntfy', name: 'Ops alerts', config: { topic: 'ops' } }),
-    )
+    await notifier.testChannel(makeChannel(5, { name: 'Ops alerts', config: { topic: 'ops' } }))
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.type).toBe('ntfy')
+    expect(calls[0]?.type).toBe('resend')
     expect(calls[0]?.config).toEqual({ topic: 'ops' })
     expect(calls[0]?.payload).toMatchObject({
       title: 'Test notification',
@@ -230,18 +228,18 @@ describe('Notifier.sendTo', () => {
       downtimeMs: null,
       tags: ['status-page', 'incident_open'],
     }
-    await notifier.sendTo(makeChannel(9, { type: 'slack', name: 'war room' }), payload)
+    await notifier.sendTo(makeChannel(9, { name: 'war room' }), payload)
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.type).toBe('slack')
+    expect(calls[0]?.type).toBe('resend')
     expect(calls[0]?.payload).toEqual(payload)
 
     const failing = new Notifier(
       makeOptions({
         send: async () => {
-          throw new Error('webhook 500')
+          throw new Error('resend 500')
         },
       }),
     )
-    await expect(failing.sendTo(makeChannel(9), payload)).rejects.toThrow('webhook 500')
+    await expect(failing.sendTo(makeChannel(9), payload)).rejects.toThrow('resend 500')
   })
 })

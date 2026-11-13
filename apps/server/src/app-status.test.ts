@@ -184,9 +184,15 @@ describe('status page API', () => {
   it('manages channel subscriptions and test-sends', async () => {
     await createPage()
     const channel = await post('/api/v1/notifications', {
-      type: 'webhook',
+      type: 'resend',
       name: 'ops hook',
-      config: { url: 'https://hooks.example.invalid/status' },
+      config: {
+        apiKey: 're_test',
+        from: 'uptime@example.com',
+        to: 'ops@example.com',
+        // Unreachable: the subscription test below must fail without leaving localhost.
+        apiBaseUrl: 'http://127.0.0.1:9',
+      },
     })
     expect(channel.status).toBe(201)
 
@@ -204,7 +210,7 @@ describe('status page API', () => {
     expect(list.body.subscriptions).toHaveLength(1)
     expect(list.body.subscriptions[0].channelName).toBe('ops hook')
 
-    // Delivery to an unreachable webhook surfaces as 400 on the test route.
+    // Delivery to an unreachable Resend API surfaces as 400 on the test route.
     const test = await post(`/api/v1/status-subscriptions/${created.body.subscription.id}/test`, {})
     expect(test.status).toBe(400)
 

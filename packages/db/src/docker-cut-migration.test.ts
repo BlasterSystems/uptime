@@ -25,13 +25,20 @@ function openPreCutDb(file: string): SqliteConnection {
   tempDirs.push(base)
   const trimmed = join(base, 'drizzle-0006')
   cpSync(DRIZZLE_DIR, trimmed, { recursive: true })
-  rmSync(join(trimmed, '0007_free_ironclad.sql'))
-  rmSync(join(trimmed, 'meta', '0007_snapshot.json'))
+  for (const [tag, idx] of [
+    ['0007_free_ironclad', '0007'],
+    ['0008_prune_notification_channels', '0008'],
+  ]) {
+    rmSync(join(trimmed, `${tag}.sql`))
+    rmSync(join(trimmed, 'meta', `${idx}_snapshot.json`))
+  }
   const journalPath = join(trimmed, 'meta', '_journal.json')
   const journal = JSON.parse(readFileSync(journalPath, 'utf8')) as {
     entries: Array<{ tag: string }>
   }
-  journal.entries = journal.entries.filter((entry) => entry.tag !== '0007_free_ironclad')
+  journal.entries = journal.entries.filter(
+    (entry) => entry.tag !== '0007_free_ironclad' && entry.tag !== '0008_prune_notification_channels',
+  )
   writeFileSync(journalPath, JSON.stringify(journal, null, 2))
 
   const raw = new Sqlite(file)
@@ -62,7 +69,7 @@ describe(`migration ${MIGRATION_0007} (docker cut, ADR-0008)`, () => {
       INSERT INTO docker_hosts (name, uri, tls_ca_enc, created_at, updated_at)
         VALUES ('dockerd', 'tcp://10.0.0.9:2376', 'enc', ${now}, ${now});
       INSERT INTO notification_channels (type, name, config_enc, created_at, updated_at)
-        VALUES ('webhook', 'ops', 'enc', ${now}, ${now});
+        VALUES ('resend', 'ops', 'enc', ${now}, ${now});
       INSERT INTO tags (name, created_at) VALUES ('prod', ${now});
     `)
     const dockerId = pre.prepare<[], { id: number }>("SELECT id FROM monitors WHERE type = 'docker'").get()!.id

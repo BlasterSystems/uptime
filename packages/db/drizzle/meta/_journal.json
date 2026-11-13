@@ -57,6 +57,13 @@
       "when": 1794415149381,
       "tag": "0007_free_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794624000000,
+      "tag": "0008_prune_notification_channels",
+      "breakpoints": true
     }
   ]
 }

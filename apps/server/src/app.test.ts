@@ -114,9 +114,9 @@ describe('monitor CRUD (authenticated)', () => {
 
   it('creates, lists, patches and deletes a monitor with tags and channels', async () => {
     const channel = await post('/api/v1/notifications', {
-      type: 'webhook',
+      type: 'resend',
       name: 'Ops hook',
-      config: { url: 'https://hooks.example.com/x' },
+      config: { apiKey: 're_test', from: 'uptime@example.com', to: 'ops@example.com' },
     })
     expect(channel.status).toBe(201)
     const channelId = channel.body.channel.id as number
@@ -284,9 +284,15 @@ describe('notification channels', () => {
 
   it('creates, lists (without config), tests and deletes channels', async () => {
     const created = await post('/api/v1/notifications', {
-      type: 'webhook',
+      type: 'resend',
       name: 'Ops',
-      config: { url: 'https://hooks.example.internal/nope' },
+      config: {
+        apiKey: 're_test',
+        from: 'uptime@example.com',
+        to: 'ops@example.com',
+        // Unreachable: the test-send below must fail without leaving localhost.
+        apiBaseUrl: 'http://127.0.0.1:9',
+      },
     })
     expect(created.status).toBe(201)
 
@@ -304,13 +310,21 @@ describe('notification channels', () => {
     expect((await agent.get('/api/v1/notifications')).body.channels).toHaveLength(0)
   })
 
-  it('rejects invalid channel type and config', async () => {
+  it('rejects removed channel types and invalid configs', async () => {
     expect(
       (await post('/api/v1/notifications', { type: 'smoke-signals', name: 'x', config: {} }))
         .status,
     ).toBe(400)
+    // Types removed by ADR-0007 fail loudly instead of failing inert at send time.
     expect(
       (await post('/api/v1/notifications', { type: 'webhook', name: 'x', config: {} })).status,
+    ).toBe(400)
+    expect(
+      (await post('/api/v1/notifications', { type: 'telegram', name: 'x', config: {} })).status,
+    ).toBe(400)
+    // A kept type with a config that fails its schema is still a 400.
+    expect(
+      (await post('/api/v1/notifications', { type: 'resend', name: 'x', config: {} })).status,
     ).toBe(400)
   })
 })

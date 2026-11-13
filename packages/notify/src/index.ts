@@ -4,19 +4,7 @@ import type { ChannelType, NotifyPayload } from './types.js'
 export { CHANNEL_TYPES } from './types.js'
 export type { ChannelType, NotifyPayload } from './types.js'
 export { channelConfigSchemas, parseChannelConfig } from './config.js'
-export type {
-  ChannelConfig,
-  ChannelConfigMap,
-  DiscordConfig,
-  EmailConfig,
-  GotifyConfig,
-  NtfyConfig,
-  ResendConfig,
-  SlackConfig,
-  TelegramConfig,
-  WebhookConfig,
-} from './config.js'
-export { renderTemplate } from './template.js'
+export type { ChannelConfig, ChannelConfigMap, ResendConfig } from './config.js'
 export { sendResend, sendToChannel } from './providers.js'
 
 /** Channel row as the notifier sees it; `config` is the already-decrypted config. */
