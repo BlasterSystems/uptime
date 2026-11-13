@@ -7,8 +7,19 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-11-13
+
 ### Changed
 
+- Web UI aligned with **BlasterSystems Design System v1.1** (identity v0.2):
+  oklch palette refresh (the dark theme is considerably darker), product type
+  scale on a 16px body, ledger-line form fields (bottom rule, vermilion
+  focus), 36/44/48 buttons with flush-left labels, sans tabs with an inset
+  active bar, sunken-paper sidebar with the thread active bar, paper-wash
+  dialog scrims, bottom-left toasts, hairline alert rows, lucide icon set,
+  and a dashboard built from StatCard/InfoTip/Mark with hairline monitor
+  rows, an annotated response chart and a wash flash on fresh heartbeats.
+  Upgraded by epic UP-9 (UP-10…UP-15).
 - License switched from MIT to **Apache-2.0**.
 - Test stack upgraded to vitest 4 (ast-aware coverage remapper; per-package
   coverage thresholds re-pinned to the vitest-4 baseline).
