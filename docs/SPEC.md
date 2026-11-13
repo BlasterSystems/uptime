@@ -177,6 +177,11 @@ additional feed endpoints; email remains the push path.
 - Per-channel config stored **encrypted**; per-monitor routing; global defaults; test
   button; per-monitor `resendNotificationInterval`; rate-limited to one
   message per monitor per `resendNotificationInterval`.
+- Every outbound email — notification channels, test sends and password recovery —
+  renders a shared design-system HTML frame (`packages/notify/src/templates.ts`):
+  tables + inline styles, fixed light palette, a 2px vermilion status line when down,
+  DM Mono data rows (latency, downtime, consecutive failures) and the brand lockup,
+  with a structured plain-text part alongside. Subject lines stay the payload title.
 
 ## 8. Security
 
