@@ -216,7 +216,10 @@ export function renderEmailFrame(input: EmailFrameInput): { html: string; text: 
 export function renderNotifyEmail(payload: NotifyPayload): { html: string; text: string } {
   const isStatusPage = payload.tags.includes('status-page')
   const event = isStatusPage ? payload.tags.find((tag) => tag !== 'status-page') : undefined
-  const accent = payload.status === 'down' ? 'down' : 'up'
+  // Maintenance dispatches ride status 'down' (the component is degraded), but
+  // planned maintenance is not an alarm: keep the ink line for it.
+  const maintenance = event !== undefined && event.startsWith('maintenance_')
+  const accent = payload.status === 'down' && !maintenance ? 'down' : 'up'
   const rows: EmailRow[] = []
   if (payload.latencyMs !== null && payload.latencyMs > 0) {
     rows.push({ label: 'Latency', value: `${payload.latencyMs} ms` })

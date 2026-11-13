@@ -140,6 +140,18 @@ describe('renderNotifyEmail', () => {
     expect(text).toContain('Event: incident opened')
   })
 
+  it('keeps maintenance events on the ink accent even while degraded', () => {
+    const { html } = renderNotifyEmail({
+      ...base,
+      title: 'acme status: maintenance started for EU edge',
+      body: 'Scheduled maintenance is in progress for EU edge.',
+      tags: ['status-page', 'maintenance_start'],
+    })
+    expect(html).toContain('height:2px;background-color:#161b22')
+    expect(html).not.toContain('#da452c')
+    expect(html).toContain('maintenance started')
+  })
+
   it('marks repeat notifications', () => {
     const { html } = renderNotifyEmail({ ...base, downtimeMs: 60_000 })
     expect(html).toContain('Uptime monitor · repeat')
