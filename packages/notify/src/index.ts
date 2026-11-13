@@ -6,6 +6,8 @@ export type { ChannelType, NotifyPayload } from './types.js'
 export { channelConfigSchemas, parseChannelConfig } from './config.js'
 export type { ChannelConfig, ChannelConfigMap, ResendConfig } from './config.js'
 export { sendResend, sendToChannel } from './providers.js'
+export { escapeHtml, humanDuration, renderEmailFrame, renderNotifyEmail } from './templates.js'
+export type { EmailAction, EmailFrameInput, EmailRow } from './templates.js'
 
 /** Channel row as the notifier sees it; `config` is the already-decrypted config. */
 export interface ChannelLike {

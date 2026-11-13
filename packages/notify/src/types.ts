@@ -12,4 +12,6 @@ export interface NotifyPayload {
   latencyMs: number | null
   downtimeMs: number | null
   tags: string[]
+  /** Consecutive failed checks at send time; set on down alerts, absent otherwise. */
+  failures?: number
 }

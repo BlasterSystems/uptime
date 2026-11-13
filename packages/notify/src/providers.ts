@@ -1,5 +1,6 @@
 import { parseChannelConfig } from './config.js'
 import type { ResendConfig } from './config.js'
+import { renderNotifyEmail } from './templates.js'
 import type { ChannelType, NotifyPayload } from './types.js'
 
 /** JSON request with the shared non-2xx handling: status + first 200 chars. */
@@ -26,8 +27,10 @@ export function buildResendMessage(config: ResendConfig, payload: NotifyPayload)
   to: string[]
   subject: string
   text: string
+  html: string
 } {
-  return { from: config.from, to: [config.to], subject: payload.title, text: payload.body }
+  const { text, html } = renderNotifyEmail(payload)
+  return { from: config.from, to: [config.to], subject: payload.title, text, html }
 }
 
 export async function sendResend(config: ResendConfig, payload: NotifyPayload): Promise<void> {
