@@ -43,7 +43,7 @@ uptime-monitoring/                 (one repository — pnpm workspaces)
 ├── packages/
 │   ├── core/          Monitor/check engine, expected-conditions, templating, config schema
 │   ├── db/            Drizzle schema + migrations (SQLite; Postgres dialect planned, §14)
-│   ├── notify/        Notification providers (Telegram, Discord, Slack, email, Ntfy, Gotify, webhook)
+│   ├── notify/        Notification delivery (Email via the Resend HTTP API)
 │   └── agent/         Optional remote agent (same check engine; WS attempt + HTTP fallback)
 ├── docker/            Dockerfile (multi-stage, one image, subcommand entrypoint), compose
 └── docs/              This spec, research, plan, ADRs
@@ -169,13 +169,13 @@ Admin API for automation (used by the OpenAPI bootstrap script, §9): same CRUD 
 
 ## 7. Notifications
 
-Providers v1: Telegram, Discord, Slack (incoming webhook), Email (SMTP), Email
-(Resend HTTP API), Ntfy, Gotify, generic Webhook (JSON template). Phase 2:
-PagerDuty Events v2, Opsgenie, SMS (Twilio).
+Providers: **Email via the Resend HTTP API** (per-channel `resend` config:
+`apiKey`, `from`, `to`). Pull-based delivery is served by the RSS/Atom feeds of
+every published status page (`/status/:slug/rss.xml`, `/atom.xml`, §11) — no
+additional feed endpoints; email remains the push path.
 
 - Per-channel config stored **encrypted**; per-monitor routing; global defaults; test
-  button; per-monitor `resendNotificationInterval`; templating with
-  `{{monitor.name}} {{status}} {{downtime}} {{latency}} {{tags}}`; rate-limited to one
+  button; per-monitor `resendNotificationInterval`; rate-limited to one
   message per monitor per `resendNotificationInterval`.
 
 ## 8. Security
@@ -255,7 +255,7 @@ scope is tracked in §14 below.
 ## 13. Explicitly deferred
 
 Multi-user RBAC beyond admin/editor/viewer, LDAP/OIDC SSO, HA/clustering, distributed
-TSDB backends, mobile push (via Ntfy/Telegram instead), k8s auto-discovery, synthetic
+TSDB backends, mobile push, k8s auto-discovery, synthetic
 browser checks (Playwright), SNMP get-walks.
 
 ## 14. Deviations from the spec
