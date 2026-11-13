@@ -123,6 +123,7 @@ describe('renderNotifyEmail', () => {
     expect(html).toContain('height:2px;background-color:#161b22')
     expect(html).toContain('Recovered after 4m 12s (42 ms).')
     expect(html).not.toContain('#da452c')
+    expect(html).not.toContain('repeat')
   })
 
   it('labels status-page payloads with the event and keeps the body prose', () => {
