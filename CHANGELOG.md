@@ -7,6 +7,14 @@ All notable, user-visible changes are recorded here. Format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The mailer test-send (`Settings → General → Send test email`) now distinguishes
+  a disabled mailer from an unconfigured one: a stored API key and from-address
+  with the Enabled switch off answers `mailer_disabled` ("Email delivery is
+  disabled — switch it on and save, then retry.") instead of the misleading
+  "not configured yet". (UP-25)
+
 ## [2.0.0] — 2026-11-13
 
 ### Changed

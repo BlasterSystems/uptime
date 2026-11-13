@@ -628,6 +628,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_id: 'That item no longer exists.',
   invalid_token: 'This reset link is no longer valid. Request a new one.',
   mailer_not_configured: 'Email delivery is not configured yet.',
+  mailer_disabled: 'Email delivery is disabled — switch it on and save, then retry.',
 }
 
 /**

@@ -1073,7 +1073,9 @@ export function createApp(opts: AppOptions): Express {
       return res.status(400).json({ error: 'to must be a non-empty string' })
     }
     if (mailer === undefined || !mailer.configured) {
-      return res.status(400).json({ error: 'mailer_not_configured' })
+      return res
+        .status(400)
+        .json({ error: mailer?.disabled ? 'mailer_disabled' : 'mailer_not_configured' })
     }
     const title = db.getSetting('title') ?? 'Uptime Monitoring'
     try {
