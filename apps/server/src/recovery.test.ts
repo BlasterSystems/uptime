@@ -18,18 +18,21 @@ interface CapturedMail {
   html?: string
 }
 
-function stubMailer(configured = true): {
+function stubMailer(configured = true, disabled = false): {
   mailer: MailerLike
   sent: CapturedMail[]
-  state: { configured: boolean }
+  state: { configured: boolean; disabled: boolean }
 } {
   const sent: CapturedMail[] = []
-  const state = { configured }
+  const state = { configured, disabled }
   return {
     state,
     mailer: {
       get configured(): boolean {
         return state.configured
+      },
+      get disabled(): boolean {
+        return state.disabled
       },
       async sendMail(input: CapturedMail): Promise<void> {
         sent.push(input)
@@ -166,6 +169,7 @@ describe('password recovery', () => {
   it('stays 204 when the mailer fails', async () => {
     const failing: MailerLike = {
       configured: true,
+      disabled: false,
       sendMail: async () => {
         throw new Error('smtp exploded')
       },
@@ -290,6 +294,13 @@ describe('mailer settings API', () => {
     const unconfigured = await admin.post('/api/v1/mailer/test').set('x-csrf-token', token).send({})
     expect(unconfigured.status).toBe(400)
     expect(unconfigured.body.error).toBe('mailer_not_configured')
+
+    // Key and from-address stored but the switch is off: a distinct, fixable state.
+    stub.state.disabled = true
+    const disabled = await admin.post('/api/v1/mailer/test').set('x-csrf-token', token).send({})
+    expect(disabled.status).toBe(400)
+    expect(disabled.body.error).toBe('mailer_disabled')
+    stub.state.disabled = false
 
     // Configure through the API itself, then send to the caller's address.
     await admin.put('/api/v1/mailer').set('x-csrf-token', token).send({

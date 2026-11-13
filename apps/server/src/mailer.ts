@@ -21,6 +21,9 @@ export interface MailInput {
 export interface MailerLike {
   /** False until the enabled flag, an API key and a from-address are stored. */
   readonly configured: boolean
+  /** Reason `configured` is false when a key and from-address are stored but the
+   *  enabled switch is off — the state a single toggle fixes. */
+  readonly disabled: boolean
   sendMail(input: MailInput): Promise<void>
 }
 
@@ -30,6 +33,11 @@ export function createMailer(deps: { db: Database; secrets: SecretBox; apiBaseUr
     get configured(): boolean {
       const settings = db.getMailerSettings()
       return settings.enabled && settings.apiKeyEnc !== null && settings.fromAddress !== null
+    },
+
+    get disabled(): boolean {
+      const settings = db.getMailerSettings()
+      return !settings.enabled && settings.apiKeyEnc !== null && settings.fromAddress !== null
     },
 
     async sendMail(input: MailInput): Promise<void> {
