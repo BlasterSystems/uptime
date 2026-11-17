@@ -47,7 +47,7 @@ describe('monitorTarget', () => {
 })
 
 describe('downSnippetOf', () => {
-  const downBeat = { status: 'down' as const, responseSnippet: 'connect ECONNREFUSED 10.0.10.4:8081' }
+  const downBeat = { status: 'down' as const, responseSnippet: 'connect ECONNREFUSED 203.0.113.7:8081' }
   const upBeat = { status: 'up' as const, responseSnippet: null }
 
   it('hides the snippet once the monitor has recovered', () => {
@@ -60,14 +60,14 @@ describe('downSnippetOf', () => {
 
   it('shows the current failure while the newest beat is down', () => {
     expect(downSnippetOf(downBeat, [downBeat, upBeat])).toBe(
-      'connect ECONNREFUSED 10.0.10.4:8081',
+      'connect ECONNREFUSED 203.0.113.7:8081',
     )
   })
 
   it('falls back to the window snippet when the header beat carries none', () => {
     // A fresh SSE down beat inherits the previous snippet only after refresh.
     expect(downSnippetOf({ status: 'down', responseSnippet: null }, [downBeat, upBeat])).toBe(
-      'connect ECONNREFUSED 10.0.10.4:8081',
+      'connect ECONNREFUSED 203.0.113.7:8081',
     )
   })
 
