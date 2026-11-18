@@ -15,7 +15,7 @@ withDefaults(defineProps<{ title: string; subtitle?: string }>(), {})
           <span class="mark-square" />
         </span>
         <span class="brand-text">
-          <span class="brand-name">Uptime Monitoring</span>
+          <span class="brand-name">Uptime</span>
           <span class="brand-endorsement">A BlasterSystems product</span>
         </span>
       </header>
