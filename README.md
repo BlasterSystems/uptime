@@ -11,6 +11,15 @@ Inspired by [Uptime-Kuma](https://github.com/louislam/uptime-kuma),
 [Healthchecks](https://github.com/healthchecks/healthchecks) — see
 [docs/research/oss-comparison.md](docs/research/oss-comparison.md) for the full analysis.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Monitor detail](docs/screenshots/monitor-detail.png) |
+| ![Public status page](docs/screenshots/status-page.png) | ![Sign in](docs/screenshots/login.png) |
+
+*Example instance with sample data, dark theme.*
+
 ## Goals
 
 1. **One repository, one image.** Everything ships as a single container
