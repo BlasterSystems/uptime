@@ -12,6 +12,7 @@ Read only the document relevant to the current task.
 - [Status pages plan](STATUS_PAGES_PLAN.md) — review + delivered waves 1–2 (wave 3 deferred).
 - [Integration guide](../apps/web/src/views/DocsView.vue) — in-app developer docs at `/docs` (API, push heartbeats, SSE, metrics, badges); rendered by the web UI.
 - [Agent-guided maintenance](AGENT_GUIDED.md) — inspect, preview, human handoff, and trust boundaries.
+- [Agent setup](AGENT_SETUP.md) — agent tooling layers, validators, hooks, MCP servers, and deploy gating.
 - [ADR index](adr/README.md) — decision catalog; read this before individual ADRs.
 
 ## When needed
